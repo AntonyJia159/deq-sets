@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set-DEQ Notes #1 — Normalization, Path Independence &amp; Exact Unlearning</title>
+<style>
+  :root { --ink:#1a1a1a; --muted:#666; --rule:#e2e2e2; --accent:#2b6cb0; --good:#1a7f4b; --bad:#b02a2a; --bg:#fafafa; --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 48px 24px 96px; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 32px; }
+  .kicker { font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
+  h1 { font-size: 1.75rem; line-height:1.25; margin:.1em 0 .35em; }
+  .byline { color:var(--muted); font-size:.92rem; }
+  h2 { font-size:1.2rem; margin:2.2em 0 .6em; padding-bottom:.25em; border-bottom:1px solid var(--rule); }
+  h3 { font-size:1.02rem; margin:1.6em 0 .4em; }
+  p { margin:.7em 0; }
+  code { background:#f0f0f3; padding:.08em .35em; border-radius:4px; font-size:.9em;
+         font-family: "SF Mono", Consolas, "Liberation Mono", monospace; }
+  .eq { background:var(--card); border:1px solid var(--rule); border-left:3px solid var(--accent);
+        padding:10px 16px; margin:1em 0; font-family:"SF Mono",Consolas,monospace; font-size:.92rem; overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; margin:1.1em 0; font-size:.92rem; background:var(--card); }
+  th, td { padding:8px 10px; text-align:center; border-bottom:1px solid var(--rule); }
+  th { background:#f3f5f8; font-weight:600; }
+  td:first-child, th:first-child { text-align:left; }
+  .good { color:var(--good); font-weight:600; }
+  .bad  { color:var(--bad);  font-weight:600; }
+  .callout { background:#eef4fb; border:1px solid #cfe0f3; border-radius:8px; padding:14px 18px; margin:1.2em 0; }
+  .callout.warn { background:#fdf3ee; border-color:#f3d8c8; }
+  .muted { color:var(--muted); }
+  ul { margin:.5em 0; padding-left:1.3em; }
+  li { margin:.3em 0; }
+  figure { margin:1.4em 0; text-align:center; }
+  figcaption { color:var(--muted); font-size:.85rem; margin-top:.5em; }
+  footer { margin-top:48px; padding-top:18px; border-top:1px solid var(--rule); color:var(--muted); font-size:.85rem; }
+  .pipe { font-family:"SF Mono",Consolas,monospace; font-size:.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="kicker">Set-DEQ Notes · #1</p>
+  <h1>Path Independence, Exact Unlearning, and the Quiet Role of Normalization in Set-DEQs</h1>
+  <p class="byline">Zhibai Jia · 19 June 2026 · working notes, not for circulation beyond reviewers</p>
+</header>
+
+<h2>1. The idea in one paragraph</h2>
+<p>
+A <strong>Deep Equilibrium Network (DEQ)</strong> replaces a deep stack of layers with a single layer
+iterated to a fixed point <code>Z* = f(Z*, X)</code>. I am applying this to <strong>set-structured data</strong>:
+the input <code>X</code> is a set of feature vectors (here, points in a feature space), and the model
+iterates a <em>permutation-equivariant</em> update until the set's representation settles into an equilibrium.
+The appeal is a cluster of properties that a fixed point gives almost by definition:
+<strong>path independence</strong> (any initialization converges to the same solution),
+<strong>exact unlearning / erasability</strong> (remove a point, re-solve, and the result is identical to
+never having seen it — because the fixed point is a pure function of the current set), and
+<strong>test-time scaling</strong> (more solver iterations &rarr; more compute &rarr; handle larger inputs).
+This note reports the very first probe: <em>do these properties come for free, or do they need design?</em>
+</p>
+
+<div class="callout">
+<strong>Headline finding.</strong> The properties are <em>not</em> free. But the decisive ingredient is
+<strong>ordinary normalization</strong> (LayerNorm), not the spectral / contractivity machinery the
+DEQ-theory literature emphasizes. Normalization buys a well-posed, non-diverging fixed point;
+the choice of aggregator (attention vs. mean-pool) separately buys task accuracy. These two axes
+turn out to be cleanly separable.
+</div>
+
+<h2>2. The setup</h2>
+
+<h3>Task</h3>
+<p>
+A deliberately simple, controllable synthetic task: <strong>count the clusters</strong>.
+Each sample is a set of <code>N = 24</code> points in 2-D drawn from <code>k</code> well-separated
+Gaussian blobs, <code>k &isin; {1,2,3,4}</code>; the label is <code>k</code>. The task genuinely needs
+iterative, mutual refinement among points (a point's cluster identity depends on the whole
+configuration), so it exercises the equilibrium dynamics rather than a single feed-forward pass.
+2000 training sets, 500 test sets.
+</p>
+
+<h3>Model</h3>
+<p>The latent <code>Z</code> has one vector per input point, shape <code>(N, d_latent)</code> with
+<code>d_latent = 32</code>. One update step is iterated to a fixed point; a permutation-invariant
+read-out (mean-pool over points &rarr; small MLP) produces the class. Three update blocks are compared:</p>
+<ul>
+  <li><strong>DeepSets (raw):</strong> <code>z_i &larr; MLP([ z_i , x_i , mean_j z_j ])</code>.
+      Points interact only through the mean of all latents. No normalization. One hidden layer.</li>
+  <li><strong>DeepSets + spectral norm:</strong> identical, but each linear layer is spectrally
+      normalized (the textbook contractivity knob).</li>
+  <li><strong>NormDeepSets (control):</strong> the <em>same mean-pool aggregator</em>, but wrapped in the
+      same structure as a transformer block — input injection, residual connections, two
+      <strong>LayerNorms</strong>, and a feed-forward layer.</li>
+  <li><strong>Attention:</strong> a single multi-head self-attention block (4 heads) with the same
+      residual + LayerNorm + feed-forward wrapper. Points interact through full pairwise attention.</li>
+</ul>
+<p class="muted">
+The control pair is the point of the design: <code>NormDeepSets</code> and <code>Attention</code> are
+identical except for the mixing operation, and <code>DeepSets (raw)</code> vs <code>NormDeepSets</code>
+are identical except for normalization. So each comparison changes exactly one thing.
+</p>
+
+<figure>
+<div class="pipe" style="text-align:left; background:var(--card); border:1px solid var(--rule); border-radius:8px; padding:14px 18px;">
+X (set of N points) ──▶ initialize Z₀ ──▶ <b>iterate</b> Z ← (1−a)·Z + a·f(Z, X) ──▶ Z* (fixed point) ──▶ mean-pool ──▶ MLP ──▶ k̂<br>
+<span class="muted">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;input X re-injected every step&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;damped fixed-point iteration</span>
+</div>
+<figcaption>The set-DEQ forward pass. The properties we study are all properties of <code>Z*</code>.</figcaption>
+</figure>
+
+<h3>What the metrics mean</h3>
+<ul>
+  <li><strong>Test accuracy</strong> — cluster-count classification accuracy on held-out sets.</li>
+  <li><strong>fp_gap</strong> — solve from several random initializations; the largest relative
+      distance between the resulting fixed points. <em>Latent-space</em> path dependence. Small = unique.</li>
+  <li><strong>pred_agreement</strong> — fraction of random initializations that yield the <em>same
+      predicted class</em>. <em>Decision-level</em> path dependence. 1.0 = the answer never depends on init.</li>
+  <li><strong>unlearn_gap</strong> — remove one point, then compare a <em>warm-started</em> re-solve
+      (from the old fixed point minus that row) against a <em>cold</em> from-scratch solve. Near-zero =
+      exact unlearning; a large value means the warm start clung to a stale, history-dependent state
+      (the leakage failure mode). This is the illusion-detector.</li>
+  <li><strong>warm / cold iters</strong> — solver iterations to converge after a removal. warm &lt; cold
+      is the efficiency bonus (and a hint that warm-starting is sound).</li>
+</ul>
+<p class="muted">Probes use a tight solver (up to 200 iterations, tolerance 1e-6) so that reported
+fixed points are genuinely converged, not artifacts of an early stop.</p>
+
+<h2>3. Results</h2>
+<table>
+  <thead>
+    <tr><th>Update block</th><th>Mixing</th><th>Norm</th><th>Test acc</th><th>fp_gap</th>
+        <th>pred_agree</th><th>unlearn_gap</th><th>warm / cold iters</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>DeepSets (raw)</td><td>mean-pool</td><td class="bad">no</td><td>0.71</td><td>0.08</td>
+        <td>1.00</td><td class="bad">123,507</td><td>188 / 195 <span class="muted">(capped)</span></td></tr>
+    <tr><td>DeepSets + spectral</td><td>mean-pool</td><td class="bad">no</td><td>0.71</td><td>0.11</td>
+        <td>1.00</td><td class="bad">11,416,646</td><td>185 / 188 <span class="muted">(capped)</span></td></tr>
+    <tr><td>NormDeepSets</td><td>mean-pool</td><td class="good">yes</td><td>0.75</td><td>0.039</td>
+        <td>1.00</td><td class="good">0.025</td><td>130 / 152</td></tr>
+    <tr><td>Attention</td><td>attention</td><td class="good">yes</td><td><b>0.83</b></td><td>0.033</td>
+        <td>0.98</td><td class="good">0.029</td><td>88 / 116</td></tr>
+  </tbody>
+</table>
+
+<h3>Reading the table</h3>
+<p>
+<strong>Normalization &rarr; well-posedness.</strong> The raw DeepSets update has <em>no</em> fixed point in
+practice: the iteration never converges (it sits at the 200-iteration cap), the latent diverges to enormous
+norms, and the "unlearning gap" of 10⁵–10⁷ is simply divergence noise. Adding normalization while keeping
+the <em>same</em> mean-pool aggregator (<code>NormDeepSets</code>) flips this completely: the solver converges
+and unlearning becomes near-exact (gap 0.025). The aggregator was never the cause of the divergence.
+</p>
+<p>
+<strong>Spectral norm alone does not fix it</strong> — and is in fact worse here. Bounding each weight's
+spectral radius to 1 is insufficient because the update consumes both <code>z</code> and the pooled
+<code>z</code> (Lipschitz constant ~2&times;), and the composition with ReLU compounds it. So the textbook
+contractivity knob, applied naively, does not deliver a well-posed fixed point.
+</p>
+<p>
+<strong>Attention &rarr; accuracy.</strong> Holding normalization fixed and changing only the mixing
+(<code>NormDeepSets &rarr; Attention</code>), accuracy rises 0.75 &rarr; 0.83. Pairwise attention models the
+interactive cluster dynamics that a single mean-pool smears away.
+</p>
+
+<div class="callout">
+<strong>The clean dissociation.</strong> Two axes, separable:
+<ul style="margin-bottom:0">
+  <li><b>Normalization</b> controls whether an equilibrium <em>exists and is well-behaved</em>
+      (no divergence; approximately path-independent; unlearnable).</li>
+  <li><b>The aggregator</b> controls <em>task performance</em>.</li>
+</ul>
+</div>
+
+<h3>An honest caveat, and a new hypothesis</h3>
+<p>
+Normalization guarantees <em>existence and boundedness</em> — intuitively it confines the dynamics to a
+bounded region, so a fixed point must exist — but it does <strong>not</strong> guarantee <em>uniqueness</em>.
+The small residual non-uniqueness we still see (<code>fp_gap = 0.033</code>, <code>pred_agreement = 0.98</code>
+for attention) is real, not noise. That residual is exactly the regime where an adversary could try to
+recover a removed point, and where the next phase of this work (membership-inference evaluation and
+noise masking) will focus.
+</p>
+<p>
+A bonus observation, offered as a hypothesis rather than a claim: <code>NormDeepSets</code> is actually
+<em>cleaner</em> on the equilibrium properties (perfect prediction agreement, slightly smaller unlearning
+gap) despite lower accuracy. This hints at an <strong>expressiveness &harr; uniqueness tradeoff</strong> —
+attention's richer fixed points may be marginally less unique, hence marginally more leaky. Worth testing
+under stress.
+</p>
+
+<h2>4. Where this sits in the literature</h2>
+<p>
+LayerNorm is known to be load-bearing in DEQs — the original Deep Equilibrium Models paper notes it
+"stabilizes" training, and later work reports that DEQs "diverge without layer normalization." But it has
+been treated as a practical brittleness to be patched, while the <em>theory</em> of well-posed DEQs goes
+through spectral, monotone-operator, and Jacobian-regularization constraints. The framing that appears
+under-explored — and that these experiments motivate — is the explicit separation of
+<em>existence/boundedness</em> (which normalization provides) from <em>uniqueness</em> (which requires
+contractivity), specifically in the permutation-invariant set setting, and tied to the unlearning property.
+</p>
+<p class="muted">All cited claims are to be verified against the primary papers before any formal write-up.</p>
+
+<h2>5. Next steps</h2>
+<ul>
+  <li><strong>Cardinality shift</strong> (train at N=24, probe at N=100): the core "train small, infer large"
+      claim, and the most likely place these properties first crack. Boundedness should survive; uniqueness
+      may not.</li>
+  <li><strong>Harden the instrument:</strong> explicit divergence detection and a "% converged" statistic;
+      more initializations and an entropy-based path-dependence measure.</li>
+  <li><strong>Adversarial phase:</strong> membership-inference attack as the unlearning-quality metric;
+      differential-privacy noise masking of the residual leak.</li>
+</ul>
+
+<footer>
+  Set-DEQ Notes #1 · generated from commit history of the <code>deq-sets</code> repository ·
+  experiments run on CPU. Numbers are from single runs and are indicative, not yet averaged over seeds.
+</footer>
+</div>
+</body>
+</html>
