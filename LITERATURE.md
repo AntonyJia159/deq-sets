@@ -104,7 +104,28 @@ Role legend: **[backbone]** build on it · **[contrast]** related but different 
 - ⬜ **[method]** Abadi et al. — *Deep Learning with Differential Privacy (DP-SGD)*,
   CCS 2016. Verify if we go the DP route.
 
-## G. Theory anchors / inspiration
+## G. Cellular automata / learned local dynamics (the CA thread)
+
+- ✅ **[prior/contrast]** Grattarola, Livi, Alippi — *Learning Graph Cellular Automata
+  (GNCA)*, NeurIPS 2021. arXiv:2110.14237. GNN as a learned CA transition rule, iterated
+  over graphs; experiments on Voronoi rules, Boids flocking, and point-cloud morphogenesis.
+  Stability of target states achieved via BPTT + cache/replay (Growing-NCA trick).
+  → **Our relationship:** the closest realization of the CA→learned-dynamics→attractor idea
+  behind our project, and a sharp contrast. They solve dynamics by **BPTT** and enforce
+  attractors by **training-time replay**; we solve an **implicit fixed point** and get
+  well-posedness from **normalization/contractivity**. They operate on **graphs**; we on
+  **sets** (no given edges). They explicitly report **oscillating orbits instead of
+  convergence** — independent evidence that iterated local updates need structure to be
+  well-posed (corroborates our normalization finding). They target **geometric** shapes;
+  we target **semantic** representations + downstream tasks.
+- ⬜ **[inspiration/contrast]** Mordvintsev et al. — *Growing Neural Cellular Automata*,
+  Distill 2020. The morphogenesis + **regeneration-after-damage** result. KEY CONTRAST:
+  NCA *regenerates* removed parts (remembers & restores via a trained-in attractor) — the
+  OPPOSITE of our exact unlearning, which wants removed points to leave no trace. Same
+  surface op ("remove, re-run"), opposite intent; a clean way to define erasability by
+  negative example.
+
+## H. Theory anchors / inspiration
 
 - 🟡 **[theory]** Ramsauer et al. — *Hopfield Networks is All You Need*, ICLR 2021.
   arXiv:2008.02217. Modern Hopfield update = attention; energy descent to attractors. The
@@ -114,8 +135,6 @@ Role legend: **[backbone]** build on it · **[contrast]** related but different 
   Permutation Symmetries*, 2022. arXiv:2209.04836. Permutation symmetry in weight space
   (advisor-suggested). Tangential — conceptual resonance on permutation invariance, not
   a direct method dependency.
-- ⬜ **[inspiration]** Mordvintsev et al. — *Growing Neural Cellular Automata*, Distill 2020.
-  The CA/local-update inspiration for emergent set dynamics. Cite if narrative uses it.
 
 ---
 
