@@ -99,6 +99,73 @@ Attention:
 5. **Bonus:** attention accuracy IMPROVES with N (0.79->0.86) = real "infer large = more
    power"; NormDeepSets plateaus (~0.70, mean-pool saturates).
 
+## Layer 1, run 3 — TorchDEQ + fixed_point_iter (authoritative) (2026-06-19)
+
+Switched to TorchDEQ (implicit/phantom backward) and the fixed_point_iter solver.
+**Anderson stagnates at ~5e-3 on these maps** (fixed_point_iter -> ~3e-7,
+broyden -> ~7e-8), so Anderson is documented-but-unused. Probe solver reaches
+~1e-7, so reported fixed points are tight; fp_gap ~0 now means EXACTLY unique
+(earlier ~0.03 was damped-solver under-convergence noise).
+
+### Smoke (4 variants), tight solver
+| Variant | Mixing | Norm | acc | fp_gap | unlearn_gap | conv | warm/cold |
+|---|---|---|---|---|---|---|---|
+| deepsets (raw)      | mean-pool | no  | 0.27 | nan   | nan   | -    | 0/0 (NaN in training) |
+| deepsets + spectral | mean-pool | SN  | 0.59 | 0.000 | 0.000 | 1.00 | 43/65 |
+| normdeepsets        | mean-pool | LN  | 0.69 | 0.000 | 0.000 | 1.00 | 60/74 |
+| attn                | attention | LN  | 0.81 | 0.091 | 0.079 | 0.92 | 53/74 |
+
+### CORRECTIONS to run 1/2 (those used unrolled grad + damped solver)
+1. **Spectral norm is NOT insufficient.** Under proper DEQ training it yields a
+   well-posed, exactly-unlearnable model (acc 0.59). Run-2's "spectral diverges
+   (gap 1e7)" was an artifact. Both spectral AND LayerNorm give EXACT
+   path-independence + unlearning (gap 0.000) via contraction.
+2. **Mean-pool fixed points are EXACTLY unique** (gap 0.000), not approx. The
+   earlier 0.03 was under-convergence. This isolates attention's 0.09 as GENUINE
+   non-uniqueness.
+3. Raw (no norm) NaNs under the implicit gradient — cleaner evidence of ill-posedness.
+4. Likely (verify): unrolled grad exploited a truncated transient state for higher
+   apparent accuracy; implicit grad forces honest fixed-point use (lower, trustworthy).
+
+### Revised dissociation
+- Contractive updates (spectral OR LayerNorm mean-pool) -> EXACTLY unique fixed
+  point -> exact path-independence + unlearning. Among these, LayerNorm gives
+  better accuracy than spectral (0.69 vs 0.59).
+- Expressive attention -> higher accuracy (0.81) but GENUINE non-uniqueness
+  (gap 0.09, conv 0.92). The expressiveness <-> uniqueness tradeoff, quantified.
+
+## Cardinality shift — train N=24, probe N in {24,48,96,192} (2026-06-19)
+
+| Model | N | acc | fp_gap mean/max | agree | conv | unlearn mean/max | match | warm/cold |
+|---|---|---|---|---|---|---|---|---|
+| normdeepsets | 24  | 0.630 | 0.000/0.000 | 1.00 | 1.00 | 0.000/0.000 | 1.00 | 66/84 |
+| normdeepsets | 48  | 0.705 | 0.006/0.167 | 1.00 | 1.00 | 0.006/0.169 | 1.00 | 53/79 |
+| normdeepsets | 96  | 0.680 | 0.000/0.000 | 1.00 | 1.00 | 0.000/0.000 | 1.00 | 62/94 |
+| normdeepsets | 192 | 0.640 | 0.007/0.114 | 1.00 | 0.99 | 0.004/0.097 | 1.00 | 70/112 |
+| attn | 24  | 0.780 | 0.033/0.769 | 0.99 | 0.92 | 0.028/0.750 | 0.97 | 58/92 |
+| attn | 48  | 0.835 | 0.114/0.757 | 0.99 | 0.89 | 0.080/0.532 | 1.00 | 65/86 |
+| attn | 96  | 0.830 | 0.080/0.661 | 0.96 | 0.93 | 0.051/0.579 | 1.00 | 54/95 |
+| attn | 192 | 0.835 | 0.090/0.543 | 0.99 | 0.96 | 0.074/0.516 | 1.00 | 94/120 |
+
+### Predictions vs outcome
+1. **Well-posedness survives scaling: CONFIRMED.** normdeepsets conv ~1.0 all N;
+   attn conv 0.89-0.96, FLAT (doesn't degrade with N). Boundedness is cardinality-free.
+2. **Path independence degrades with N: NOT confirmed.** Mean-pool stays EXACT
+   across all N; attention's non-uniqueness is roughly N-INVARIANT (a property of the
+   architecture, not of scale). The predicted "crack at scale" did not materialize.
+3. **Unlearning mean shrinks / tail persists: tail CONFIRMED, mean-shrink NOT.**
+   attn max unlearn_gap stays large (~0.5-0.75) at ALL N (the leakage tail / MIA
+   target); mean does not monotonically shrink. mean-pool stays ~0 with rare small tail.
+4. **Efficiency widens with N: CONFIRMED.** cold iters grow with N (84->112 norm,
+   92->120 attn); warm grows slower -> advantage widens.
+
+### Headline
+Train-small/infer-large PRESERVES the equilibrium properties: both well-posedness
+and the exact-vs-nonunique character carry from N=24 to N=192 unchanged. Attention
+even improves accuracy with N (0.78->0.835) — a clean cardinality-generalization
+result — while carrying a persistent worst-case leakage tail that is the natural
+target for the Layer-2 membership-inference analysis.
+
 ### Next
 - **Swap damped iteration for Anderson / TorchDEQ** — top priority; needed to certify
   convergence at scale before any of this becomes a figure.

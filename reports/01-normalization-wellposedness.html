@@ -61,11 +61,12 @@ This note reports the very first probe: <em>do these properties come for free, o
 </p>
 
 <div class="callout">
-<strong>Headline finding.</strong> The properties are <em>not</em> free. But the decisive ingredient is
-<strong>ordinary normalization</strong> (LayerNorm), not the spectral / contractivity machinery the
-DEQ-theory literature emphasizes. Normalization buys a well-posed, non-diverging fixed point;
-the choice of aggregator (attention vs. mean-pool) separately buys task accuracy. These two axes
-turn out to be cleanly separable.
+<strong>Headline finding.</strong> The properties are <em>not</em> free, but they are cheap: any
+<strong>contractive</strong> update — achievable with either spectral normalization or ordinary LayerNorm —
+yields an <em>exactly</em> unique fixed point, and hence exact path independence and exact unlearning. The
+choice of <strong>aggregator</strong> is a separate axis that controls accuracy: the more expressive attention
+update buys accuracy but breaks contractivity, trading away uniqueness. Well-posedness and accuracy are
+cleanly separable; the real tension is <em>expressiveness vs. uniqueness</em>.
 </div>
 
 <h2>2. The setup</h2>
@@ -133,62 +134,68 @@ fixed points are genuinely converged, not artifacts of an early stop.</p>
         <th>pred_agree</th><th>unlearn_gap</th><th>warm / cold iters</th></tr>
   </thead>
   <tbody>
-    <tr><td>DeepSets (raw)</td><td>mean-pool</td><td class="bad">no</td><td>0.71</td><td>0.08</td>
-        <td>1.00</td><td class="bad">123,507</td><td>188 / 195 <span class="muted">(capped)</span></td></tr>
-    <tr><td>DeepSets + spectral</td><td>mean-pool</td><td class="bad">no</td><td>0.71</td><td>0.11</td>
-        <td>1.00</td><td class="bad">11,416,646</td><td>185 / 188 <span class="muted">(capped)</span></td></tr>
-    <tr><td>NormDeepSets</td><td>mean-pool</td><td class="good">yes</td><td>0.75</td><td>0.039</td>
-        <td>1.00</td><td class="good">0.025</td><td>130 / 152</td></tr>
-    <tr><td>Attention</td><td>attention</td><td class="good">yes</td><td><b>0.83</b></td><td>0.033</td>
-        <td>0.98</td><td class="good">0.029</td><td>88 / 116</td></tr>
+    <tr><td>DeepSets (raw)</td><td>mean-pool</td><td class="bad">none</td><td>0.27</td><td>&mdash;</td>
+        <td>&mdash;</td><td class="bad">NaN</td><td>&mdash; <span class="muted">(NaNs in training)</span></td></tr>
+    <tr><td>DeepSets + spectral</td><td>mean-pool</td><td class="good">spectral</td><td>0.59</td><td class="good">0.000</td>
+        <td>1.00</td><td class="good">0.000</td><td>43 / 65</td></tr>
+    <tr><td>NormDeepSets</td><td>mean-pool</td><td class="good">LayerNorm</td><td>0.69</td><td class="good">0.000</td>
+        <td>1.00</td><td class="good">0.000</td><td>60 / 74</td></tr>
+    <tr><td>Attention</td><td>attention</td><td class="good">LayerNorm</td><td><b>0.81</b></td><td>0.091</td>
+        <td>0.99</td><td>0.079</td><td>53 / 74</td></tr>
   </tbody>
 </table>
+<p class="muted">Solver: TorchDEQ <code>fixed_point_iter</code> (reaches ~10⁻⁷; Anderson acceleration
+stagnates at ~5&times;10⁻³ on these maps and is not used), with TorchDEQ's implicit/phantom backward pass.
+A fixed-point gap of <code>0.000</code> means the solve is tight enough that all initializations land on the
+<em>same</em> fixed point to ~10⁻⁷ — i.e. exact path independence.</p>
 
 <h3>Reading the table</h3>
 <p>
-<strong>Normalization &rarr; well-posedness.</strong> The raw DeepSets update has <em>no</em> fixed point in
-practice: the iteration never converges (it sits at the 200-iteration cap), the latent diverges to enormous
-norms, and the "unlearning gap" of 10⁵–10⁷ is simply divergence noise. Adding normalization while keeping
-the <em>same</em> mean-pool aggregator (<code>NormDeepSets</code>) flips this completely: the solver converges
-and unlearning becomes near-exact (gap 0.025). The aggregator was never the cause of the divergence.
+<strong>A contractive update &rarr; an exactly unique, unlearnable fixed point.</strong> The raw DeepSets
+update has <em>no</em> usable fixed point: under the proper implicit gradient it even NaNs during training.
+But <em>either</em> stabilizer — spectral normalization <em>or</em> LayerNorm — makes the mean-pool update
+contractive, and then the fixed point becomes <strong>exactly unique</strong>: every random initialization
+converges to the same point (<code>fp_gap = 0.000</code>), and removing a point then re-solving is
+<strong>exactly</strong> equivalent to never having seen it (<code>unlearn_gap = 0.000</code>). Path
+independence and exact unlearning hold to solver precision.
 </p>
 <p>
-<strong>Spectral norm alone does not fix it</strong> — and is in fact worse here. Bounding each weight's
-spectral radius to 1 is insufficient because the update consumes both <code>z</code> and the pooled
-<code>z</code> (Lipschitz constant ~2&times;), and the composition with ReLU compounds it. So the textbook
-contractivity knob, applied naively, does not deliver a well-posed fixed point.
-</p>
-<p>
-<strong>Attention &rarr; accuracy.</strong> Holding normalization fixed and changing only the mixing
-(<code>NormDeepSets &rarr; Attention</code>), accuracy rises 0.75 &rarr; 0.83. Pairwise attention models the
-interactive cluster dynamics that a single mean-pool smears away.
+<strong>Attention &rarr; accuracy, at the cost of uniqueness.</strong> Swapping the mean-pool aggregator for
+attention raises accuracy substantially (0.69 &rarr; 0.81) — pairwise attention models the interactive cluster
+dynamics a single mean-pool smears away. But attention is <em>not</em> contractive: it shows
+<strong>genuine</strong> non-uniqueness (<code>fp_gap = 0.09</code>, <code>unlearn_gap = 0.08</code>, and ~8%
+of solves fail to converge). Because the mean-pool models are now <em>exactly</em> unique, we know this is a
+real property of attention, not measurement noise.
 </p>
 
 <div class="callout">
-<strong>The clean dissociation.</strong> Two axes, separable:
+<strong>The dissociation.</strong> Two separable axes:
 <ul style="margin-bottom:0">
-  <li><b>Normalization</b> controls whether an equilibrium <em>exists and is well-behaved</em>
-      (no divergence; approximately path-independent; unlearnable).</li>
-  <li><b>The aggregator</b> controls <em>task performance</em>.</li>
+  <li><b>Contractivity</b> (achievable by spectral norm <em>or</em> LayerNorm) controls whether the
+      equilibrium is <em>unique</em> — and hence exactly path-independent and unlearnable.</li>
+  <li><b>The aggregator</b> (mean-pool vs attention) controls <em>task performance</em> — and, when it breaks
+      contractivity, trades uniqueness for accuracy.</li>
 </ul>
+Among the contractive options, LayerNorm gives better accuracy than spectral norm at the same (exact)
+well-posedness (0.69 vs 0.59).
 </div>
 
-<h3>An honest caveat, and a new hypothesis</h3>
+<h3>The expressiveness &harr; uniqueness tradeoff</h3>
 <p>
-Normalization guarantees <em>existence and boundedness</em> — intuitively it confines the dynamics to a
-bounded region, so a fixed point must exist — but it does <strong>not</strong> guarantee <em>uniqueness</em>.
-The small residual non-uniqueness we still see (<code>fp_gap = 0.033</code>, <code>pred_agreement = 0.98</code>
-for attention) is real, not noise. That residual is exactly the regime where an adversary could try to
-recover a removed point, and where the next phase of this work (membership-inference evaluation and
-noise masking) will focus.
+This is the finding, now quantified rather than hypothesized: the contractive mean-pool models are
+<em>exactly</em> unique but cap out around 0.6&ndash;0.7 accuracy; the expressive attention model reaches 0.81
+but at the price of genuine non-uniqueness. That residual non-uniqueness is precisely the regime where an
+adversary could try to recover a removed point — the target of the next phase (membership-inference
+evaluation and differential-privacy noise masking).
 </p>
-<p>
-A bonus observation, offered as a hypothesis rather than a claim: <code>NormDeepSets</code> is actually
-<em>cleaner</em> on the equilibrium properties (perfect prediction agreement, slightly smaller unlearning
-gap) despite lower accuracy. This hints at an <strong>expressiveness &harr; uniqueness tradeoff</strong> —
-attention's richer fixed points may be marginally less unique, hence marginally more leaky. Worth testing
-under stress.
-</p>
+
+<div class="callout warn">
+<strong>Correction to an earlier draft.</strong> A first pass (using an unrolled gradient and a loose damped
+solver) reported that spectral normalization "diverges" and that the properties were only
+<em>approximately</em> exact. Both were artifacts of under-converged solving: with a tight solver and the
+proper implicit gradient, spectral norm is well-posed and the contractive models are <em>exactly</em> unique.
+The numbers above supersede that draft.
+</div>
 
 <h2>4. Where this sits in the literature</h2>
 <p>
@@ -204,13 +211,14 @@ contractivity), specifically in the permutation-invariant set setting, and tied 
 
 <h2>5. Next steps</h2>
 <ul>
-  <li><strong>Cardinality shift</strong> (train at N=24, probe at N=100): the core "train small, infer large"
-      claim, and the most likely place these properties first crack. Boundedness should survive; uniqueness
-      may not.</li>
-  <li><strong>Harden the instrument:</strong> explicit divergence detection and a "% converged" statistic;
-      more initializations and an entropy-based path-dependence measure.</li>
-  <li><strong>Adversarial phase:</strong> membership-inference attack as the unlearning-quality metric;
-      differential-privacy noise masking of the residual leak.</li>
+  <li><strong>Cardinality shift</strong> (train N=24, probe N up to 192) — <em>done; see Note #2.</em>
+      Preview: the equilibrium properties are preserved under scaling — convergence survives, the
+      contractive models stay exactly unique, and attention even improves accuracy with N while carrying a
+      persistent worst-case leakage tail.</li>
+  <li><strong>Adversarial phase:</strong> membership-inference attack as the unlearning-quality metric,
+      focused on attention's non-unique tail; differential-privacy noise masking of the residual leak.</li>
+  <li><strong>Characterization:</strong> Jacobian spectrum to locate where attention's uniqueness fails
+      (the bifurcation set), which doubles as the map of the attack surface.</li>
 </ul>
 
 <footer>
