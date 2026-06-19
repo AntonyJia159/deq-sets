@@ -4,6 +4,9 @@
 data/
 *.png
 .claude/settings.local.json
+.venv/
+.pipcache/
+.tmp/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
