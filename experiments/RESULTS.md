@@ -59,9 +59,50 @@ slightly smaller unlearn_gap) despite lower accuracy. Possible expressiveness <-
 uniqueness tradeoff: attention's richer fixed points may be marginally less
 unique / more leaky. Stress-test under cardinality shift and harder configs.
 
+## Layer 1, run 3 — cardinality shift (2026-06-19)
+
+Train at N=24, probe at N in {24,48,96,192} (k fixed at 1..4; only density grows).
+Probes: 30 sets, 5 inits, solver max_iter=200 tol=1e-5. Random single-point removal.
+
+NormDeepSets:
+| N | acc | fp_gap mean/max | agree | conv | unlearn mean/max | warm/cold |
+|---|---|---|---|---|---|---|
+| 24  | 0.685 | 0.051/0.322 | 1.00 | 0.51 | 0.039/0.221 | 132/156 |
+| 48  | 0.730 | 0.033/0.339 | 1.00 | 0.64 | 0.044/0.587 | 107/137 |
+| 96  | 0.715 | 0.037/0.258 | 1.00 | 0.73 | 0.049/0.353 | 95/134 |
+| 192 | 0.675 | 0.020/0.226 | 1.00 | 0.77 | 0.025/0.357 | 78/131 |
+
+Attention:
+| N | acc | fp_gap mean/max | agree | conv | unlearn mean/max | match | warm/cold |
+|---|---|---|---|---|---|---|---|
+| 24  | 0.790 | 0.027/0.317 | 0.99 | 0.71 | 0.052/0.479 | 1.00 | 95/125 |
+| 48  | 0.815 | 0.034/0.404 | 1.00 | 0.66 | 0.029/0.395 | 1.00 | 97/131 |
+| 96  | 0.840 | 0.039/0.323 | 1.00 | 0.69 | 0.043/0.290 | 1.00 | 89/132 |
+| 192 | 0.860 | 0.032/0.289 | 1.00 | 0.64 | 0.020/0.121 | 0.97 | 73/143 |
+
+### Findings vs predictions
+1. **Efficiency widens (confirmed).** warm iters fall with N, cold flat -> warm-start
+   advantage grows (NormDeepSets 24->53, attn 30->70).
+2. **Path independence does NOT crack with cardinality (prediction refuted).** fp_gap
+   flat/improving, pred_agree ~1.0 at all N. Lesson: bifurcations live on the
+   cluster-SEPARATION axis (geometric ambiguity), not the density axis. Sharper
+   hypothesis for the next experiment.
+3. **Unlearning: mean small/shrinking, the TAIL is the story (confirmed two-level).**
+   NormDeepSets keeps a latent tail (max ~0.3-0.6, ~10x mean); attention's tail shrinks
+   in magnitude but surfaces as a rare DECISION FLIP (pred_match 0.97 at N=192 = one
+   pivotal removal changed the answer).
+4. **Well-posedness: boundedness survives, strict convergence does NOT certify.** No
+   divergence at any N (guard never fired, fp_gap small), BUT only ~50-77% of solves reach
+   tol=1e-5 in 200 iters. This is solver slowness (damping 0.5, contraction ~0.96 needs
+   ~280 iters), NOT non-uniqueness. NormDeepSets conv RATE improves with N (mean-field
+   stabilization). DO NOT claim 100% converged.
+5. **Bonus:** attention accuracy IMPROVES with N (0.79->0.86) = real "infer large = more
+   power"; NormDeepSets plateaus (~0.70, mean-pool saturates).
+
 ### Next
-- Tighten convergence test (detect divergence explicitly; report % converged).
-- Sweep damping and a proper Lipschitz bound for DeepSets to see if it CAN be
-  made well-posed, or if normalization is necessary.
-- Cardinality shift: train N=24, probe N=100, watch where attention's properties
-  degrade.
+- **Swap damped iteration for Anderson / TorchDEQ** — top priority; needed to certify
+  convergence at scale before any of this becomes a figure.
+- **Cluster-separation sweep** (the real bifurcation knob): vary inter-cluster distance,
+  watch path independence / unlearning break as clusters merge. This is where the
+  pivotal-removal tail and the MIA story should concentrate.
+- Then the adversarial phase (MIA, DP-noise) in the bifurcation regime.
