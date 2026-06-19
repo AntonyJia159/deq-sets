@@ -34,6 +34,31 @@ Probes: 20 test sets, solver max_iter=200, tol=1e-6, damping=0.5.
 - Gradient is unrolled through the solver (Layer-1 simplification); swap in
   torchdeq phantom/implicit gradients before trusting train-time behavior at depth.
 
+## Layer 1, run 2 — controlled normalization test (2026-06-19)
+
+Added NormDeepSetsUpdate: identical wrapper to AttnUpdate (input injection +
+residual + 2 LayerNorms + FF) but mean-pool aggregator instead of attention.
+
+| Variant | Mixing | Norm | Test acc | fp_gap | pred_agree | unlearn_gap | warm/cold |
+|---|---|---|---|---|---|---|---|
+| DeepSets (raw)      | mean-pool | no  | 0.71 | 0.08 | 1.00 | 123,507    | 188/195 (capped) |
+| DeepSets + spectral | mean-pool | no  | 0.71 | 0.11 | 1.00 | 11,416,646 | 185/188 (capped) |
+| NormDeepSets        | mean-pool | yes | 0.75 | 0.039 | 1.00 | 0.025 | 130/152 |
+| Attention           | attention | yes | 0.83 | 0.033 | 0.98 | 0.029 | 88/116 |
+
+### Clean dissociation
+- **Normalization -> well-posedness.** Swapping only the norm (raw -> NormDeepSets,
+  same aggregator) flips divergence (gap 1e5) to convergence + near-exact
+  unlearning (gap 0.025). Aggregator was never the cause of divergence.
+- **Attention -> accuracy.** Holding norm fixed (NormDeepSets -> Attention), acc
+  rises 0.75 -> 0.83. Aggregator models the interactive cluster dynamics.
+
+### Hypothesis to test (not asserted)
+NormDeepSets is *cleaner* on equilibrium properties (pred_agree 1.00 vs 0.98,
+slightly smaller unlearn_gap) despite lower accuracy. Possible expressiveness <->
+uniqueness tradeoff: attention's richer fixed points may be marginally less
+unique / more leaky. Stress-test under cardinality shift and harder configs.
+
 ### Next
 - Tighten convergence test (detect divergence explicitly; report % converged).
 - Sweep damping and a proper Lipschitz bound for DeepSets to see if it CAN be

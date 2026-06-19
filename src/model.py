@@ -67,7 +67,40 @@ class AttnUpdate(nn.Module):
         return z
 
 
-_UPDATES = {"deepsets": DeepSetsUpdate, "attn": AttnUpdate}
+class NormDeepSetsUpdate(nn.Module):
+    """Controlled DeepSets block: identical wrapper to AttnUpdate (input
+    injection + residual + two LayerNorms + feed-forward), but the mixing is a
+    mean-pool aggregator instead of multi-head attention. Isolates the effect of
+    normalization (well-posedness) from attention (task performance).
+    """
+
+    def __init__(self, d_latent, d_in, hidden, spectral=False):
+        super().__init__()
+        del spectral
+        self.x_proj = nn.Linear(d_in, d_latent)
+        self.agg = nn.Sequential(
+            nn.Linear(2 * d_latent, hidden), nn.ReLU(), nn.Linear(hidden, d_latent)
+        )
+        self.norm1 = nn.LayerNorm(d_latent)
+        self.ff = nn.Sequential(
+            nn.Linear(d_latent, hidden), nn.ReLU(), nn.Linear(hidden, d_latent)
+        )
+        self.norm2 = nn.LayerNorm(d_latent)
+
+    def forward(self, z, x):
+        zx = z + self.x_proj(x)
+        pool = zx.mean(dim=1, keepdim=True).expand_as(zx)
+        a = self.agg(torch.cat([zx, pool], dim=-1))
+        z = self.norm1(z + a)
+        z = self.norm2(z + self.ff(z))
+        return z
+
+
+_UPDATES = {
+    "deepsets": DeepSetsUpdate,
+    "attn": AttnUpdate,
+    "normdeepsets": NormDeepSetsUpdate,
+}
 
 
 class SetDEQ(nn.Module):
