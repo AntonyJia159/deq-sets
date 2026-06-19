@@ -1,0 +1,11 @@
+*.pdf
+*.txt
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+*.pt
+*.pth
+*.ckpt
+wandb/
+outputs/
+logs/
