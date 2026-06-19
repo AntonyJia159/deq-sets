@@ -7,6 +7,8 @@ data/
 .venv/
 .pipcache/
 .tmp/
+.idea/
+.vscode/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
