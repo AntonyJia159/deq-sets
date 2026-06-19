@@ -1,5 +1,8 @@
 *.pdf
 *.txt
+!requirements.txt
+data/
+*.png
 __pycache__/
 *.pyc
 .ipynb_checkpoints/

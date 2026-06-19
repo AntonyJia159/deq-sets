@@ -1,0 +1,5 @@
+torch>=2.0
+numpy
+scipy
+matplotlib
+# torchdeq  # added in a later layer for phantom/implicit gradients
