@@ -173,3 +173,57 @@ target for the Layer-2 membership-inference analysis.
   watch path independence / unlearning break as clusters merge. This is where the
   pivotal-removal tail and the MIA story should concentrate.
 - Then the adversarial phase (MIA, DP-noise) in the bifurcation regime.
+
+## Layer 3, run 1 — Jacobian probe (2026-06-20)
+
+Built `src/jacobian.py` (matrix-free, double-vjp JVPs; math-SDPA backend forced so
+attention's double-backward works) and `experiments/jacobian_probe.py`. Measures
+rho(J_f) at trained fixed points (power iteration), the IFT amplifier 1/(1-rho),
+and — for mean-pool models — the linearized removal sensitivity ||dZ*/dw_k|| via a
+Neumann solve of (I-J_f)^{-1} df/dw_k. 30 probe sets at N=24.
+
+| Model | rho mean/median/max | contractive | unlearn_gap mean/max | both-conv gap max (n) | corr(amp,gap) |
+|---|---|---|---|---|---|
+| normdeepsets | 0.793 / 0.766 / 0.929 | 100% | 0.000 / 0.000 | 0.000 (30/30) | 0.51* |
+| attn         | 0.775 / 0.789 / 0.921 | 100% | 0.051 / 0.734 | **0.734 (29/30)** | -0.25 |
+
+\* on ~1e-5 numerical noise (gap is exactly 0 to 3 dp) — vacuous.
+
+### The finding — local contraction is necessary but NOT sufficient
+
+The clean "rho -> 1 causes the leak" picture is REFUTED by our own probe, and the
+real mechanism is sharper:
+
+1. **Attention is LOCALLY contractive at every reached fixed point** (rho < 1, max
+   0.92) — yet carries a large unlearning tail. So the leak is NOT a local
+   bifurcation (no eigenvalue crosses the unit circle at the attractors we land on).
+2. **The tail is TRUE MULTISTABILITY, not under-convergence.** Restricting to sets
+   where BOTH warm and cold solves converged, the gap max is still 0.734 (29/30
+   cases). Warm and cold land in DIFFERENT, each-locally-stable basins.
+3. **Therefore the local Jacobian cannot certify the unlearning property.** A single
+   attractor's spectral radius is blind to the existence of *other* coexisting
+   attractors. corr(amplifier, gap) = -0.25 confirms the local amplifier does not
+   predict the (global) leak.
+
+### Refined diagnostic — a two-coordinate classifier
+
+The clean separation needs BOTH numbers:
+- **local rho(J_f)** (solver well-posedness / are reached points attracting?) AND
+- **global fp_gap / both-converged gap** (is the attractor unique, or multistable?).
+
+  mean-pool : rho < 1  AND  fp_gap = 0   -> single GLOBAL attractor (Banach-style).
+  attention : rho < 1  BUT  fp_gap > 0   -> multiple LOCAL attractors (multistable).
+
+So attention's non-uniqueness (Reports #1/#2) is **multistability / coexisting
+attractors**, not local expansion. The reports' headline claims stand; the
+*mechanism* is corrected — and the MIA target is basin multiplicity, diagnosed by
+multi-init fp_gap, not by the local amplifier.
+
+### Next (revised)
+- **Continuation / homotopy**, not local Jacobian, to map basin structure: track
+  fixed points as cluster separation varies; watch where a second branch is born
+  (saddle-node) — that birth is the real bifurcation behind the multistability.
+- The linearized removal sensitivity (mean-pool) is built and finite (Neumann
+  converges since rho<1); it will become the redundant-vs-pivotal detector once we
+  add a presence-weight knob to attention (or work on a contractive expressive model).
+- MIA still targets attention's multistable tail — but indexed by fp_gap, not rho.

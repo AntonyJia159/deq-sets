@@ -33,6 +33,21 @@ def _maybe_sn(linear, on):
     return spectral_norm(linear) if on else linear
 
 
+def _weighted_pool(z, w):
+    """Permutation-invariant pooled context over the set dimension.
+
+    w is an optional (B, N, 1) presence weight, the continuous relaxation of set
+    membership that the Jacobian probe differentiates: w_i = 1 keeps point i,
+    w_i = 0 removes it. With w=None this is exactly the plain mean (so the
+    trained forward pass is unchanged); with w given it is the weighted mean
+    (sum_j w_j z_j) / (sum_j w_j), whose derivative dpool/dw_k is the only
+    channel through which removing point k perturbs the equilibrium.
+    """
+    if w is None:
+        return z.mean(dim=1, keepdim=True)
+    return (w * z).sum(dim=1, keepdim=True) / (w.sum(dim=1, keepdim=True) + 1e-8)
+
+
 class DeepSetsUpdate(nn.Module):
     """Permutation-equivariant DeepSets update with mean-pool context."""
 
@@ -44,8 +59,8 @@ class DeepSetsUpdate(nn.Module):
             _maybe_sn(nn.Linear(hidden, d_latent), spectral),
         )
 
-    def forward(self, z, x):
-        pool = z.mean(dim=1, keepdim=True).expand_as(z)
+    def forward(self, z, x, w=None):
+        pool = _weighted_pool(z, w).expand_as(z)
         return self.net(torch.cat([z, x, pool], dim=-1))
 
 
@@ -63,7 +78,15 @@ class AttnUpdate(nn.Module):
         )
         self.norm2 = nn.LayerNorm(d_latent)
 
-    def forward(self, z, x):
+    def forward(self, z, x, w=None):
+        if w is not None:
+            # Attention has no single additive sufficient statistic to weight:
+            # presence enters through every query-key-value interaction, so the
+            # clean w:1->0 removal knob does not exist here (the same reason it is
+            # not cleanly federatable). For attention we characterize sensitivity
+            # via the spectral radius / IFT amplifier rather than dZ*/dw_k.
+            raise NotImplementedError("AttnUpdate has no presence-weight knob; "
+                                      "use spectral_radius-based sensitivity")
         zx = z + self.x_proj(x)
         a, _ = self.attn(zx, zx, zx, need_weights=False)
         z = self.norm1(z + a)
@@ -91,9 +114,9 @@ class NormDeepSetsUpdate(nn.Module):
         )
         self.norm2 = nn.LayerNorm(d_latent)
 
-    def forward(self, z, x):
+    def forward(self, z, x, w=None):
         zx = z + self.x_proj(x)
-        pool = zx.mean(dim=1, keepdim=True).expand_as(zx)
+        pool = _weighted_pool(zx, w).expand_as(zx)
         a = self.agg(torch.cat([zx, pool], dim=-1))
         z = self.norm1(z + a)
         z = self.norm2(z + self.ff(z))
