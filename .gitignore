@@ -3,6 +3,7 @@
 !requirements.txt
 data/
 *.png
+.claude/settings.local.json
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
