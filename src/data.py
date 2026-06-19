@@ -28,7 +28,15 @@ def _sample_separated_centers(k, d, sep, std, generator, max_tries=1000):
 def sample_gmm_set(k, n_points, d=2, sep=4.0, std=1.0, generator=None):
     """Return a single set X of shape (n_points, d) drawn from k Gaussians."""
     centers = _sample_separated_centers(k, d, sep, std, generator)
-    assign = torch.randint(0, k, (n_points,), generator=generator)
+    # Guarantee every cluster gets at least one point (when N >= k) so the label
+    # k stays faithful to the actual content, at any cardinality.
+    if n_points >= k:
+        base = torch.arange(k)
+        rest = torch.randint(0, k, (n_points - k,), generator=generator)
+        assign = torch.cat([base, rest])
+        assign = assign[torch.randperm(n_points, generator=generator)]
+    else:
+        assign = torch.randint(0, k, (n_points,), generator=generator)
     noise = torch.randn(n_points, d, generator=generator) * std
     X = centers[assign] + noise
     return X, assign

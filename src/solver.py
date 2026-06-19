@@ -7,7 +7,11 @@ layer will swap in torchdeq (Anderson + phantom gradients) for the real solver,
 which is why `fixed_point_solve` returns a rich `info` dict matching that style.
 """
 
+import math
+
 import torch
+
+_DIVERGE_NORM = 1e6  # treat iterate norm above this as divergence
 
 
 def fixed_point_solve(f, z0, max_iter=50, tol=1e-4, damping=0.5):
@@ -28,9 +32,15 @@ def fixed_point_solve(f, z0, max_iter=50, tol=1e-4, damping=0.5):
     for k in range(1, max_iter + 1):
         fz = f(z)
         with torch.no_grad():
-            res = (fz - z).norm().item() / (z.norm().item() + 1e-8)
+            znorm = z.norm().item()
+            res = (fz - z).norm().item() / (znorm + 1e-8)
         residuals.append(res)
+        if not math.isfinite(res) or znorm > _DIVERGE_NORM:
+            return z, {"n_iter": k, "residuals": residuals,
+                       "converged": False, "diverged": True}
         z = (1 - damping) * z + damping * fz
         if res < tol:
-            return z, {"n_iter": k, "residuals": residuals, "converged": True}
-    return z, {"n_iter": max_iter, "residuals": residuals, "converged": False}
+            return z, {"n_iter": k, "residuals": residuals,
+                       "converged": True, "diverged": False}
+    return z, {"n_iter": max_iter, "residuals": residuals,
+               "converged": False, "diverged": False}

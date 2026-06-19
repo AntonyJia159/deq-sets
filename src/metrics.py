@@ -27,11 +27,12 @@ def _relnorm(a, b):
 @torch.no_grad()
 def path_independence_gap(model, x, n_inits=5, **solve_kw):
     xb = x.unsqueeze(0)
-    zs, preds = [], []
+    zs, preds, conv = [], [], []
     for _ in range(n_inits):
         z0 = torch.randn(1, x.shape[0], model.d_latent, device=x.device)
-        z, _ = model.solve(xb, z0=z0, **solve_kw)
+        z, info = model.solve(xb, z0=z0, **solve_kw)
         zs.append(z)
+        conv.append(1.0 if info["converged"] else 0.0)
         preds.append(int(model.readout(model.pool(z)).argmax(-1)))
     fp_gap = 0.0
     for i in range(len(zs)):
@@ -39,7 +40,8 @@ def path_independence_gap(model, x, n_inits=5, **solve_kw):
             fp_gap = max(fp_gap, _relnorm(zs[i], zs[j]))
     mode = max(set(preds), key=preds.count)
     pred_agreement = preds.count(mode) / len(preds)
-    return {"fp_gap": fp_gap, "pred_agreement": pred_agreement, "preds": preds}
+    return {"fp_gap": fp_gap, "pred_agreement": pred_agreement, "preds": preds,
+            "converged_frac": sum(conv) / len(conv)}
 
 
 @torch.no_grad()
@@ -62,4 +64,6 @@ def unlearning_gap(model, x, remove_idx, **solve_kw):
         "pred_match": pred_warm == pred_cold,
         "warm_iters": info_w["n_iter"],
         "cold_iters": info_c["n_iter"],
+        "warm_converged": info_w["converged"],
+        "cold_converged": info_c["converged"],
     }
