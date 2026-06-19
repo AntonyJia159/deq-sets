@@ -21,8 +21,8 @@ def main(update="deepsets", spectral=False, seed=0):
 
     model = SetDEQ(
         d_in=2, d_latent=32, hidden=64, update=update,
-        n_classes=train_ds.n_classes, max_iter=30, tol=1e-4, damping=0.5,
-        spectral=spectral,
+        n_classes=train_ds.n_classes, max_iter=150, tol=1e-5,
+        spectral=spectral,  # solver defaults to torchdeq fixed_point_iter
     )
 
     print(f"== training set-DEQ (update={update}, spectral={spectral}) ==")
@@ -30,7 +30,7 @@ def main(update="deepsets", spectral=False, seed=0):
     print(f"test accuracy: {evaluate(model, test_ds):.3f}\n")
 
     # Probe a handful of test sets with more solver iterations for clean fixed points.
-    sol = dict(max_iter=200, tol=1e-6)
+    sol = dict(max_iter=200)
     fp_gaps, agrees, unlearn_gaps, matches, warm_it, cold_it = [], [], [], [], [], []
     for i in range(20):
         x = test_ds.X[i]

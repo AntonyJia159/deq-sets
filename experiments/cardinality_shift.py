@@ -20,7 +20,7 @@ from src.metrics import path_independence_gap, unlearning_gap
 K_RANGE = (1, 4)
 N_TRAIN = 24
 N_SWEEP = [24, 48, 96, 192]
-PROBE_SOLVE = dict(max_iter=200, tol=1e-5)
+PROBE_SOLVE = dict(max_iter=200)
 
 
 def build_ds(n_points, n_samples, seed):
@@ -63,7 +63,7 @@ def run(update, epochs=8):
     torch.manual_seed(0)
     train_ds = build_ds(N_TRAIN, 2000, seed=1)
     model = SetDEQ(d_in=2, d_latent=32, hidden=64, update=update,
-                   n_classes=train_ds.n_classes, max_iter=30, tol=1e-4, damping=0.5)
+                   n_classes=train_ds.n_classes, max_iter=150, tol=1e-5)
     print(f"== training {update} at N={N_TRAIN} ==")
     train(model, train_ds, epochs=epochs, batch_size=64, lr=1e-3, log_every=0)
     rows = []
