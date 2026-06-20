@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set-DEQ Notes #3 — Hunting the Unlearning Leak: Jacobians, Multistability, and a Null Result</title>
+<style>
+  :root { --ink:#1a1a1a; --muted:#666; --rule:#e2e2e2; --accent:#2b6cb0; --good:#1a7f4b; --bad:#b02a2a; --bg:#fafafa; --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 48px 24px 96px; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 32px; }
+  .kicker { font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
+  h1 { font-size: 1.7rem; line-height:1.25; margin:.1em 0 .35em; }
+  .byline { color:var(--muted); font-size:.92rem; }
+  h2 { font-size:1.2rem; margin:2.2em 0 .6em; padding-bottom:.25em; border-bottom:1px solid var(--rule); }
+  h3 { font-size:1.02rem; margin:1.6em 0 .4em; }
+  p { margin:.7em 0; }
+  code { background:#f0f0f3; padding:.08em .35em; border-radius:4px; font-size:.9em;
+         font-family: "SF Mono", Consolas, "Liberation Mono", monospace; }
+  table { width:100%; border-collapse:collapse; margin:1.1em 0; font-size:.88rem; background:var(--card); }
+  th, td { padding:7px 9px; text-align:center; border-bottom:1px solid var(--rule); }
+  th { background:#f3f5f8; font-weight:600; }
+  td:first-child, th:first-child { text-align:left; }
+  .good { color:var(--good); font-weight:600; }
+  .bad  { color:var(--bad);  font-weight:600; }
+  .callout { background:#eef4fb; border:1px solid #cfe0f3; border-radius:8px; padding:14px 18px; margin:1.2em 0; }
+  .callout.warn { background:#fdf3ee; border-color:#f3d8c8; }
+  .callout.null { background:#f1f3f5; border-color:#dcdfe3; }
+  .muted { color:var(--muted); }
+  ul { margin:.5em 0; padding-left:1.3em; }
+  li { margin:.35em 0; }
+  .eq { background:var(--card); border:1px solid var(--rule); border-left:3px solid var(--accent);
+        padding:10px 16px; margin:1em 0; font-family:"SF Mono",Consolas,monospace; font-size:.9rem; overflow-x:auto; }
+  figure { margin:1.4em 0; }
+  figcaption { color:var(--muted); font-size:.85rem; margin-top:.5em; text-align:center; }
+  footer { margin-top:48px; padding-top:18px; border-top:1px solid var(--rule); color:var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="kicker">Set-DEQ Notes · #3</p>
+  <h1>Hunting the Unlearning Leak: Jacobians, Multistability, and a Null Result</h1>
+  <p class="byline">Zhibai Jia · 20 June 2026 · working notes, not for circulation beyond reviewers</p>
+</header>
+
+<h2>1. The question we set out to answer</h2>
+<p>
+Notes #1 and #2 established a clean picture on a synthetic cluster-counting task: a
+<strong>contractive</strong> update (mean-pool with spectral norm or LayerNorm) has an
+<em>exactly</em> unique fixed point — and therefore exact path independence and exact
+unlearning — while the more expressive <strong>attention</strong> update buys accuracy
+at the cost of a residual non-uniqueness, and the properties survive an 8&times; change
+in set size. The open thread was a <em>worst-case tail</em>: occasionally, removing a
+point and re-solving from the previous state (a warm start) lands somewhere different
+from a cold solve. This note asks the question that decides whether that tail matters:
+<strong>is the residual leak actually exploitable by an attacker — and if not, what is
+the multistability doing?</strong>
+</p>
+<p>
+The short version: we built sharper and sharper instruments to find the leak, and the
+honest answer is that <strong>the warm-start channel is benign</strong>. This is a
+negative result, reported as such. Below is the road to it, because the road has the
+content.
+</p>
+
+<h2>2. The Jacobian probe: local contraction is necessary but not sufficient</h2>
+<p>
+At a converged fixed point <code>Z*</code> the relevant object is the update Jacobian
+<code>J_f = &part;f/&part;Z</code>. Its spectral radius <code>&rho;(J_f)</code> is the
+local well-posedness number: <code>&rho; &lt; 1</code> means <code>Z*</code> is a local
+attractor. We estimate it matrix-free, by power iteration on Jacobian-vector products
+(reverse-over-reverse, so it works through attention too).
+</p>
+<table>
+  <thead><tr><th>model</th><th>&rho;(J_f) mean / max</th><th>locally contractive</th>
+      <th>fp_gap (global)</th><th>both-converged unlearn gap</th></tr></thead>
+  <tbody>
+    <tr><td>NormDeepSets (mean-pool)</td><td>0.79 / 0.93</td><td class="good">100%</td>
+        <td class="good">0.000</td><td class="good">0.000 (30/30)</td></tr>
+    <tr><td>Attention</td><td>0.78 / 0.92</td><td>100%</td>
+        <td>0.06&ndash;0.7</td><td class="bad">0.73 (29/30)</td></tr>
+  </tbody>
+</table>
+<p>
+The result <em>refutes</em> the tidy story we were about to tell. Attention is
+<strong>locally contractive at every fixed point it reaches</strong>
+(<code>&rho; &lt; 1</code>, max 0.92) <em>and yet</em> carries a large worst-case
+unlearning gap that survives restricting to cases where both the warm and cold solves
+genuinely converged (0.73, 29/30). So the leak is not a local instability: it is
+<strong>multistability</strong> — several coexisting locally-stable basins.
+</p>
+<div class="callout">
+<strong>Why this is not a contradiction.</strong> A fixed-point iteration only ever lands
+on attractors, and every attractor necessarily has <code>&rho; &lt; 1</code> — so
+measuring <code>&rho; &lt; 1</code> at the points the solver reaches is almost
+tautological. The informative quantity is the <em>number</em> of distinct attractors,
+which the local Jacobian cannot see. Picture an energy landscape with several valleys:
+each valley floor is locally attracting, but there are several. The diagnostic therefore
+needs <strong>two</strong> coordinates:
+<ul style="margin-bottom:0">
+  <li>local <code>&rho;(J_f) &lt; 1</code> <em>and</em> global <code>fp_gap = 0</code>
+      &rarr; a single global attractor (mean-pool);</li>
+  <li>local <code>&rho;(J_f) &lt; 1</code> <em>but</em> <code>fp_gap &gt; 0</code>
+      &rarr; multistable (attention).</li>
+</ul>
+</div>
+<p class="muted">
+This also matches theory rather than contradicting it: the Ramsauer et&nbsp;al. (2020)
+correspondence says attention <em>is</em> the update of a modern Hopfield network, and
+Hopfield networks are multistable <em>by design</em> — each stored pattern is an
+attractor. Attention being multistable is the mechanism working as intended, not a
+pathology.
+</p>
+
+<h2>3. Two attempts to engineer the multistability away</h2>
+
+<h3>3a. Decomposability (linear attention) — inconclusive</h3>
+<p>
+One hypothesis: attention is multistable because its aggregate is not a simple
+sufficient statistic. Linear attention (<code>&phi;(q)&middot;&sum;_j &phi;(k_j) v_j&#7488;</code>)
+<em>is</em> an additive sufficient statistic — decomposable — yet more expressive than
+mean-pool. If decomposability were the lever, it should be unique.
+</p>
+<p>
+It was not decisive. Linear attention failed to train competitively on this task
+(accuracy 0.52&ndash;0.57, <em>below</em> mean-pool — linear attention is known to be weak
+where sharp selection is needed), and once it did converge it was <em>genuinely
+multistable</em> (both-converged gap 0.34). So a decomposable model was multistable too:
+the lean shifts toward <em>expressiveness</em>, not decomposability, as the driver — but
+the poor training and high single-seed variance forbid a firm claim. We logged it as
+inconclusive rather than forcing a narrative.
+</p>
+
+<h3>3b. Trainable path independence (Anil et al. 2022) — tames the warm-start channel</h3>
+<p>
+A better idea, from <em>Path Independent Equilibrium Models Can Better Exploit Test-Time
+Computation</em>: path independence can be <strong>promoted by training</strong> on
+unrestricted (non-contractive) architectures — mixed zero/noise initialization plus a
+randomized solver budget — with no contraction constraint. Their adversarial-initialization
+stress test is, read our way, exactly the warm-start channel: a warm start is a
+history-dependent initialization. We applied the recipe to attention and measured it over
+<strong>10 paired seeds</strong> (same data and seed per pair; only the recipe differs).
+</p>
+<table>
+  <thead><tr><th>attention</th><th>accuracy</th><th>fp_gap max (global)</th>
+      <th>both-conv gap mean</th><th>both-conv gap max</th></tr></thead>
+  <tbody>
+    <tr><td>baseline</td><td>0.833 &plusmn; 0.010</td><td>0.367 &plusmn; 0.301</td>
+        <td>0.010 &plusmn; 0.009</td><td>0.223 &plusmn; 0.188</td></tr>
+    <tr><td>PI-recipe</td><td>0.834 &plusmn; 0.014</td><td>0.398 &plusmn; 0.371</td>
+        <td class="good">0.003 &plusmn; 0.005</td><td class="good">0.061 &plusmn; 0.100</td></tr>
+  </tbody>
+</table>
+<p>
+Three things, stated at the precision the seeds support:
+</p>
+<ul>
+  <li><strong>No accuracy cost</strong> (0.833 vs 0.834). An earlier single-seed run had
+      shown an accuracy <em>gain</em> — that was noise.</li>
+  <li><strong>The worst-case warm-start gap drops, and the effect is real but only via
+      the paired design.</strong> Unpaired the error bars overlap, but per seed the
+      PI-recipe is &le; baseline in <em>all 10</em> seeds, strictly lower in 7
+      (paired&nbsp;<em>t</em>&nbsp;&approx;&nbsp;3.2, <em>p</em>&nbsp;&approx;&nbsp;0.01).</li>
+  <li><strong>Global multistability is not fixed</strong> (<code>fp_gap</code> unchanged).
+      The recipe tames the <em>operating-region</em> (warm-start) channel specifically —
+      ambiguous cases now fail to converge rather than silently settling in a wrong basin,
+      a safer failure mode — without making the map globally single-basin.</li>
+</ul>
+<p class="muted">
+A methodological aside worth keeping: the paper's own Asymptotic-Alignment (cosine) score
+was saturated and useless here (0.995 vs 0.997) — cosine washes out the magnitude
+differences between basins that unlearning cares about. The both-converged relative-norm
+gap is the metric that discriminates.
+</p>
+
+<h2>4. The decisive test: membership inference</h2>
+<p>
+A latent gap is only a leak if an attacker can use it. We built a membership-inference
+attack with a paired construction so that <em>perfect</em> unlearning gives AUC&nbsp;0.5 by
+construction:
+</p>
+<div class="eq">
+base survivors B (23 points), candidates c, d from B's own clusters<br>
+MEMBER&nbsp;&nbsp;&nbsp;&nbsp; (label 1): solve B&cup;{c}; warm-delete c &rarr; Z_post; show (Z_post, c)<br>
+NON-MEMBER (label 0): solve B&cup;{d}; warm-delete d &rarr; Z_post; show (Z_post, c)
+</div>
+<p>
+Same survivors, same presented candidate <code>c</code>; the only difference is whether
+<code>c</code> or <code>d</code> passed through — i.e. the warm-start history. A classifier
+(strong, latent-access, and a weaker readout-only variant) is trained to recover the label.
+3 architectures &times; 5 seeds &times; 3000 trials. Because the leak is a tail phenomenon,
+we stratify by the per-trial signal magnitude
+<code>&#8741;Z_post<sup>member</sup> &minus; Z_post<sup>non-member</sup>&#8741;</code> and
+report AUC restricted to the highest-gap trials.
+</p>
+<div class="callout warn">
+<strong>A bug worth recording.</strong> A first pass split train/test <em>per sample</em>.
+Because a trial's member and non-member share the same survivors and candidate (near-identical
+inputs, opposite labels), the attacker memorized one twin and was fooled by the other,
+producing a systematic AUC <em>below</em> 0.5 across <em>every</em> config — the signature
+of contamination, not signal. Splitting by <em>trial</em> (both twins on the same side)
+restored the control to exactly 0.500.
+</div>
+<table>
+  <thead><tr><th>model</th><th>output attacker</th><th>latent: all</th>
+      <th>top 50%</th><th>top 25%</th><th>top 10% (worst tail)</th></tr></thead>
+  <tbody>
+    <tr><td>Attention (baseline)</td><td>0.500</td><td>0.500</td><td>0.501</td><td>0.501</td>
+        <td>0.504 &plusmn; 0.006</td></tr>
+    <tr><td>Attention (PI-recipe)</td><td>0.500</td><td>0.500</td><td>0.499</td><td>0.503</td>
+        <td>0.500 &plusmn; 0.008</td></tr>
+    <tr><td>NormDeepSets (control)</td><td>0.501</td><td>0.501</td><td>0.501</td><td>0.507</td>
+        <td>0.512 &plusmn; 0.017</td></tr>
+  </tbody>
+</table>
+<div class="callout null">
+<strong>Null result.</strong> The attacker gets no edge — in any stratum, for any model,
+including the worst-decile tail. And this is <em>not</em> a weak-attacker artifact: the same
+attacker on the unique-by-construction control bounds its capability, and the multistable
+baseline <em>never beats the control</em> (top-10%: 0.504 vs 0.512). If there were latent
+signal being missed, the baseline would exceed the floor; it does not. The rising spread as
+the strata shrink (0.001 &rarr; 0.017) is small-sample noise, not signal.
+</div>
+
+<h2>5. What the multistability actually does — and doesn't</h2>
+<p>
+Putting the instruments together: attention's multistability is <em>real</em> in latent-norm
+terms (the both-converged gap is genuine; two distinct fixed points are exhibited), but the
+basin a warm start lands in <strong>does not encode the identity of the deleted point</strong>
+in any recoverable way. Basin steering is orthogonal to membership. So the worry that powered
+this whole investigation — that warm-start unlearning leaks — is, on this task, unfounded.
+</p>
+<p>Two consequences worth stating precisely:</p>
+<ul>
+  <li><strong>Exact unlearning is sufficient but not necessary for membership safety.</strong>
+      The expressive, non-unique regime is empirically safe without being exact.</li>
+  <li><strong>Distance-to-exact does not predict risk.</strong> The both-converged gap — the
+      natural &ldquo;unlearning quality&rdquo; metric, and the kind of closeness-to-retrain
+      proxy the approximate-unlearning literature relies on — is <em>decoupled</em> from actual
+      membership exploitability here: large gap, zero leakage.</li>
+</ul>
+
+<h2>6. Scope, and where this leaves things</h2>
+<p>
+We tested the <strong>history / warm-start channel</strong> — an architectural, dynamical
+property — and found it benign. The paired same-survivors design deliberately cancels the
+other channel: the <strong>data-intrinsic leak</strong>, where a deleted point is recoverable
+from its neighbors even after perfect deletion. That channel is statistical and
+context-dependent — on a Gaussian-mixture task it is semantically vacuous (a point&rsquo;s
+&ldquo;neighbors&rdquo; are blob-mates; &ldquo;a point was near here&rdquo; is already implied)
+— so it is out of scope for an architectural study and would need data carrying genuine private
+attributes to be meaningful.
+</p>
+<div class="callout">
+<strong>Honest headline.</strong> For equilibrium set-models, the multistability that expressive
+(attention) updates introduce is <em>benign</em> for warm-start unlearning: it produces no
+attacker-exploitable membership leak, even in the worst-case tail, even though it is genuine
+non-uniqueness. Trainable path independence (Anil et&nbsp;al.) shrinks the worst-case warm-start
+gap at no accuracy cost, but its real payoff is test-time scaling, not privacy — there is no leak
+for it to close. Exact unlearning remains available, trivially, for strict applications via a
+contractive (monotone-operator) cell.
+</div>
+<p class="muted">
+All numbers are from a single synthetic task and small models on a laptop GPU; they are
+indicative, not a benchmark. The remaining belt-and-suspenders check is to escalate the attacker
+to a cross-attention model before treating the null as final — the control comparison already
+argues against a weak-attacker explanation.
+</p>
+
+<footer>
+  Set-DEQ Notes #3 · experiments run on an RTX 4050 via the <code>deq-sets</code> repository ·
+  Jacobian probe, linear-attention pivot, the Anil et&nbsp;al. PI recipe (10 paired seeds), and a
+  stratified membership-inference attack (5 seeds &times; 3000 trials).
+</footer>
+</div>
+</body>
+</html>
