@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set-DEQ Notes #4 — Going Local: Does a Radius-Bounded Equilibrium Even Converge?</title>
+<style>
+  :root { --ink:#1a1a1a; --muted:#666; --rule:#e2e2e2; --accent:#2b6cb0; --good:#1a7f4b; --bad:#b02a2a; --warn:#b07a1a; --bg:#fafafa; --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 48px 24px 96px; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 32px; }
+  .kicker { font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
+  h1 { font-size: 1.7rem; line-height:1.25; margin:.1em 0 .35em; }
+  .byline { color:var(--muted); font-size:.92rem; }
+  h2 { font-size:1.2rem; margin:2.2em 0 .6em; padding-bottom:.25em; border-bottom:1px solid var(--rule); }
+  h3 { font-size:1.02rem; margin:1.6em 0 .4em; }
+  p { margin:.7em 0; }
+  code { background:#f0f0f3; padding:.08em .35em; border-radius:4px; font-size:.9em;
+         font-family: "SF Mono", Consolas, "Liberation Mono", monospace; }
+  table { width:100%; border-collapse:collapse; margin:1.1em 0; font-size:.88rem; background:var(--card); }
+  th, td { padding:7px 9px; text-align:center; border-bottom:1px solid var(--rule); }
+  th { background:#f3f5f8; font-weight:600; }
+  td:first-child, th:first-child { text-align:left; }
+  .good { color:var(--good); font-weight:600; }
+  .bad  { color:var(--bad);  font-weight:600; }
+  .warn { color:var(--warn); font-weight:600; }
+  .callout { background:#eef4fb; border:1px solid #cfe0f3; border-radius:8px; padding:14px 18px; margin:1.2em 0; }
+  .callout.warn { background:#fdf3ee; border-color:#f3d8c8; }
+  .callout.null { background:#f1f3f5; border-color:#dcdfe3; }
+  .callout.key { background:#eaf6ee; border-color:#bfe3cb; }
+  .muted { color:var(--muted); }
+  ul { margin:.5em 0; padding-left:1.3em; }
+  li { margin:.35em 0; }
+  .eq { background:var(--card); border:1px solid var(--rule); border-left:3px solid var(--accent);
+        padding:10px 16px; margin:1em 0; font-family:"SF Mono",Consolas,monospace; font-size:.9rem; overflow-x:auto; }
+  .knobs th { background:#eef1f5; }
+  .knobs td:nth-child(2) { font-family:"SF Mono",Consolas,monospace; font-size:.82rem; color:var(--accent); }
+  figure { margin:1.4em 0; }
+  figcaption { color:var(--muted); font-size:.85rem; margin-top:.5em; text-align:center; }
+  footer { margin-top:48px; padding-top:18px; border-top:1px solid var(--rule); color:var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="kicker">Set-DEQ Notes · #4</p>
+  <h1>Going Local: Does a Radius-Bounded Equilibrium Even Converge?</h1>
+  <p class="byline">Zhibai Jia · 21 June 2026 · working notes, not for circulation beyond reviewers</p>
+</header>
+
+<h2>1. Why we changed the model</h2>
+<p>
+Notes #1&ndash;#3 studied a set-DEQ where every point talks to <em>every</em> other point
+through a global pool (mean or attention). That model is mostly <em>unimodal</em>: the
+equilibrium does little that a single forward pass couldn't, so there was no headroom for
+the interesting equilibrium phenomena we were chasing. This note changes one thing: each
+point now interacts <strong>only with nearby points</strong> &mdash; those inside a ball of
+radius <code>r</code> in feature space &mdash; instead of the whole set.
+</p>
+<p>
+That single change is motivated by a unification we arrived at on paper. Three properties we
+care about &mdash; <strong>train-small/infer-large</strong> (size generalization),
+<strong>cheap deletion</strong> (edit-locality), and <strong>decentralized/federated
+solving</strong> &mdash; all turn out to be consequences of one architectural commitment:
+<em>local interaction</em>. If a point only listens to its neighbors, then (a) the rule is
+the same regardless of how many points there are, (b) removing a far-away point can't ripple
+across the set, and (c) the computation can be split across machines that only exchange
+boundary information. Locality is the root; the three properties are its readouts.
+</p>
+<p>
+But before any of that pays off, one question gates everything: <strong>does a local
+equilibrium even converge to a well-defined answer?</strong> This note is that gate test, run
+with <em>no training</em> &mdash; pure random-weight networks &mdash; because convergence and
+uniqueness are properties of the <em>architecture</em>, not of any learned task. If the
+iteration doesn't settle from random weights, no amount of training will save it.
+</p>
+
+<h2>2. The knobs, in plain language</h2>
+<p>
+There are a lot of dials in this experiment, and it's easy to lose track. Here is every one,
+what it physically means, and why we vary it.
+</p>
+<table class="knobs">
+  <thead><tr><th>knob</th><th>values</th><th>what it controls (and why it matters)</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>aggregator</strong></td><td>local_mean<br>local_attn</td>
+      <td>How a point combines its neighbors. <em>Mean</em> = average the neighbor latents
+          (simple, strongly contractive). <em>Attention</em> = a learned weighted combination
+          (expressive, but harder to keep unique). This is the expressiveness dial.</td>
+    </tr>
+    <tr>
+      <td><strong>graph_source</strong></td><td>input<br>latent</td>
+      <td><b>The crux of the whole note.</b> <em>input</em>: "who is my neighbor" is fixed by
+          the original point positions and never changes. <em>latent</em>: neighborhoods are
+          recomputed from the <em>evolving</em> internal state every iteration &mdash;
+          who-you-talk-to depends on where-you-are-now, which moves. The first is a known,
+          tame object (it's a sparse graph fed to an implicit GNN). The second is the new,
+          untested regime &mdash; the "swarm" case where the interaction graph is alive.</td>
+    </tr>
+    <tr>
+      <td><strong>radius <code>r</code></strong></td><td>0.5 &rarr; 100</td>
+      <td>How big the neighborhood ball is. Tiny <code>r</code> &rarr; nearly isolated points
+          (trivial). Huge <code>r</code> (=100) &rarr; everyone is a neighbor, i.e. back to the
+          global model. We sweep across to find whether a <em>useful middle window</em> exists.</td>
+    </tr>
+    <tr>
+      <td><strong>set size <code>N</code></strong></td><td>16, 32, 64, 128</td>
+      <td>How many points in the set. We vary it to check the local rule stays well-behaved as
+          the set grows (a precondition for the train-small/infer-large story).</td>
+    </tr>
+    <tr>
+      <td><strong>&tau; (tau)</strong></td><td>0.5</td>
+      <td>The "softness" of the neighborhood edge &mdash; explained in &sect;4. Small &tau; = a
+          sharp cutoff at the ball boundary; large &tau; = a gentle fade. It turned out to be
+          the single most important knob in the whole experiment.</td>
+    </tr>
+    <tr>
+      <td><strong>geometry</strong></td><td>uniform<br>clustered<br>chain</td>
+      <td>The shape of the point cloud, to stress-test convergence on different structures:
+          points spread evenly, points in 3 tight blobs, or points strung along a line (where
+          information has to travel many hops).</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>And the four things we measure</h3>
+<ul>
+  <li><strong>conv% (convergence rate)</strong> &mdash; the fraction of sets where the iteration
+      actually settled (residual below <code>1e-5</code>) within 200 steps. This is the headline:
+      did it reach an answer at all?</li>
+  <li><strong>iters</strong> &mdash; how many steps it took, when it did converge.</li>
+  <li><strong>fp_gap (fixed-point gap)</strong> &mdash; <em>uniqueness</em>. We solve the same set
+      from several random starting points and measure how far apart the answers are.
+      <code>0.000</code> = always the same equilibrium (one basin). Large = different starts land
+      in different places (multistability, multiple basins).</li>
+  <li><strong>osc% (oscillation rate)</strong> &mdash; the fraction of sets where the residual was
+      still <em>going up</em> near the end, i.e. the iteration was bouncing rather than settling.
+      This is the specific failure we worried about for the <code>latent</code> graph.</li>
+</ul>
+
+<h2>3. The first run failed &mdash; and the failure was the lesson</h2>
+<p>
+The naive implementation defines a neighbor with a hard cutoff: point <code>j</code> is either
+in the ball or out of it, a yes/no switch at distance <code>r</code>.
+</p>
+<div class="eq">neighbor(i, j) = 1 if &Vert;p_i &minus; p_j&Vert; &lt; r  else  0</div>
+<p>
+With the <strong>fixed (input) graph</strong>, this converged beautifully &mdash; residual down
+to <code>1e-7</code>. But with the <strong>state-dependent (latent) graph</strong>, it
+<em>refused to converge</em>: the residual got stuck around <code>1e-3</code> and bounced there
+forever. Here is the side-by-side on one representative set:
+</p>
+<table>
+  <thead><tr><th>graph_source</th><th>residual @ 50</th><th>@ 100</th><th>@ 200</th><th>@ 300</th></tr></thead>
+  <tbody>
+    <tr><td>input (fixed)</td><td>1.6e&minus;4</td><td>8.9e&minus;7</td><td class="good">8.8e&minus;8</td><td class="good">8.4e&minus;8</td></tr>
+    <tr><td>latent (state-dependent)</td><td>8.6e&minus;4</td><td>1.3e&minus;3</td><td class="bad">8.2e&minus;4</td><td class="bad">2.1e&minus;3</td></tr>
+  </tbody>
+</table>
+<p>
+The reason is exactly the thing that makes the latent graph interesting. As the internal state
+moves, points drift across the ball boundary &mdash; and with a hard cutoff, a neighbor
+<em>blinks on and off</em> from one iteration to the next. Each blink discontinuously changes
+what every nearby point sees, so the update never holds still. The map we are iterating is
+<strong>discontinuous in its own state</strong>, and a discontinuous map has no reason to have a
+fixed point a solver can find. Damping (taking smaller steps) softened the bouncing but never
+removed it &mdash; it plateaued around <code>1e-3</code> no matter what.
+</p>
+
+<h2>4. The fix: a soft neighborhood &mdash; and why it's the whole point</h2>
+<p>
+Replace the yes/no switch with a smooth fade: a point is "mostly a neighbor" just inside the
+ball and "mostly not" just outside, with a gentle transition of width <code>&tau;</code>.
+</p>
+<div class="eq">weight(i, j) = sigmoid( (r &minus; &Vert;p_i &minus; p_j&Vert;) / &tau; )</div>
+<p>
+Now when a point drifts across the boundary, its influence changes <em>continuously</em> from,
+say, 0.6 to 0.4 instead of snapping 1&rarr;0. The whole update becomes a continuous function of
+the state, the iteration can settle, and it does &mdash; immediately and completely:
+</p>
+<table>
+  <thead><tr><th>&tau;</th><th>graph_source</th><th>residual @ 100</th><th>@ 200</th><th>@ 300</th></tr></thead>
+  <tbody>
+    <tr><td>2.0</td><td>latent</td><td>6.4e&minus;7</td><td class="good">8.8e&minus;8</td><td class="good">8.6e&minus;8</td></tr>
+    <tr><td>0.5</td><td>latent</td><td>7.9e&minus;7</td><td class="good">8.9e&minus;8</td><td class="good">8.9e&minus;8</td></tr>
+    <tr><td>0.1</td><td>latent</td><td>1.5e&minus;6</td><td class="good">8.8e&minus;8</td><td class="good">8.3e&minus;8</td></tr>
+  </tbody>
+</table>
+<p>
+Even at <code>&tau; = 0.1</code> &mdash; an almost-hard edge &mdash; the state-dependent graph now
+matches the fixed graph's <code>1e-7</code> convergence. The smoothness, not the sharpness, is
+what mattered.
+</p>
+<div class="callout key">
+  <strong>The clean takeaway.</strong> Continuity of the neighbor kernel is what makes a
+  state-dependent local equilibrium well-posed. This is almost certainly <em>why the regime was
+  empty in the literature</em>: the obvious implementation (a hard ball) appears not to converge,
+  so it looks like a dead end &mdash; unless you realize the discontinuity, not the locality, is
+  the culprit, and smooth the boundary. One line of code separates "doesn't work" from "works."
+</div>
+
+<h2>5. The full sweep</h2>
+<p>
+With the soft kernel in place, we ran the whole grid &mdash; both aggregators, both graph
+sources, six radii, four set sizes, three geometries, two seeds, with no training. Averaged over
+geometries and seeds, two regimes emerge cleanly.
+</p>
+
+<h3>5a. local_mean: well-posed everywhere</h3>
+<p>
+The mean-pool aggregator is the boring, reassuring case. Across <em>every</em> radius and set
+size, fixed and state-dependent alike, it converges and lands on a single unique fixed point
+(<code>fp_gap</code> essentially zero). State-dependence is indistinguishable from the fixed
+graph &mdash; the soft kernel fully closes the gap.
+</p>
+<table>
+  <thead><tr><th>graph_source</th><th>r</th><th>N</th><th>conv%</th><th>fp_gap</th><th>osc%</th></tr></thead>
+  <tbody>
+    <tr><td>input</td><td>2.0</td><td>16</td><td class="good">100%</td><td class="good">0.000</td><td>0.8%</td></tr>
+    <tr><td>latent</td><td>2.0</td><td>16</td><td class="good">98.5%</td><td class="good">0.000</td><td>1.7%</td></tr>
+    <tr><td>latent</td><td>4.0</td><td>64</td><td class="good">100%</td><td class="good">0.000</td><td>0.0%</td></tr>
+    <tr><td>latent</td><td>4.0</td><td>128</td><td class="good">98.9%</td><td class="good">0.000</td><td>0.0%</td></tr>
+    <tr><td>latent</td><td>8.0</td><td>128</td><td class="warn">79.0%</td><td class="good">0.001</td><td>1.1%</td></tr>
+  </tbody>
+</table>
+<p>
+The only softening is at <em>large</em> radius and large <code>N</code> on the chain geometry
+(convergence dipping to ~79%), and crucially that dip is <em>identical</em> for the fixed graph
+&mdash; so it's ordinary weak contraction at scale, not a state-dependence problem. The sweet
+spot is a moderate radius (<code>r = 2&ndash;4</code>).
+</p>
+
+<h3>5b. local_attn + latent: genuine multistability &mdash; the interesting cell</h3>
+<p>
+The attention aggregator with a state-dependent graph is where something new appears. At
+moderate radius it still <em>converges</em> most of the time, but it lands in
+<strong>different basins from different starts</strong> &mdash; <code>fp_gap</code> of 0.2&ndash;0.5,
+i.e. real multistability.
+</p>
+<table>
+  <thead><tr><th>graph_source</th><th>r</th><th>N</th><th>conv%</th><th>fp_gap</th><th>osc%</th></tr></thead>
+  <tbody>
+    <tr><td>input (fixed)</td><td>2.0</td><td>64</td><td>84%</td><td class="good">0.000</td><td>6.7%</td></tr>
+    <tr><td>latent</td><td>0.5</td><td>64</td><td>69%</td><td class="bad">0.243</td><td>26%</td></tr>
+    <tr><td>latent</td><td>2.0</td><td>64</td><td>81%</td><td class="bad">0.369</td><td>11%</td></tr>
+    <tr><td>latent</td><td>4.0</td><td>128</td><td>97%</td><td class="bad">0.380</td><td>18%</td></tr>
+    <tr><td>latent</td><td>100</td><td>128</td><td>86%</td><td class="good">0.001</td><td>2.4%</td></tr>
+  </tbody>
+</table>
+<p>
+Read the last row carefully: at <code>r = 100</code> (everyone is a neighbor) the multistability
+<em>vanishes</em> &mdash; <code>fp_gap</code> collapses back to zero, because that's just the
+global-attention model, which we already knew is nearly unique. The multistability is a
+<strong>creature of locality</strong>. Restricting attention to a moderate-radius neighborhood
+manufactures coexisting equilibria that the global model does not have. This is the modern-Hopfield
+"attention = associative memory" picture made <em>geometric</em>: local attention carves the state
+space into basins.
+</p>
+<div class="callout">
+  Whether that multistability is a feature or a bug depends on what we build next. For an
+  associative-memory / basin-steering story (deletion nudges the equilibrium between basins) it is
+  the feature. For a single-answer regression task it would be a liability to be tamed (smaller
+  radius, contraction, or the trainable path-independence recipe from Note #2). Either way, it is
+  <em>new structure</em> &mdash; the empty cell was not empty for lack of interest.
+</div>
+
+<h2>6. Verdict and what it unlocks</h2>
+<div class="callout key">
+  <strong>Gate: GREEN.</strong> A local, state-dependent set-equilibrium converges to a
+  well-defined answer, provided the neighbor kernel is smooth. Mean-pool is unique everywhere;
+  local attention converges but is multistable at moderate radius &mdash; and that multistability
+  is created by the locality itself.
+</div>
+<p>
+This was the precondition for everything downstream. With the gate passed, the next experiments
+become meaningful:
+</p>
+<ul>
+  <li><strong>Size generalization</strong> &mdash; train at small <code>N</code>, test at large
+      <code>N</code>; check the equilibrium reaches answers a fixed-depth network can't, and that
+      iterations-to-converge scale with the set's diameter (information traveling one hop per step).</li>
+  <li><strong>Edit-locality</strong> &mdash; delete a point and measure how far the equilibrium
+      shifts as a function of <em>graph distance</em> from the deletion. The hoped-for result: the
+      shift decays with distance, so re-converging after an edit costs work proportional to the
+      neighborhood, not the whole set.</li>
+  <li><strong>Federated solve</strong> &mdash; split one set across "sites," solve by exchanging only
+      boundary latents, and confirm it lands on the same equilibrium as the centralized solve.</li>
+</ul>
+<p class="muted">
+A caveat we already see coming (and will measure, not assume): the federated efficiency depends on
+the partition respecting the geometry. If two sites' points are spatially interleaved, the
+"boundary" is the whole set and nothing is saved. Local solving buys communication savings exactly
+when the data is locally clustered &mdash; which is also the only regime where local interaction is
+the right model in the first place. That self-consistency is reassuring, but it is a scope
+condition we'll state plainly rather than paper over.
+</p>
+
+<footer>
+  Code: <code>experiments/local_wellposedness.py</code>, <code>src/model.py</code>
+  (<code>LocalMeanUpdate</code>, <code>LocalAttnUpdate</code>, soft kernel <code>_soft_neighbors</code>).
+  Sweep: 2 aggregators &times; 2 graph sources &times; 6 radii &times; 4 sizes &times; 3 geometries
+  &times; 2 seeds, random weights, 200-iter solves. &middot;
+  <a href="https://github.com/AntonyJia159/deq-sets">github.com/AntonyJia159/deq-sets</a>
+</footer>
+</div>
+</body>
+</html>
