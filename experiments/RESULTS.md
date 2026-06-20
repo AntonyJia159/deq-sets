@@ -393,3 +393,39 @@ SCALING (Anil et al.), not for unlearning-privacy (no leak to close). Honest piv
 the multistability that remains does not create an exploitable warm-start membership
 leak; expressive equilibrium models are safe to warm-start-unlearn." More
 characterization/reassurance than privacy alarm.
+
+## Layer 4 -- Decision flips vs task ambiguity (2026-06-20)
+
+Tested the proposed "benign multistability = honest task-uncertainty" thesis: do
+decision flips (pred_agreement<1) track TASK AMBIGUITY (low margin / low cluster
+separation) or RAW MULTISTABILITY (fp_gap)? Attn, 5 seeds x 300 sets, 8 inits.
+
+| variable | flip mean | no-flip mean | corr(flip,.) | flip-AUC |
+|---|---|---|---|---|
+| fp_gap (multistability)  | 0.686 | 0.021 | 0.662 | **0.992** |
+| low margin (uncertainty) | 0.372 | 0.589 | 0.086 | 0.698 |
+| low separation (task)    | 5.59  | 6.21  | 0.040 | 0.583 |
+
+1500 sets, 23 flips (1.5%).
+
+### Verdict: thesis REFUTED
+- Flips track MULTISTABILITY (fp_gap AUC 0.992), NOT task ambiguity (margin 0.698,
+  separation 0.583). Opposite of the prediction.
+- CRUCIAL: non-flip sets are near-UNIQUE (fp_gap mean 0.021). There is NO large
+  "benign multistable" population -- if the readout were quietly quotienting out
+  multiplicity, non-flip sets would have high fp_gap; they don't. Attention is mostly
+  genuinely unique (~98.5%), with a rare strongly-multistable tail (~1.5%) that FLIPS
+  the prediction rather than benignly agreeing.
+- "Benign multistability via readout quotient" is empirically dead (not just vacuous).
+
+### What survives
+- The model is mostly unique (good for unlearning on ~98.5% of sets).
+- The 1.5% multistable tail flips the predicted CLASS (real, if rare, path-dependence)
+  but does NOT leak membership (MIA benign in tail). So multistability hurts
+  TASK-CONSISTENCY, not MEMBERSHIP-PRIVACY -- a genuine but modest decoupling. The
+  basin difference changes which class, not which point was deleted.
+
+### Note
+Third reframe to deflate under testing (after privacy-alarm and observable-well-posedness).
+Pattern worth heeding: the exciting positive theses keep failing; what is robust is the
+modest characterization. Reassess scope/task before more reframes.
