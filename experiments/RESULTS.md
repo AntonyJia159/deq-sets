@@ -347,3 +347,49 @@ The paper's load-bearing empirical claim ("trainable PI tames the history channe
 no accuracy cost") SURVIVES, in precise/modest form. To firm it up: more seeds or a
 cleaner/harder task (variance is large), and the MIA to show the residual worst-case
 gap is actually attacker-exploitable (otherwise the tail is a curiosity, not a leak).
+
+## Layer 4 -- Membership inference attack (2026-06-20)
+
+GPU build (torch cu126). Paired construction: member = warm-delete c from Bu{c};
+non-member = warm-delete d from Bu{d}; attacker sees (Z_post, c) and predicts
+membership. Perfect unlearning => AUC 0.5 by construction. 3 configs x 5 seeds x
+3000 trials. Latent + output attackers; trial-level split (a per-sample split was a
+bug -> AUC<0.5 from twin memorization, fixed; control then read exactly 0.500).
+Stratified by the per-trial membership gap ||Z_post_member - Z_post_nonmember||.
+
+Latent AUC by gap-stratum (mean +/- std over 5 seeds):
+
+| config | output_all | lat_all | top50 | top25 | top10 |
+|---|---|---|---|---|---|
+| attn_baseline | 0.500 | 0.500 | 0.501 | 0.501 | 0.504+/-0.006 |
+| attn_pi       | 0.500 | 0.500 | 0.499 | 0.503 | 0.500+/-0.008 |
+| normdeepsets  | 0.501 | 0.501 | 0.501 | 0.507 | 0.512+/-0.017 |
+
+### Verdict: the warm-start history channel is NOT attacker-exploitable (negative)
+1. **AUC ~ 0.5 in every stratum, every config -- including the worst-decile tail.**
+2. **Not a weak-attacker artifact: baseline never beats the control.** Same attacker
+   on the unique-by-construction normdeepsets controls for capacity; baseline (0.504)
+   <= control (0.512) in top10 and equal elsewhere => no missed signal, it is absent.
+   Rising std as strata shrink (0.001->0.017) = small-sample noise, not signal.
+3. **Mechanism:** multistability creates basin differences (the both-conv gap is real
+   in latent norm) but the basin choice does NOT encode the deleted point's IDENTITY
+   in a way recoverable given c. Basin steering is orthogonal to membership. This
+   CONFIRMS ZJ's earlier deflationary intuition ("deletion steering to different
+   basins has nothing to do with whether an attack succeeds").
+
+### Scope / caveats
+- Tests the HISTORY/warm-start channel ONLY. The paired same-B design cancels the
+  data-intrinsic (neighbor-reconstruction) channel by construction -- untested here.
+- One synthetic task, N=24. Mechanism (basin != identity) suggests generality but is
+  not proven; a harder task could differ.
+- Belt-and-suspenders check still open: escalate to a cross-attention attacker to
+  fully close the weak-attacker door (control comparison already argues against it).
+
+### Strategic implication
+The "exact-deletion-yet-leaky / PI closes a dangerous leak" spine does NOT hold: the
+warm-start channel PI governs is benign. PI/recipe remains valuable for TEST-TIME
+SCALING (Anil et al.), not for unlearning-privacy (no leak to close). Honest pivot:
+"equilibrium set-models give clean unlearning, and -- contrary to the natural worry --
+the multistability that remains does not create an exploitable warm-start membership
+leak; expressive equilibrium models are safe to warm-start-unlearn." More
+characterization/reassurance than privacy alarm.

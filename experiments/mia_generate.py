@@ -35,9 +35,9 @@ TOL = 1e-5
 PROBE_ITERS = 200
 SOLVE_BATCH = 512
 
-# --- smoke config (bump for the full run) ---
-SEEDS = [0, 1, 2]
-N_TRIALS = 1000
+# --- full run (smoke was seeds=[0,1,2], trials=1000) ---
+SEEDS = [0, 1, 2, 3, 4]
+N_TRIALS = 3000
 
 CONFIGS = {
     "attn_baseline": dict(update="attn", pi_train=False),
@@ -87,7 +87,7 @@ def _converged(model, z_star, x):
 def generate(model, B, c, d):
     """Return dicts of per-sample arrays for member and non-member halves."""
     n = B.shape[0]
-    Zp_m, Zp_n, conv_m, conv_n, sens, nn = [], [], [], [], [], []
+    Zp_m, Zp_n, conv_m, conv_n, sens, nn, gap = [], [], [], [], [], [], []
     for s in range(0, n, SOLVE_BATCH):
         Bb = B[s:s + SOLVE_BATCH].to(DEV)
         cb = c[s:s + SOLVE_BATCH].to(DEV)
@@ -103,10 +103,13 @@ def generate(model, B, c, d):
         conv_m.append(_converged(model, Zpm, Bb)); conv_n.append(_converged(model, Zpn, Bb))
         sens.append((Zc[:, :SURV, :] - Zb).flatten(1).norm(dim=1).cpu())
         nn.append(torch.cdist(cb.unsqueeze(1), Bb).squeeze(1).min(dim=1).values.cpu())
+        # direct per-trial membership signal: warm-from-c vs warm-from-d equilibria.
+        gap.append(((Zpm - Zpn).flatten(1).norm(dim=1) /
+                    (Zpn.flatten(1).norm(dim=1) + 1e-8)).cpu())
     return {
         "Zp_m": torch.cat(Zp_m), "Zp_n": torch.cat(Zp_n),
         "conv_m": torch.cat(conv_m), "conv_n": torch.cat(conv_n),
-        "sens": torch.cat(sens), "nn": torch.cat(nn),
+        "sens": torch.cat(sens), "nn": torch.cat(nn), "gap": torch.cat(gap),
     }
 
 
@@ -129,9 +132,10 @@ def main():
             conv = torch.cat([g["conv_m"], g["conv_n"]], dim=0).numpy()
             sens = torch.cat([g["sens"], g["sens"]], dim=0).numpy().astype(np.float32)
             nn = torch.cat([g["nn"], g["nn"]], dim=0).numpy().astype(np.float32)
+            gap = torch.cat([g["gap"], g["gap"]], dim=0).numpy().astype(np.float32)
             out = os.path.join(CACHE_DIR, f"{name}_seed{seed}.npz")
             np.savez_compressed(out, Zpost=Zpost, cand=cand, label=label,
-                                conv=conv, sens=sens, nn=nn)
+                                conv=conv, sens=sens, nn=nn, gap=gap)
             cm = float(g["conv_m"].float().mean())
             print(f"  {name:<14} seed{seed}  conv_member={cm:.2f}  "
                   f"{time.time()-t:.1f}s  -> {os.path.basename(out)}")

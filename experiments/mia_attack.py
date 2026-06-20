@@ -120,7 +120,24 @@ def load(path):
     c = torch.from_numpy(z["cand"][conv])
     y = torch.from_numpy(z["label"][conv].astype(np.float32))
     tid = torch.from_numpy(tid_full[conv])
-    return Z, c, y, tid
+    gap = torch.from_numpy(z["gap"][conv].astype(np.float32))
+    return Z, c, y, tid, gap
+
+
+# tail strata: train+test the attacker restricted to trials whose member-vs-non-member
+# equilibrium gap is above the given quantile. "all" = the blunt global attack.
+STRATA = {"all": 0.0, "top50": 0.50, "top25": 0.75, "top10": 0.90}
+
+
+def stratified(Z, c, y, tid, gap):
+    out = {}
+    for name, q in STRATA.items():
+        thr = float(np.quantile(gap.numpy(), q)) if q > 0 else -1.0
+        m = gap >= thr
+        aucs = [train_attacker(LatentAttacker, Z[m], c[m], y[m], tid[m], s)
+                for s in ATTACKER_SEEDS]
+        out[name] = float(np.mean(aucs))
+    return out
 
 
 def main():
@@ -131,24 +148,31 @@ def main():
         by_cfg.setdefault(m.group(1), []).append(f)
 
     results = {}
-    for cfg, fs in by_cfg.items():
-        for atk_name, make in (("latent", LatentAttacker), ("output", OutputAttacker)):
-            aucs = []
-            for f in sorted(fs):
-                Z, c, y, tid = load(f)
-                seed_aucs = [train_attacker(make, Z, c, y, tid, s) for s in ATTACKER_SEEDS]
-                aucs.append(float(np.mean(seed_aucs)))
-            arr = np.array(aucs)
-            results[f"{cfg}/{atk_name}"] = {"mean": float(arr.mean()),
-                                            "std": float(arr.std()),
-                                            "per_seed": aucs}
-            print(f"{cfg:<14} {atk_name:<7} AUC = {arr.mean():.3f} +/- {arr.std():.3f}  "
-                  f"(seeds {[round(a,3) for a in aucs]})")
+    print(f"{'config':<14}{'output_all':>12}" +
+          "".join(f"{'lat_'+s:>10}" for s in STRATA))
+    for cfg, fs in sorted(by_cfg.items()):
+        per_seed = {s: [] for s in STRATA}
+        out_all = []
+        for f in sorted(fs):
+            Z, c, y, tid, gap = load(f)
+            strat = stratified(Z, c, y, tid, gap)
+            for s in STRATA:
+                per_seed[s].append(strat[s])
+            out_all.append(float(np.mean(
+                [train_attacker(OutputAttacker, Z, c, y, tid, s) for s in ATTACKER_SEEDS])))
+        agg = {s: (float(np.mean(per_seed[s])), float(np.std(per_seed[s]))) for s in STRATA}
+        results[cfg] = {"latent_strata": agg,
+                        "output_all": (float(np.mean(out_all)), float(np.std(out_all)))}
+        row = f"{cfg:<14}{np.mean(out_all):>12.3f}"
+        row += "".join(f"{agg[s][0]:>10.3f}" for s in STRATA)
+        print(row)
+        print(f"{'  +/-':<14}{np.std(out_all):>12.3f}" +
+              "".join(f"{agg[s][1]:>10.3f}" for s in STRATA))
 
     out = os.path.join(os.path.dirname(__file__), "results_mia.json")
     with open(out, "w") as fh:
         json.dump(results, fh, indent=2)
-    print(f"\nwrote {out}")
+    print(f"\nwrote {out}  (latent AUC by gap-stratum; >0.5 in a tail stratum = exploitable)")
 
 
 if __name__ == "__main__":
