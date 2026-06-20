@@ -18,3 +18,5 @@ __pycache__/
 wandb/
 outputs/
 logs/
+*.npz
+experiments/mia_cache/
