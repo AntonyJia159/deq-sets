@@ -309,3 +309,41 @@ No contraction constraint. Single seed, N=24, 15 epochs.
 - Then the MIA on the residual: does the (now-localized) warm-start channel still
   leak a deleted point, and does leakage track sensitivity vs basin?
 - The recipe slightly hurt convergence reliability (30/30 -> 26/30; rho_max ~1.01).
+
+## Layer 3, run 4 — PI recipe, SEED-AVERAGED (10 paired seeds) (2026-06-20)
+
+Paired design: each seed trains baseline AND PI on the same data with the same init
+seed; only the recipe differs. Aggregate (mean +/- std over 10 seeds):
+
+| config | acc | fp_gap_max | both-conv mean | both-conv max |
+|---|---|---|---|---|
+| baseline | 0.833+/-0.010 | 0.367+/-0.301 | 0.010+/-0.009 | 0.223+/-0.188 |
+| PI       | 0.834+/-0.014 | 0.398+/-0.371 | 0.003+/-0.005 | 0.061+/-0.100 |
+
+### What survives seed-averaging (and what was single-seed hype)
+1. **No accuracy cost — CONFIRMED, tight** (0.833 vs 0.834). The single-seed accuracy
+   *gain* (0.824->0.850) was NOISE; there is no gain, but no cost either.
+2. **Recipe reduces the WORST-CASE history-channel leak — REAL (paired).** Unpaired
+   bands overlap (0.223+/-0.188 vs 0.061+/-0.100), BUT the design is paired: per-seed
+   both-conv max is PI <= baseline in all 10 seeds, strictly lower in 7, tied in 3,
+   never worse. Mean paired reduction ~0.16, paired-t ~3.2, p~0.01. both-conv mean
+   shows the same (PI never worse). So the effect is directional-robust though modest.
+3. **Global multistability NOT fixed.** fp_gap_max is unchanged/mixed (0.37 vs 0.40,
+   PI occasionally much worse, e.g. seed5 0.00->1.36). The recipe does NOT make the
+   map globally single-basin.
+4. **Single-seed had overstated the baseline severity too:** worst-case 0.50 was a
+   bad draw; true baseline both-conv max ~0.22.
+
+### The precise, seed-confirmed finding
+The recipe tames the **warm-start / operating-region** channel specifically -- the
+one that matters for deletion -- WITHOUT making the map globally unique and WITHOUT
+an accuracy cost. Warm-start (both-conv) and random-init (fp_gap) multistability are
+DIFFERENT channels; the recipe targets the deletion-relevant one. Magnitudes are
+small and variance high: average deletion is already near-clean (both-conv mean
+~0.01) even for baseline; the story is the worst-case tail (0.22 -> 0.06).
+
+### Implication
+The paper's load-bearing empirical claim ("trainable PI tames the history channel at
+no accuracy cost") SURVIVES, in precise/modest form. To firm it up: more seeds or a
+cleaner/harder task (variance is large), and the MIA to show the residual worst-case
+gap is actually attacker-exploitable (otherwise the tail is a curiosity, not a leak).
