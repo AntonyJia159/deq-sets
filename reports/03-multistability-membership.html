@@ -115,6 +115,39 @@ attractor. Attention being multistable is the mechanism working as intended, not
 pathology.
 </p>
 
+<h3>2a. How common is it? Mostly near-unique, with a rare tail</h3>
+<p>
+The worst-case numbers above are tails, so it is worth asking how much of the input
+space is actually multistable. Solving 1500 sets from 8 initializations each (five
+trained models), the answer is reassuring: <strong>~98.5% of sets are effectively
+unique</strong> — every initialization lands on the same fixed point
+(<code>fp_gap &approx; 0.02</code>) and agrees on the prediction. Only <strong>~1.5%
+flip</strong> (initializations disagree on the class). Attention is not &ldquo;multistable
+everywhere&rdquo;; it is <em>mostly unique</em>, with a thin multistable tail.
+</p>
+<p>
+And that tail is governed by multistability itself, not by task difficulty. Ranking sets
+by how well each quantity predicts a flip (AUC; 0.5&nbsp;=&nbsp;chance):
+</p>
+<table>
+  <thead><tr><th>predictor of a decision flip</th><th>flip-AUC</th></tr></thead>
+  <tbody>
+    <tr><td><code>fp_gap</code> (latent multistability)</td><td class="bad">0.99</td></tr>
+    <tr><td>low readout margin (model uncertainty)</td><td>0.70</td></tr>
+    <tr><td>low cluster separation (genuine task ambiguity)</td><td>0.58</td></tr>
+  </tbody>
+</table>
+<p>
+Flips coincide almost perfectly with raw multistability (0.99) and only weakly with
+genuine task ambiguity (0.58). Tempting as it is to say &ldquo;the multistability is
+benign because it only changes the answer when the task is already ambiguous,&rdquo; the
+data does <em>not</em> support that: the flips are where the latent dynamics are
+multistable, wherever that happens to fall. The honest statement is narrower — attention
+is mostly unique, and its rare multistable tail genuinely makes the predicted class
+initialization-dependent (a real, if small, path dependence). What the next section shows
+is that this tail, while it moves the <em>class</em>, does not betray <em>membership</em>.
+</p>
+
 <h2>3. Two attempts to engineer the multistability away</h2>
 
 <h3>3a. Decomposability (linear attention) — inconclusive</h3>
