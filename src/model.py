@@ -178,18 +178,120 @@ class LinAttnUpdate(nn.Module):
         return z
 
 
+def _soft_neighbors(positions, radius, tau=0.5):
+    """Soft neighbor weights: w_ij = sigmoid((r - ||p_i - p_j||) / tau).
+
+    Smooth approximation to the hard ball 1[d < r]. Critical for state-dependent
+    graphs (graph_source="latent"): the hard threshold causes binary flip-flop
+    of neighbors across iterations, preventing convergence. The sigmoid makes the
+    operator continuous in positions, restoring contractivity.
+    """
+    dists = torch.cdist(positions, positions)
+    return torch.sigmoid((radius - dists) / tau)
+
+
+class LocalMeanUpdate(nn.Module):
+    """Local mean-pool update: aggregate only over radius-r neighbors.
+
+    graph_source="input" builds the graph from input x (fixed across iterations).
+    graph_source="latent" rebuilds from current z each iteration (state-dependent).
+    """
+
+    def __init__(self, d_latent, d_in, hidden, spectral=False,
+                 radius=2.0, graph_source="input", tau=0.5):
+        super().__init__()
+        del spectral
+        self.radius = radius
+        self.graph_source = graph_source
+        self.tau = tau
+        self.x_proj = nn.Linear(d_in, d_latent)
+        self.agg = nn.Sequential(
+            nn.Linear(2 * d_latent, hidden), nn.ReLU(), nn.Linear(hidden, d_latent)
+        )
+        self.norm1 = nn.LayerNorm(d_latent)
+        self.ff = nn.Sequential(
+            nn.Linear(d_latent, hidden), nn.ReLU(), nn.Linear(hidden, d_latent)
+        )
+        self.norm2 = nn.LayerNorm(d_latent)
+
+    def forward(self, z, x, w=None):
+        pos = z if self.graph_source == "latent" else x
+        weights = _soft_neighbors(pos, self.radius, self.tau).unsqueeze(-1)
+        degree = weights.sum(dim=2).clamp(min=1e-6)
+        pool = (z.unsqueeze(1).expand(-1, z.shape[1], -1, -1) * weights).sum(dim=2)
+        pool = pool / degree
+
+        zx = z + self.x_proj(x)
+        a = self.agg(torch.cat([zx, pool], dim=-1))
+        z = self.norm1(z + a)
+        z = self.norm2(z + self.ff(z))
+        return z
+
+
+class LocalAttnUpdate(nn.Module):
+    """Local attention update: softmax attention with soft radius-gated weights.
+
+    Attention logits are additively biased by the soft neighbor kernel so that
+    distant pairs are exponentially downweighted without the hard-mask
+    discontinuity that breaks state-dependent convergence.
+    """
+
+    def __init__(self, d_latent, d_in, hidden, n_heads=4, spectral=False,
+                 radius=2.0, graph_source="input", tau=0.5):
+        super().__init__()
+        del spectral
+        self.radius = radius
+        self.graph_source = graph_source
+        self.tau = tau
+        self.n_heads = n_heads
+        self.x_proj = nn.Linear(d_in, d_latent)
+        self.qkv = nn.Linear(d_latent, 3 * d_latent)
+        self.o_proj = nn.Linear(d_latent, d_latent)
+        self.norm1 = nn.LayerNorm(d_latent)
+        self.ff = nn.Sequential(
+            nn.Linear(d_latent, hidden), nn.ReLU(), nn.Linear(hidden, d_latent)
+        )
+        self.norm2 = nn.LayerNorm(d_latent)
+
+    def forward(self, z, x, w=None):
+        B, N, d = z.shape
+        h = self.n_heads
+        dk = d // h
+
+        pos = z if self.graph_source == "latent" else x
+        locality_bias = _soft_neighbors(pos, self.radius, self.tau)
+        locality_logit = torch.log(locality_bias.clamp(min=1e-8))
+
+        zx = z + self.x_proj(x)
+        qkv = self.qkv(zx).reshape(B, N, 3, h, dk).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]
+
+        attn = (q @ k.transpose(-2, -1)) / (dk ** 0.5)
+        attn = attn + locality_logit.unsqueeze(1)
+        attn = torch.softmax(attn, dim=-1)
+
+        out = (attn @ v).transpose(1, 2).reshape(B, N, d)
+        a = self.o_proj(out)
+        z = self.norm1(z + a)
+        z = self.norm2(z + self.ff(z))
+        return z
+
+
 _UPDATES = {
     "deepsets": DeepSetsUpdate,
     "attn": AttnUpdate,
     "normdeepsets": NormDeepSetsUpdate,
     "linattn": LinAttnUpdate,
+    "local_mean": LocalMeanUpdate,
+    "local_attn": LocalAttnUpdate,
 }
 
 
 class SetDEQ(nn.Module):
     def __init__(self, d_in, d_latent=64, hidden=128, update="deepsets",
                  n_classes=5, max_iter=30, tol=1e-4, damping=0.5, spectral=False,
-                 solver="fixed_point_iter", pi_train=False, pi_min_iter=10):
+                 solver="fixed_point_iter", pi_train=False, pi_min_iter=10,
+                 radius=2.0, graph_source="input", tau=0.5):
         """solver: a TorchDEQ f_solver name ('fixed_point_iter', 'broyden',
         'anderson', ...) or 'damped' for the legacy hand-rolled iteration.
 
@@ -206,13 +308,12 @@ class SetDEQ(nn.Module):
         self.tol = tol
         self.damping = damping
         self.solver = solver
-        # Anil et al. 2022 recipe to PROMOTE path independence WITHOUT contraction:
-        # train from a mixed init (zeros on half the batch, noise on the rest) and a
-        # randomized solver budget, so the model learns to reach the same limiting
-        # behaviour regardless of initialization/depth.
         self.pi_train = pi_train
         self.pi_min_iter = pi_min_iter
-        self.update = _UPDATES[update](d_latent, d_in, hidden, spectral=spectral)
+        update_kwargs = dict(spectral=spectral)
+        if update.startswith("local_"):
+            update_kwargs.update(radius=radius, graph_source=graph_source, tau=tau)
+        self.update = _UPDATES[update](d_latent, d_in, hidden, **update_kwargs)
         self.readout = nn.Sequential(
             nn.Linear(d_latent, hidden), nn.ReLU(), nn.Linear(hidden, n_classes)
         )
