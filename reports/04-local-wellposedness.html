@@ -195,11 +195,17 @@ matches the fixed graph's <code>1e-7</code> convergence. The smoothness, not the
 what mattered.
 </p>
 <div class="callout key">
-  <strong>The clean takeaway.</strong> Continuity of the neighbor kernel is what makes a
-  state-dependent local equilibrium well-posed. This is almost certainly <em>why the regime was
-  empty in the literature</em>: the obvious implementation (a hard ball) appears not to converge,
-  so it looks like a dead end &mdash; unless you realize the discontinuity, not the locality, is
-  the culprit, and smooth the boundary. One line of code separates "doesn't work" from "works."
+  <strong>The takeaway &mdash; and it is not new.</strong> Continuity of the neighbor kernel is
+  what makes a state-dependent local equilibrium well-posed. This is a <em>re-derivation of a
+  known principle</em>, not a discovery: the signal-processing literature on iterative soft
+  thresholding (ISTA and relatives) established long ago that a smooth, non-expansive operator
+  composed with a contractive iteration converges, while a hard threshold need not. The genre of
+  replacing a hard discrete operation with a temperature-controlled smooth one &mdash;
+  Gumbel-softmax, soft sorting, soft top-<em>k</em> &mdash; is equally standard. So this section
+  is a <em>checkpoint</em>, not a result: it confirms the precondition (a local state-dependent
+  equilibrium can be made well-posed) so the experiments that follow are meaningful. The single
+  line of code that separates "oscillates" from "converges" is worth knowing, but an expert would
+  have predicted it.
 </div>
 
 <h2>5. The full sweep</h2>
@@ -264,10 +270,39 @@ space into basins.
   associative-memory / basin-steering story (deletion nudges the equilibrium between basins) it is
   the feature. For a single-answer regression task it would be a liability to be tamed (smaller
   radius, contraction, or the trainable path-independence recipe from Note #2). Either way, it is
-  <em>new structure</em> &mdash; the empty cell was not empty for lack of interest.
+  structure that the global model does not exhibit &mdash; restricting the radius is what creates
+  it.
 </div>
 
-<h2>6. Verdict and what it unlocks</h2>
+<h2>6. Where this sits (and what is genuinely new vs. borrowed)</h2>
+<p>
+Honesty about the lineage, because every ingredient here is standard and only the combination is
+unusual. <strong>State-dependent soft equilibria already exist</strong>: the original
+deep-equilibrium paper (Bai et al. 2019) solves a self-attention block to a fixed point, and
+attention is exactly a soft, state-dependent interaction &mdash; just global. <strong>Dynamic
+local graphs in feature space already exist</strong>: DGCNN/EdgeConv (Wang et al. 2019)
+recomputes a k-nearest-neighbor graph from evolving features at every layer, and even pitches the
+"sparse but diameter-sized receptive field" story &mdash; but in a <em>finite-depth, feedforward</em>
+network. <strong>Equilibrium models on sets already exist</strong>: DDEQs (2025) solve a set-DEQ
+with attention, but with <em>global</em> all-to-all attention and Wasserstein machinery, and study
+classification/completion rather than the structural properties we care about.
+</p>
+<p>
+What I could not find a direct precedent for is the specific four-way intersection: a
+<em>geometrically-local</em>, <em>state-dependent</em>, <em>equilibrium</em> model on free sets,
+studied for size generalization, edit-locality, and decentralized solving. Loosely: the
+<em>equilibrium</em> version of DGCNN, or the <em>local</em> version of a set-DEQ. That gap looks
+real but two cautions apply. First, "I didn't find it" with keyword search is not proof of
+absence &mdash; a proper check is a citation-graph traversal (who cites both DGCNN and DEQ?), and
+better still a gut-check from someone in the DEQ subfield. Second, a gap being unfilled does not
+make it valuable: feedforward DGCNN already claims the diameter-sized receptive field, so the
+equilibrium framing has to <em>earn its keep</em> by doing something the feedforward
+dynamic-graph network demonstrably cannot &mdash; genuine extrapolation past any fixed depth, or
+edit-locality, which DGCNN never asks about. That burden is the whole point of the experiments
+below; this note does not discharge it.
+</p>
+
+<h2>7. Verdict and what it unlocks</h2>
 <div class="callout key">
   <strong>Gate: GREEN.</strong> A local, state-dependent set-equilibrium converges to a
   well-defined answer, provided the neighbor kernel is smooth. Mean-pool is unique everywhere;
