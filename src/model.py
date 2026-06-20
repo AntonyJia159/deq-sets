@@ -18,6 +18,7 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 try:
     from torch.nn.utils.parametrizations import spectral_norm
@@ -123,10 +124,65 @@ class NormDeepSetsUpdate(nn.Module):
         return z
 
 
+class LinAttnUpdate(nn.Module):
+    """Linear-attention block: identical wrapper to AttnUpdate (input injection +
+    residual + two LayerNorms + feed-forward), but the softmax attention is
+    replaced by linear attention with feature map phi(t)=elu(t)+1.
+
+    The point of this block in the project: it is *more expressive* than mean-pool
+    yet, unlike softmax attention, its aggregate is an ADDITIVE sufficient
+    statistic over the set --
+
+        S = sum_j phi(k_j) (x) v_j   (d x d),   Zsum = sum_j phi(k_j)   (d),
+        out_i = phi(q_i)^T S / (phi(q_i)^T Zsum).
+
+    So it is decomposable / federatable, and it admits the presence-weight knob w
+    (weight each point's contribution to S and Zsum), which softmax attention does
+    not. It is the pivot experiment for whether exact unlearning is governed by
+    decomposability (then linattn stays unique) or by raw expressiveness (then it
+    goes multistable like softmax attention).
+    """
+
+    def __init__(self, d_latent, d_in, hidden, spectral=False):
+        super().__init__()
+        del spectral
+        self.x_proj = nn.Linear(d_in, d_latent)
+        self.q = nn.Linear(d_latent, d_latent)
+        self.k = nn.Linear(d_latent, d_latent)
+        self.v = nn.Linear(d_latent, d_latent)
+        self.o = nn.Linear(d_latent, d_latent)
+        self.norm1 = nn.LayerNorm(d_latent)
+        self.ff = nn.Sequential(
+            nn.Linear(d_latent, hidden), nn.ReLU(), nn.Linear(hidden, d_latent)
+        )
+        self.norm2 = nn.LayerNorm(d_latent)
+
+    @staticmethod
+    def _phi(t):
+        return F.elu(t) + 1.0  # positive feature map (Katharopoulos et al. 2020)
+
+    def forward(self, z, x, w=None):
+        zx = z + self.x_proj(x)
+        q = self._phi(self.q(zx))
+        k = self._phi(self.k(zx))
+        v = self.v(zx)
+        if w is not None:
+            k = k * w  # presence weight enters the additive sufficient statistic
+        S = torch.einsum("bnd,bne->bde", k, v)          # sum_j phi(k_j) (x) v_j
+        zsum = k.sum(dim=1)                              # sum_j phi(k_j)
+        num = torch.einsum("bnd,bde->bne", q, S)
+        den = torch.einsum("bnd,bd->bn", q, zsum).unsqueeze(-1) + 1e-6
+        a = self.o(num / den)
+        z = self.norm1(z + a)
+        z = self.norm2(z + self.ff(z))
+        return z
+
+
 _UPDATES = {
     "deepsets": DeepSetsUpdate,
     "attn": AttnUpdate,
     "normdeepsets": NormDeepSetsUpdate,
+    "linattn": LinAttnUpdate,
 }
 
 

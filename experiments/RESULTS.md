@@ -227,3 +227,51 @@ multi-init fp_gap, not by the local amplifier.
   converges since rho<1); it will become the redundant-vs-pivotal detector once we
   add a presence-weight knob to attention (or work on a contractive expressive model).
 - MIA still targets attention's multistable tail — but indexed by fp_gap, not rho.
+
+## Layer 3, run 2 — the decomposability pivot (linear attention) (2026-06-20)
+
+Added LinAttnUpdate: linear attention (phi=elu+1), same wrapper as softmax attn,
+but its aggregate S=sum_j phi(k_j)(x)v_j, zsum=sum_j phi(k_j) is an ADDITIVE
+sufficient statistic — decomposable/federatable, and it DOES admit the presence
+weight w (unlike softmax). The pivot: is exact unlearning governed by
+DECOMPOSABILITY or by raw EXPRESSIVENESS? linattn is expressive-ish AND decomposable.
+
+Robust metric = both-converged unlearn gap (conditioned on both solves reaching tol):
+
+| model | decomp | acc | both-conv gap: 8ep / 15ep |
+|---|---|---|---|
+| normdeepsets | yes | 0.69-0.76 | 0.000 / 0.000 |
+| linattn      | yes | 0.52-0.57 | 0.000(17/30) / **0.336(28/30)** |
+| attn         | no  | 0.81-0.82 | 0.442 / 0.588 |
+
+### Verdict: INCONCLUSIVE, leaning AGAINST the decomposability hypothesis
+
+1. **linattn's first-run "uniqueness" was an artifact of under-convergence** (only
+   17/30 converged). With 15 epochs it is 100% locally contractive AND 28/30
+   converge — and then reveals GENUINE multistability (both-conv 0.336). So a
+   *decomposable* model IS multistable. Decomposability did NOT buy global
+   uniqueness. This flips the lean toward EXPRESSIVENESS, not decomposability:
+   mean-pool may be unique because it is WEAK, and any added expressive capacity
+   (linear or softmax) admits coexisting basins.
+2. **But two confounds forbid a firm claim:**
+   - linattn will not train (acc 0.52-0.57, BELOW mean-pool both runs). Linear
+     attention underperforms softmax on tasks needing sharp selection; cluster-
+     counting may be such a task. A model that does not learn the task is a poor
+     test of "expressive AND unique" — its multistability may be a bad landscape.
+   - single-seed variance is too high for this fine distinction: normdeepsets
+     fp_gap_max swung 0.000->0.356 and rho_max 0.92->1.27 from an epoch change
+     alone. Only the both-converged gap is stable across runs.
+
+### What IS robust (holds both runs)
+- mean-pool: globally unique when converged (both-conv 0.000). Genuinely weak-but-exact.
+- softmax attn: genuinely multistable (both-conv 0.44-0.59). The Hopfield-predicted
+  associative-memory regime.
+
+### Next (to actually resolve the pivot)
+- **Seed-average everything** (>=5 seeds): the single-seed noise is dominating the
+  fine comparisons; only both-conv gap survived it.
+- **Find a fairly-trained expressive-AND-contractive model** — linear attention is
+  not it on this task (won't reach competitive acc). Candidates: L2/Lipschitz
+  attention (Kim et al. 2021), monotone-operator design, or a harder-task where
+  linear attention is competitive. Without a model that BOTH learns the task AND is
+  decomposable/contractive, the decomposability-vs-expressiveness question stays open.

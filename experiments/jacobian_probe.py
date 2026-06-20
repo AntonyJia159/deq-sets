@@ -1,20 +1,22 @@
-"""Layer-3 Jacobian probe.
+"""Layer-3 Jacobian probe + the decomposability pivot (linear attention).
 
-The load-bearing experiment under Reports #1/#2: it measures, rather than infers,
-the spectral radius rho(J_f) at the trained fixed points and ties it to the
-leakage we care about. Three questions:
+Side-by-side over three update blocks that change ONE thing at a time:
 
-  1. Are the contractive models actually contractive (rho < 1), and is attention
-     actually near/over the bifurcation (rho -> 1 with a tail)? This is the direct
-     evidence for the uniqueness claims we have only seen downstream via fp_gap.
+  normdeepsets : mean-pool   -- decomposable, contractive, single basin (baseline)
+  linattn      : linear attn -- DECOMPOSABLE but more expressive (the pivot)
+  attn         : softmax attn-- NON-decomposable, expressive (multistable negative)
 
-  2. Does the linearized removal sensitivity ||dZ*/dw_k|| (mean-pool) track the
-     measured unlearn_gap? Agreement = redundant point; large divergence = the
-     pivotal/bifurcation case that is the MIA target.
+The decisive question: is exact unlearning governed by DECOMPOSABILITY or by raw
+EXPRESSIVENESS? linattn isolates it -- if it stays globally unique (fp_gap ~ 0)
+like mean-pool, decomposability is the lever; if it goes multistable like softmax
+attention, expressiveness is.
 
-  3. Does the IFT amplifier 1/(1-rho) rank-correlate with the measured unlearning
-     tail across sets? That is the "spectral quantity governs the leak" statement
-     the privacy story rests on.
+Per architecture we report, at N=24:
+  - test accuracy                              (the expressiveness axis)
+  - rho(J_f) mean/max, contractive fraction    (LOCAL well-posedness)
+  - fp_gap mean/max                            (GLOBAL uniqueness / multistability)
+  - both-converged unlearn gap max             (true leakage, not under-convergence)
+  - corr(pred_rel, gap)                        (does linearized dZ*/dw predict the leak)
 
 Run:  & "D:\\deq-venv\\Scripts\\python.exe" -m experiments.jacobian_probe
 """
@@ -27,8 +29,8 @@ import torch
 
 from src.data import GMMSetDataset
 from src.model import SetDEQ
-from src.train import train
-from src.metrics import unlearning_gap
+from src.train import train, evaluate
+from src.metrics import path_independence_gap, unlearning_gap
 from src.jacobian import jacobian_report
 
 K_RANGE = (1, 4)
@@ -40,12 +42,14 @@ SOLVE = dict(max_iter=200)
 def _corr(a, b):
     a = torch.tensor(a, dtype=torch.float64)
     b = torch.tensor(b, dtype=torch.float64)
+    mask = torch.isfinite(a) & torch.isfinite(b)
+    a, b = a[mask], b[mask]
     if a.numel() < 2 or a.std() < 1e-9 or b.std() < 1e-9:
         return float("nan")
     return float(((a - a.mean()) * (b - b.mean())).mean() / (a.std() * b.std()))
 
 
-def run(update, epochs=8):
+def run(update, epochs=15):
     torch.manual_seed(0)
     train_ds = GMMSetDataset(n_samples=2000, k_range=K_RANGE, n_points=N, d=2,
                              sep=4.0, std=1.0, seed=1)
@@ -55,63 +59,69 @@ def run(update, epochs=8):
                    n_classes=train_ds.n_classes, max_iter=150, tol=1e-5)
     print(f"== training {update} at N={N} ==")
     train(model, train_ds, epochs=epochs, batch_size=64, lr=1e-3, log_every=0)
+    acc = evaluate(model, test_ds)
 
-    rhos, amps, pred_rel, meas_gap, contractive = [], [], [], [], 0
-    both_conv_gap = []  # gap only where BOTH solves converged: true multistability
+    rhos, fp_gaps, pred_rel, meas_gap = [], [], [], []
+    contractive = 0
+    both_conv_gap = []
     for i in range(N_PROBE):
         x = test_ds.X[i]
         xb = x.unsqueeze(0)
-        z_star, info = model.solve(xb, **SOLVE)
+        z_star, _ = model.solve(xb, **SOLVE)
         rep = jacobian_report(model, xb, z_star, remove_idx=0)
+        pi = path_independence_gap(model, x, n_inits=5, **SOLVE)
         ul = unlearning_gap(model, x, remove_idx=0, **SOLVE)
+
         rhos.append(rep["rho"])
-        amps.append(rep["amplifier"] if math.isfinite(rep["amplifier"]) else float("nan"))
         contractive += int(rep["contractive"])
+        fp_gaps.append(pi["fp_gap"])
         meas_gap.append(ul["unlearn_gap"])
         pred_rel.append(rep["removal"]["pred_rel"] if rep["removal"] else float("nan"))
         if ul["warm_converged"] and ul["cold_converged"]:
             both_conv_gap.append(ul["unlearn_gap"])
 
-    rt = torch.tensor(rhos)
+    rt, ft = torch.tensor(rhos), torch.tensor(fp_gaps)
     summary = {
-        "update": update,
-        "rho_mean": float(rt.mean()), "rho_median": float(rt.median()),
-        "rho_max": float(rt.max()), "rho_min": float(rt.min()),
+        "update": update, "acc": acc,
+        "rho_mean": float(rt.mean()), "rho_max": float(rt.max()),
         "contractive_frac": contractive / N_PROBE,
-        "unlearn_gap_mean": float(torch.tensor(meas_gap).mean()),
+        "fp_gap_mean": float(ft.mean()), "fp_gap_max": float(ft.max()),
         "unlearn_gap_max": float(torch.tensor(meas_gap).max()),
-        # disambiguates true multistability (two converged basins) from mere
-        # under-convergence: gap restricted to sets where BOTH solves converged.
         "both_converged_n": len(both_conv_gap),
         "both_conv_gap_max": (float(torch.tensor(both_conv_gap).max())
                               if both_conv_gap else float("nan")),
-        # the privacy-relevant claim: does the spectral amplifier predict the leak?
-        "corr_amplifier_vs_gap": _corr(amps, meas_gap),
+        "removal_supported": any(math.isfinite(p) for p in pred_rel),
         "corr_predrel_vs_gap": _corr(pred_rel, meas_gap),
-        "raw": {"rho": rhos, "amplifier": amps,
+        "raw": {"rho": rhos, "fp_gap": fp_gaps,
                 "pred_rel": pred_rel, "unlearn_gap": meas_gap},
     }
-    print(f"  rho  mean/median/max = {summary['rho_mean']:.3f} / "
-          f"{summary['rho_median']:.3f} / {summary['rho_max']:.3f}  "
-          f"(contractive {summary['contractive_frac']*100:.0f}%)")
-    print(f"  measured unlearn_gap mean/max = {summary['unlearn_gap_mean']:.3f} / "
-          f"{summary['unlearn_gap_max']:.3f}")
-    print(f"  both-converged gap max = {summary['both_conv_gap_max']:.3f} "
+    print(f"  acc={acc:.3f} | rho mean/max={summary['rho_mean']:.3f}/"
+          f"{summary['rho_max']:.3f} (contractive {summary['contractive_frac']*100:.0f}%)")
+    print(f"  fp_gap mean/max={summary['fp_gap_mean']:.3f}/{summary['fp_gap_max']:.3f} | "
+          f"both-conv gap max={summary['both_conv_gap_max']:.3f} "
           f"(n={summary['both_converged_n']}/{N_PROBE})")
-    print(f"  corr(amplifier, gap)  = {summary['corr_amplifier_vs_gap']:.3f}")
-    print(f"  corr(pred_rel, gap)   = {summary['corr_predrel_vs_gap']:.3f}")
+    print(f"  removal-knob={summary['removal_supported']} | "
+          f"corr(pred_rel,gap)={summary['corr_predrel_vs_gap']:.3f}")
     return summary
 
 
 def main():
     results = {}
-    for update in ("normdeepsets", "attn"):
+    for update in ("normdeepsets", "linattn", "attn"):
         results[update] = run(update)
         print()
+    print("=" * 70)
+    print(f"{'model':<14}{'acc':>7}{'rho_max':>9}{'fp_gap_max':>12}"
+          f"{'bothconv_max':>14}{'decomp':>8}")
+    for u in ("normdeepsets", "linattn", "attn"):
+        s = results[u]
+        print(f"{u:<14}{s['acc']:>7.3f}{s['rho_max']:>9.3f}{s['fp_gap_max']:>12.3f}"
+              f"{s['both_conv_gap_max']:>14.3f}{str(s['removal_supported']):>8}")
+
     out = os.path.join(os.path.dirname(__file__), "results_jacobian.json")
     with open(out, "w") as fh:
         json.dump(results, fh, indent=2)
-    print(f"wrote {out}")
+    print(f"\nwrote {out}")
 
 
 if __name__ == "__main__":
