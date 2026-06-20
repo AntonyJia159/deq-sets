@@ -189,7 +189,7 @@ _UPDATES = {
 class SetDEQ(nn.Module):
     def __init__(self, d_in, d_latent=64, hidden=128, update="deepsets",
                  n_classes=5, max_iter=30, tol=1e-4, damping=0.5, spectral=False,
-                 solver="fixed_point_iter"):
+                 solver="fixed_point_iter", pi_train=False, pi_min_iter=10):
         """solver: a TorchDEQ f_solver name ('fixed_point_iter', 'broyden',
         'anderson', ...) or 'damped' for the legacy hand-rolled iteration.
 
@@ -206,6 +206,12 @@ class SetDEQ(nn.Module):
         self.tol = tol
         self.damping = damping
         self.solver = solver
+        # Anil et al. 2022 recipe to PROMOTE path independence WITHOUT contraction:
+        # train from a mixed init (zeros on half the batch, noise on the rest) and a
+        # randomized solver budget, so the model learns to reach the same limiting
+        # behaviour regardless of initialization/depth.
+        self.pi_train = pi_train
+        self.pi_min_iter = pi_min_iter
         self.update = _UPDATES[update](d_latent, d_in, hidden, spectral=spectral)
         self.readout = nn.Sequential(
             nn.Linear(d_latent, hidden), nn.ReLU(), nn.Linear(hidden, n_classes)
@@ -245,5 +251,17 @@ class SetDEQ(nn.Module):
         return z.mean(dim=1)
 
     def forward(self, x, z0=None):
+        if self.training and self.pi_train and z0 is None:
+            B, N = x.shape[0], x.shape[1]
+            # mixed init: zeros on (at least) half the batch -- includes the
+            # zero init used at test time, so there is no train/test init shift --
+            # and Gaussian noise on the rest.
+            z0 = torch.randn(B, N, self.d_latent, device=x.device)
+            z0[: B // 2] = 0.0
+            # randomized compute budget: a path-independent solution must reach the
+            # same behaviour for any depth, so we vary it during training.
+            mi = int(torch.randint(self.pi_min_iter, self.max_iter + 1, (1,)).item())
+            z, info = self.solve(x, z0=z0, max_iter=mi)
+            return self.readout(self.pool(z)), info
         z, info = self.solve(x, z0)
         return self.readout(self.pool(z)), info

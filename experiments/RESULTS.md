@@ -275,3 +275,37 @@ Robust metric = both-converged unlearn gap (conditioned on both solves reaching 
   attention (Kim et al. 2021), monotone-operator design, or a harder-task where
   linear attention is competitive. Without a model that BOTH learns the task AND is
   decomposable/contractive, the decomposability-vs-expressiveness question stays open.
+
+## Layer 3, run 3 — the Anil et al. (2022) PI recipe on attention (2026-06-20)
+
+Tested whether path independence can be TRAINED into expressive (non-contractive)
+attention via the Anil et al. recipe: mixed init (zeros on half the batch + noise)
+and randomized solver budget (SetDEQ(pi_train=True), implemented in model.forward).
+No contraction constraint. Single seed, N=24, 15 epochs.
+
+| attn | acc | AA_mean | fp_gap_max | both-conv gap | both-conv n |
+|---|---|---|---|---|---|
+| baseline  | 0.824 | 0.997 | 0.571 | 0.500 | 30/30 |
+| PI-recipe | 0.850 | 0.995 | 0.527 | **0.071** | 26/30 |
+
+### Reading it
+1. **Works, in the right direction, at no accuracy cost.** Worst-case genuine
+   multistability dropped 7x (0.500 -> 0.071) and acc went UP (0.824 -> 0.850).
+   Path independence IS trainable on expressive attention without contraction.
+2. **It tamed the WARM-START channel, not global multistability.** fp_gap (random-
+   init spread) barely moved (0.571 -> 0.527), but warm-vs-cold both-conv collapsed.
+   Convergence counts explain it: under the recipe the multistable sets now FAIL TO
+   CONVERGE (26/30) instead of silently settling in a wrong basin -- so a converged
+   answer is basin-consistent, and ambiguity surfaces as detectable non-convergence
+   (the safer failure mode). PI here is localized to the operating region, not global.
+3. **AA score is the WRONG instrument for unlearning.** 0.997 vs 0.995 -- saturated,
+   uninformative. Cosine alignment washes out the magnitude differences between
+   basins that unlearning cares about. The both-converged relative-norm gap is the
+   metric that discriminates; AA says baseline was "already PI" when it wasn't.
+
+### Caveat / next
+- SINGLE SEED, and variance is known-high here. 0.500 -> 0.071 is encouraging but
+  unconfirmed. Seed-average (>=5) before trusting the magnitude.
+- Then the MIA on the residual: does the (now-localized) warm-start channel still
+  leak a deleted point, and does leakage track sensitivity vs basin?
+- The recipe slightly hurt convergence reliability (30/30 -> 26/30; rho_max ~1.01).
