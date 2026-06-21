@@ -198,12 +198,15 @@ class LocalMeanUpdate(nn.Module):
     """
 
     def __init__(self, d_latent, d_in, hidden, spectral=False,
-                 radius=2.0, graph_source="input", tau=0.5):
+                 radius=2.0, graph_source="input", tau=0.5, pos_dim=None):
         super().__init__()
         del spectral
         self.radius = radius
         self.graph_source = graph_source
         self.tau = tau
+        self.pos_dim = pos_dim  # build the graph from x[..., :pos_dim] only (e.g.
+        # geometric coordinates) when the input carries extra non-positional
+        # channels like an injected seed signal; None = use all of x.
         self.x_proj = nn.Linear(d_in, d_latent)
         self.agg = nn.Sequential(
             nn.Linear(2 * d_latent, hidden), nn.ReLU(), nn.Linear(hidden, d_latent)
@@ -215,7 +218,10 @@ class LocalMeanUpdate(nn.Module):
         self.norm2 = nn.LayerNorm(d_latent)
 
     def forward(self, z, x, w=None):
-        pos = z if self.graph_source == "latent" else x
+        if self.graph_source == "latent":
+            pos = z
+        else:
+            pos = x if self.pos_dim is None else x[..., :self.pos_dim]
         weights = _soft_neighbors(pos, self.radius, self.tau).unsqueeze(-1)
         degree = weights.sum(dim=2).clamp(min=1e-6)
         pool = (z.unsqueeze(1).expand(-1, z.shape[1], -1, -1) * weights).sum(dim=2)
@@ -237,12 +243,13 @@ class LocalAttnUpdate(nn.Module):
     """
 
     def __init__(self, d_latent, d_in, hidden, n_heads=4, spectral=False,
-                 radius=2.0, graph_source="input", tau=0.5):
+                 radius=2.0, graph_source="input", tau=0.5, pos_dim=None):
         super().__init__()
         del spectral
         self.radius = radius
         self.graph_source = graph_source
         self.tau = tau
+        self.pos_dim = pos_dim
         self.n_heads = n_heads
         self.x_proj = nn.Linear(d_in, d_latent)
         self.qkv = nn.Linear(d_latent, 3 * d_latent)
@@ -258,7 +265,10 @@ class LocalAttnUpdate(nn.Module):
         h = self.n_heads
         dk = d // h
 
-        pos = z if self.graph_source == "latent" else x
+        if self.graph_source == "latent":
+            pos = z
+        else:
+            pos = x if self.pos_dim is None else x[..., :self.pos_dim]
         locality_bias = _soft_neighbors(pos, self.radius, self.tau)
         locality_logit = torch.log(locality_bias.clamp(min=1e-8))
 
@@ -291,7 +301,8 @@ class SetDEQ(nn.Module):
     def __init__(self, d_in, d_latent=64, hidden=128, update="deepsets",
                  n_classes=5, max_iter=30, tol=1e-4, damping=0.5, spectral=False,
                  solver="fixed_point_iter", pi_train=False, pi_min_iter=10,
-                 radius=2.0, graph_source="input", tau=0.5):
+                 radius=2.0, graph_source="input", tau=0.5, node_readout=False,
+                 pos_dim=None):
         """solver: a TorchDEQ f_solver name ('fixed_point_iter', 'broyden',
         'anderson', ...) or 'damped' for the legacy hand-rolled iteration.
 
@@ -310,9 +321,11 @@ class SetDEQ(nn.Module):
         self.solver = solver
         self.pi_train = pi_train
         self.pi_min_iter = pi_min_iter
+        self.node_readout = node_readout
         update_kwargs = dict(spectral=spectral)
         if update.startswith("local_"):
-            update_kwargs.update(radius=radius, graph_source=graph_source, tau=tau)
+            update_kwargs.update(radius=radius, graph_source=graph_source, tau=tau,
+                                 pos_dim=pos_dim)
         self.update = _UPDATES[update](d_latent, d_in, hidden, **update_kwargs)
         self.readout = nn.Sequential(
             nn.Linear(d_latent, hidden), nn.ReLU(), nn.Linear(hidden, n_classes)
@@ -351,6 +364,13 @@ class SetDEQ(nn.Module):
     def pool(self, z):
         return z.mean(dim=1)
 
+    def head(self, z):
+        """Apply the readout. For node_readout=True the readout is applied
+        per node, returning (B, N, out) for per-node regression/labeling tasks
+        (e.g. propagation); otherwise it pools to a single (B, out) prediction.
+        The nn.Sequential acts on the last dim either way."""
+        return self.readout(z) if self.node_readout else self.readout(self.pool(z))
+
     def forward(self, x, z0=None):
         if self.training and self.pi_train and z0 is None:
             B, N = x.shape[0], x.shape[1]
@@ -363,6 +383,6 @@ class SetDEQ(nn.Module):
             # same behaviour for any depth, so we vary it during training.
             mi = int(torch.randint(self.pi_min_iter, self.max_iter + 1, (1,)).item())
             z, info = self.solve(x, z0=z0, max_iter=mi)
-            return self.readout(self.pool(z)), info
+            return self.head(z), info
         z, info = self.solve(x, z0)
-        return self.readout(self.pool(z)), info
+        return self.head(z), info
