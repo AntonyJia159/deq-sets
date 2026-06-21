@@ -246,6 +246,9 @@ class LocalAttnUpdate(nn.Module):
                  radius=2.0, graph_source="input", tau=0.5, pos_dim=None):
         super().__init__()
         del spectral
+        if d_latent % n_heads != 0:
+            raise ValueError(f"d_latent ({d_latent}) must be divisible by "
+                             f"n_heads ({n_heads})")
         self.radius = radius
         self.graph_source = graph_source
         self.tau = tau

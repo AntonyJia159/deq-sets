@@ -2,9 +2,10 @@
 
 The task (a vehicle to get a non-trivially-trained local operator): N points in 2D,
 connected into a radius graph. A few SEED nodes carry random signal vectors. Each
-node's target is the signal of its graph-nearest seed -- a genuinely multi-hop
-quantity (a node far from every seed needs information relayed across many hops), so
-the equilibrium does work a single forward pass cannot.
+node's target is the HARMONIC (diffusion) EXTENSION of those signals -- clamp the
+seeds at their signal and let every other node settle to the mean of its neighbours.
+This is a genuinely multi-hop quantity (a far node's value is relayed across many
+edges), so the equilibrium does work a single forward pass cannot.
 
 We then ask the two questions that gate both downstream narratives (federation,
 memory unit):
@@ -75,7 +76,7 @@ def geodesic_distances(adj):
 def make_sample(gen):
     """One propagation sample. Returns:
       X_aug (N, 2+D_SIG+1) -- [position(2), seed signal (zeros off seeds), is_seed(1)]
-      target (N, D_SIG)    -- the signal of the graph-NEAREST seed (multi-hop)
+      target (N, D_SIG)    -- the harmonic/diffusion extension of the seed signals
       gdist (N,N) graph distances, seed_idx (K,).
     The seed signal MUST be injected into the input: it is random per sample, so the
     model can only produce the right output by PROPAGATING it across the local graph.
@@ -186,10 +187,20 @@ def certify_contraction(model, Xte, n_sets=20):
 @torch.no_grad()
 def edit_locality(model, Xte, Gte, n_sets=60, max_dist=8):
     """Delete one node per set, re-solve (warm), measure ||Delta Z*_i|| binned by
-    graph distance(i, deleted). Returns dict: dist->mean relative shift, plus mean
-    warm vs cold re-converge iters."""
+    graph distance(i, deleted).
+
+    Two correctness guards on the decay measurement:
+      - a deletion is only counted if BOTH the full solve and the warm re-solve
+        converged, so non-fixed-point iterates never enter the decay bins;
+      - SEED (pivotal -- removes an injected source) and NON-SEED (redundant)
+        deletions are binned SEPARATELY, since they have categorically different
+        influence; the non-seed table is the clean edit-locality result.
+
+    Returns (decay_nonseed, counts_nonseed, decay_seed, counts_seed,
+             mean_warm_iters, mean_cold_iters)."""
     model.eval()
-    bins = {d: [] for d in range(1, max_dist + 1)}
+    bins = {"nonseed": {d: [] for d in range(1, max_dist + 1)},
+            "seed":    {d: [] for d in range(1, max_dist + 1)}}
     warm_iters, cold_iters = [], []
 
     for s in range(min(n_sets, len(Xte))):
@@ -199,8 +210,9 @@ def edit_locality(model, Xte, Gte, n_sets=60, max_dist=8):
         if not info["converged"]:
             continue
 
-        # pick a deletion node that has finite-distance neighbours to measure
+        is_seed = x[0, :, -1] > 0.5           # last input channel flags seeds
         j = int(torch.randint(0, N_POINTS, (1,)).item())
+        kind = "seed" if bool(is_seed[j]) else "nonseed"
 
         keep = [k for k in range(N_POINTS) if k != j]
         keep_t = torch.tensor(keep, device=DEV)
@@ -208,11 +220,13 @@ def edit_locality(model, Xte, Gte, n_sets=60, max_dist=8):
         z_warm = z_star[:, keep_t, :]
 
         z_new, info_w = model.solve(x_minus, z0=z_warm, max_iter=MAX_ITER)
-        z_cold, info_c = model.solve(x_minus, max_iter=MAX_ITER)
+        _, info_c = model.solve(x_minus, max_iter=MAX_ITER)
         if info_w["converged"]:
             warm_iters.append(info_w["n_iter"])
         if info_c["converged"]:
             cold_iters.append(info_c["n_iter"])
+        if not info_w["converged"]:
+            continue  # a non-converged warm iterate would pollute the decay bins
 
         # relative shift per surviving node vs its pre-deletion equilibrium
         shift = (z_new - z_warm).norm(dim=-1) / (z_warm.norm(dim=-1) + 1e-8)  # (1, N-1)
@@ -220,11 +234,16 @@ def edit_locality(model, Xte, Gte, n_sets=60, max_dist=8):
         for local_i, orig_i in enumerate(keep):
             gd = gdist[orig_i, j].item()
             if np.isfinite(gd) and 1 <= gd <= max_dist:
-                bins[int(gd)].append(shift[local_i].item())
+                bins[kind][int(gd)].append(shift[local_i].item())
 
-    decay = {d: (np.mean(v) if v else float("nan")) for d, v in bins.items()}
-    counts = {d: len(v) for d, v in bins.items()}
-    return decay, counts, np.mean(warm_iters or [np.nan]), np.mean(cold_iters or [np.nan])
+    def summarize(b):
+        return ({d: (np.mean(v) if v else float("nan")) for d, v in b.items()},
+                {d: len(v) for d, v in b.items()})
+
+    decay_ns, counts_ns = summarize(bins["nonseed"])
+    decay_s, counts_s = summarize(bins["seed"])
+    return (decay_ns, counts_ns, decay_s, counts_s,
+            np.mean(warm_iters or [np.nan]), np.mean(cold_iters or [np.nan]))
 
 
 # ---------- driver ----------
@@ -240,31 +259,41 @@ def main():
         model = train_model(radius, Xtr, Ttr, SEED)
         mse = test_mse(model, Xte, Tte)
         rho_mean, rho_max, frac_contract, conv_frac = certify_contraction(model, Xte)
-        decay, counts, warm, cold = edit_locality(model, Xte, Gte)
-        rows.append((radius, mse, rho_mean, rho_max, frac_contract, decay, counts,
-                     warm, cold, conv_frac))
+        decay_ns, counts_ns, decay_s, counts_s, warm, cold = edit_locality(
+            model, Xte, Gte)
+        rows.append(dict(radius=radius, mse=mse, rho_mean=rho_mean, rho_max=rho_max,
+                         frac_contract=frac_contract, conv_frac=conv_frac,
+                         warm=warm, cold=cold, decay_ns=decay_ns, counts_ns=counts_ns,
+                         decay_s=decay_s, counts_s=counts_s))
 
     print("\n" + "=" * 78)
     print("SUMMARY")
     print(f"{'radius':>7} {'test_mse':>9} {'rho_mean':>9} {'rho_max':>8} "
           f"{'contract%':>10} {'conv%':>6} {'warm_it':>8} {'cold_it':>8}")
-    for r, mse, rm, rx, fc, dec, cnt, warm, cold, cf in rows:
-        print(f"{r:>7} {mse:>9.4f} {rm:>9.3f} {rx:>8.3f} {fc:>10.0%} "
-              f"{cf:>6.0%} {warm:>8.0f} {cold:>8.0f}")
+    for r in rows:
+        print(f"{r['radius']:>7} {r['mse']:>9.4f} {r['rho_mean']:>9.3f} "
+              f"{r['rho_max']:>8.3f} {r['frac_contract']:>10.0%} "
+              f"{r['conv_frac']:>6.0%} {r['warm']:>8.0f} {r['cold']:>8.0f}")
 
-    print("\nEDIT-LOCALITY: mean relative ||Delta Z*|| by graph distance to deletion")
     dists = list(range(1, 9))
     header = "radius  " + "".join(f"  d={d:<5}" for d in dists)
-    print(header)
-    for r, mse, rm, rx, fc, dec, cnt, warm, cold, cf in rows:
-        cells = "".join(f"  {dec.get(d, float('nan')):<5.3f}" for d in dists)
-        print(f"{r:>6}  {cells}")
-    print("\n(n samples per (radius,distance) bin, smallest radius shown):")
-    r0 = rows[0]
-    print("  " + "  ".join(f"d={d}:{r0[6].get(d,0)}" for d in dists))
 
-    print("\nReading: if local (r=1.5) decays across d and global (r=100) stays flat,")
-    print("edit-locality is real and scales with radius -> both narratives are live.")
+    def decay_table(title, decay_key, counts_key):
+        print(f"\n{title}: mean relative ||Delta Z*|| by graph distance to deletion")
+        print(header)
+        for r in rows:
+            cells = "".join(f"  {r[decay_key].get(d, float('nan')):<5.3f}"
+                            for d in dists)
+            print(f"{r['radius']:>6}  {cells}")
+        r0 = rows[0]
+        print("  (n per bin, smallest radius: "
+              + " ".join(f"d={d}:{r0[counts_key].get(d, 0)}" for d in dists) + ")")
+
+    decay_table("EDIT-LOCALITY [NON-SEED / redundant deletions]", "decay_ns", "counts_ns")
+    decay_table("EDIT-LOCALITY [SEED / pivotal deletions]", "decay_s", "counts_s")
+
+    print("\nReading: if non-seed decay falls across d for local (r=1.5) and stays flat")
+    print("for global (r=100), edit-locality is real and scales with radius.")
 
 
 if __name__ == "__main__":

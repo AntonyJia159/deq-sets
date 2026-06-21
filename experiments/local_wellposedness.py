@@ -152,13 +152,10 @@ def run_sweep():
     results = []
     geometries = ["uniform", "clustered", "chain"]
 
-    total = len(AGGREGATORS) * len(GRAPH_SOURCES) * len(RADII) * len(SET_SIZES)
-    done = 0
     for agg, gsrc in itertools.product(AGGREGATORS, GRAPH_SOURCES):
         for radius in RADII:
             for N in SET_SIZES:
-                done += 1
-                sys.stdout.flush()
+                sys.stdout.flush()  # stream the per-config rows as they land
                 seed_results = {k: [] for k in
                                 ["conv_rate", "mean_iter", "fp_gap",
                                  "fp_gap_max", "osc_rate"]}
