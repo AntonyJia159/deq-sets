@@ -40,12 +40,13 @@ class GraphDEQ(nn.Module):
                      we used before; pins a single uniform contraction scale).
     """
 
-    def __init__(self, d_in, d_lat, k, solver, norm="clipped", kappa=0.9):
+    def __init__(self, d_in, d_lat, k, solver, norm="clipped", kappa=0.9, dropout=0.0):
         super().__init__()
         self.enc = nn.Linear(d_in, d_lat)
         self.W = nn.Parameter(torch.randn(d_lat, d_lat) * 0.1)
         self.readout = nn.Linear(d_lat, k)
         self.norm, self.kappa = norm, kappa
+        self.dropout = dropout
         self.s = 1.0 if norm == "clipped" else kappa
         # Backward: PhantomGrad (TorchDEQ default, ift=False). The TorchDEQ paper implemented
         # both IFT and PhantomGrad forms of IGNN and found PhantomGrad more STABLE, so we keep
@@ -60,11 +61,14 @@ class GraphDEQ(nn.Module):
         return self.W / (sigma + 1e-6)
 
     def forward(self, Ahat, X):
+        if self.dropout > 0:
+            X = F.dropout(X, self.dropout, self.training)
         h0 = self.enc(X)
         Wc = self._Wc()
+        spmm = torch.sparse.mm if Ahat.is_sparse else torch.matmul
 
         def f(z):
-            return torch.tanh(self.s * (Ahat @ (z @ Wc)) + h0)
+            return torch.tanh(self.s * spmm(Ahat, z @ Wc) + h0)
 
         z0 = torch.zeros_like(h0)
         z_out, info = self.deq(f, z0)
