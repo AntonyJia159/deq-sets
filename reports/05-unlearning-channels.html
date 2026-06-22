@@ -173,6 +173,63 @@ irregular graphs the analogue caveat is degree: deleting a hub has a longer-rang
 deleting a leaf, so the <code>O(R&sup2;)</code> claim is for locally-coupled deletions, not hubs.
 </p>
 
+<h3>3c. From the grid to a real graph: Cora</h3>
+<p>
+The grid is the homogeneous best case. To see what survives on a real, irregular graph we move to
+<strong>Cora</strong> (2,708-node citation network, mean degree 3.9, one hub of degree 168,
+small-world). We train an IGNN-aligned graph-DEQ &mdash; clipped spectral norm, Picard solver,
+phantom-gradient, matching TorchDEQ's own IGNN recipe &mdash; freeze it, delete a node (cut its
+edges, renormalize the graph) and re-solve. Influence is now measured against <strong>BFS graph
+distance</strong>, and we add two axes the grid could not show: the deleted node's
+<strong>degree</strong>, and the contraction cap <code>&kappa;</code>. Because training
+<em>saturates</em> the clip (the optimizer pushes <code>&Vert;W&Vert;</code> to the cap for
+expressiveness &mdash; IGNN's edge-of-well-posedness behavior), <code>&kappa;</code> effectively
+<em>is</em> the contraction <code>&rho;</code>, so it serves as the screening knob.
+</p>
+<figure>
+  <img src="figs/cora_deletion_decay.png" alt="Cora deletion-influence decay vs graph distance">
+  <figcaption>
+    Deletion-influence vs BFS hops on Cora (<code>&kappa;=0.5</code>), per degree stratum. Geometric
+    decay (~10&times; per hop) on a real graph; the hub decays slightly slower than the median node.
+    A leaf has a single neighbor, so it is one point.
+  </figcaption>
+</figure>
+<p>
+At <strong>strong contraction</strong> (<code>&kappa;=0.5</code>, test acc 0.679) deletion is local
+and exact; at <strong>weak contraction</strong> (<code>&kappa;=0.9</code>, test acc 0.759) the
+locality collapses &mdash; the same edge behavior as the grid's <code>&alpha;=0.99</code>, now with
+an accuracy axis attached. <code>R*</code> is the truncation radius at which the warm-started
+re-solve matches the exact full deletion to <code>10<sup>&minus;4</sup></code>:
+</p>
+<table>
+  <thead><tr><th>&kappa; (acc)</th><th>stratum</th><th>degree</th><th>R*</th><th>nodes touched</th><th>speedup (N/touched)</th><th>trunc. error</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="3"><strong>0.5</strong><br>(0.679)</td><td>leaf</td><td>1</td><td>1</td><td>2</td><td class="good">1354&times;</td><td>0</td></tr>
+    <tr><td>median</td><td>3</td><td>3</td><td>122</td><td class="good">22&times;</td><td>1e&minus;4</td></tr>
+    <tr><td>hub</td><td>168</td><td>4</td><td>1540</td><td class="warn">1.8&times;</td><td>5e&minus;5</td></tr>
+    <tr><td rowspan="3"><strong>0.9</strong><br>(0.759)</td><td>leaf</td><td>1</td><td>1</td><td>2</td><td class="good">1354&times;</td><td>0</td></tr>
+    <tr><td>median</td><td>3</td><td>6</td><td>1658</td><td class="warn">1.6&times;</td><td>5e&minus;5</td></tr>
+    <tr><td>hub</td><td>168</td><td>6</td><td>2284</td><td class="bad">1.2&times;</td><td>5e&minus;5</td></tr>
+  </tbody>
+</table>
+<p>
+Three things confirm and three things sober. <strong>Confirmed:</strong> influence decays
+geometrically with graph distance on a real graph; the truncated re-solve is exact
+(<code>&le;10<sup>&minus;4</sup></code>) everywhere; and the degree ordering is exactly as predicted
+&mdash; leaf &laquo; median &laquo; hub, with the degree-168 hub genuinely <em>non-local</em> (turning
+&sect;3b's asserted caveat into a measured one). <strong>Sobering:</strong> there is a real
+<em>accuracy&harr;locality</em> tradeoff (0.68 vs 0.76 across the &kappa; sweep); near the edge the
+locality win vanishes; and the speedups are <em>modest</em>.
+</p>
+<div class="callout warn">
+  <strong>The honest real-graph lesson.</strong> Cora is <em>small-world</em> &mdash; short diameter,
+  so even a moderate radius <code>R</code> reaches most of the graph. Channel-1 deletion is therefore
+  <strong>exact everywhere, but cheap only on large-diameter / geometrically-local graphs</strong>
+  (where the grid's big wins came from). On a small-world graph you buy exactness, not speed. The
+  defensible claim is the conjunction stated precisely: <em>exact + local-influence always; large
+  cost savings only when the graph has diameter to spare and the deleted node is not a hub.</em>
+</div>
+
 <h2>4. Channel 2: the test that killed our headline</h2>
 <p>
 The hope was that an equilibrium model &mdash; whose "depth" lives in an iterated, recomputable
@@ -279,9 +336,13 @@ Given the null in &sect;4, we make no claim about weights. The defensible positi
 
 <h2>7. What this unlocks</h2>
 <ul>
-  <li><strong>Channel-1 cost demo on a real graph</strong> &mdash; port the grid's
-      truncated-exact-resolve to Cora / SBM with the hub-degree caveat measured, not assumed. This is
-      the positive result the paper rests on; right now it is clean only on the homogeneous grid.</li>
+  <li><strong>Channel-1 cost demo on a real graph</strong> &mdash; <span class="good">done
+      (&sect;3c)</span>: confirmed exact + locally-decaying on Cora, with the degree and
+      <code>&kappa;</code> axes measured. The sharpened finding: exactness everywhere, but large cost
+      savings only on large-diameter graphs.</li>
+  <li><strong>A large-diameter real graph</strong> &mdash; the natural follow-up to &sect;3c: show the
+      <em>cheapness</em> regime Cora's small-world structure cannot (e.g. a road network or a
+      tree-like citation subgraph), where the truncation speedup should be large.</li>
   <li><strong>Dynamical channel near the contraction boundary</strong> &mdash; confirm the benign
       side-channel survives <code>&rho;&rarr;1</code>.</li>
   <li><strong>The "new regions" argument</strong> &mdash; quantify the regime where Channel 1
@@ -296,9 +357,12 @@ That trade &mdash; a smaller, true result over a larger, shaky one &mdash; is th
 </p>
 
 <footer>
-  Code: <code>experiments/grid_deletion.py</code> (Channel-1 screening / truncated exact deletion),
+  Code: <code>experiments/grid_deletion.py</code> (Channel-1 screening / truncated exact deletion on a grid),
+  <code>experiments/cora_deletion.py</code> (Channel-1 on Cora: degree strata &times; &kappa; sweep),
   <code>experiments/residual_decomposition.py</code> (per-channel membership AUC, DEQ vs matched-fit
-  FF-GCN, <code>torch.func</code> per-sample grads). Committed at <code>287e359</code>. &middot;
+  FF-GCN, <code>torch.func</code> per-sample grads),
+  <code>experiments/cora_deq_solvers.py</code> (TorchDEQ baseline, clipped SN, solver benchmark).
+  Committed through <code>87f1eb6</code>. &middot;
   <a href="https://github.com/AntonyJia159/deq-sets">github.com/AntonyJia159/deq-sets</a>
 </footer>
 </div>
