@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set-DEQ Notes #6 — Beyond Linear Propagation: Contraction as the Door to Flexible Incremental GNNs</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$', '$']], displayMath: [['$$', '$$']] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --ink:#1a1a1a; --muted:#666; --rule:#e2e2e2; --accent:#2b6cb0; --good:#1a7f4b; --bad:#b02a2a; --warn:#b07a1a; --bg:#fafafa; --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 48px 24px 96px; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 32px; }
+  .kicker { font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
+  h1 { font-size: 1.7rem; line-height:1.25; margin:.1em 0 .35em; }
+  .byline { color:var(--muted); font-size:.92rem; }
+  h2 { font-size:1.2rem; margin:2.2em 0 .6em; padding-bottom:.25em; border-bottom:1px solid var(--rule); }
+  h3 { font-size:1.02rem; margin:1.6em 0 .4em; }
+  p { margin:.7em 0; }
+  code { background:#f0f0f3; padding:.08em .35em; border-radius:4px; font-size:.9em;
+         font-family: "SF Mono", Consolas, "Liberation Mono", monospace; }
+  table { width:100%; border-collapse:collapse; margin:1.1em 0; font-size:.88rem; background:var(--card); }
+  th, td { padding:7px 9px; text-align:center; border-bottom:1px solid var(--rule); }
+  th { background:#f3f5f8; font-weight:600; }
+  td:first-child, th:first-child { text-align:left; }
+  .good { color:var(--good); font-weight:600; }
+  .bad  { color:var(--bad);  font-weight:600; }
+  .warn { color:var(--warn); font-weight:600; }
+  .callout { background:#eef4fb; border:1px solid #cfe0f3; border-radius:8px; padding:14px 18px; margin:1.2em 0; }
+  .callout.warn { background:#fdf3ee; border-color:#f3d8c8; }
+  .callout.null { background:#f1f3f5; border-color:#dcdfe3; }
+  .callout.key { background:#eaf6ee; border-color:#bfe3cb; }
+  .muted { color:var(--muted); }
+  ul, ol { margin:.5em 0; padding-left:1.3em; }
+  li { margin:.35em 0; }
+  footer { margin-top:48px; padding-top:18px; border-top:1px solid var(--rule); color:var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="kicker">Set-DEQ Notes · #6 · working direction</p>
+  <h1>Beyond Linear Propagation: Contraction as the Door to Flexible Incremental GNNs</h1>
+  <p class="byline">Zhibai Jia · 23 June 2026 · early-stage direction note, results preliminary</p>
+</header>
+
+<div class="callout">
+  <strong>Status.</strong> This is a <em>direction</em> note, not a finished study. It records a
+  reframing (why the earlier "unlearning" angle is better cast as <em>incremental maintenance</em>),
+  the gap we think is open, and a single proof-of-life experiment (a recurrentized FAGCN that solves
+  and trains). The accuracy bake-off and the maintenance transfer are future work.
+</div>
+
+<h2>1. The pivot: this was never unlearning</h2>
+<p>
+Notes #5 framed re-solving an equilibrium after a graph edit as "exact unlearning." On reflection
+that is the wrong word. <em>Learning</em> updates parameters from data; <em>unlearning</em> scrubs a
+training point's influence from those parameters. What we actually do leaves the weights frozen and
+recomputes the <em>contextualized embeddings</em> after the graph changes &mdash; a
+"circle-and-recompute." Its natural home is not privacy but <strong>maintenance of large production
+GNNs</strong>: million-node recommenders where nodes and edges churn constantly, where retraining is
+prohibitive on any short timescale, and where the enriched node embeddings feed many downstream
+tasks. Keeping those embeddings fresh and locally-correct after each edit is the real problem.
+(Privacy survives only as a thin corollary: an attacker holding stale latents but not the weights is
+thwarted by a re-solve.)
+</p>
+
+<h2>2. The incumbent paradigm edits <em>linear</em> propagation</h2>
+<p>
+That problem already has a field: incremental / dynamic-inference GNNs &mdash; InstantGNN (KDD 2022),
+DynAnom, IDOL, RIPPLE/RIPPLE++, Layph. They are strikingly uniform. Almost all are
+<strong>decoupled</strong>: a parameter-free <em>linear</em> propagation (Personalized / generalized
+PageRank, forward-push) followed by a per-node MLP head. On a graph edit they exploit the algebraic
+invariants of that linear propagation to adjust only the affected nodes, with error provably equal to
+recomputation.
+</p>
+<div class="callout">
+  <strong>The structural reason &mdash; and the bottleneck.</strong> Their cheap exact updates exist
+  <em>because</em> propagation is linear: push/PPR invariants are a property of linear operators. That
+  is also the ceiling. Linear propagation is a fixed <em>low-pass</em> filter, which assumes
+  homophily; it cannot represent the feature-dependent, signed, or attention-based interactions that
+  the rest of deep learning relies on. The incumbent paradigm bought maintainability by giving up the
+  DL toolbox.
+</div>
+
+<h2>3. Why linear propagation is a low-pass trap</h2>
+<p>
+With symmetric-normalized adjacency $\hat{A}=D^{-1/2}AD^{-1/2}$ and Laplacian
+$L=I-\hat{A}=U\Lambda U^{\top}$ ($\lambda\in[0,2]$), a graph convolution is a spectral filter
+$g(L)=U\,g(\Lambda)\,U^{\top}$. Small $\lambda$ are smooth components; large $\lambda$ are
+sign-flipping (high-frequency) components. Standard propagation $\hat{A}=I-L$ is
+</p>
+$$g_{\text{GCN}}(\lambda) = 1-\lambda,$$
+<p>
+a <strong>low-pass</strong> filter: it keeps smooth signal and discards high frequency. That is right
+for homophily (the label signal is smooth) and destructive for <strong>heterophily</strong>, where
+neighbors differ and the discriminative signal <em>is</em> high-frequency. SGC, APPNP, and the PPR
+propagation inside InstantGNN are all in this low-pass family.
+</p>
+
+<h2>4. The claim: contraction, not linearity, is the real enabler</h2>
+<p>
+The maintainability the incumbents get from linearity, an equilibrium model gets from
+<strong>contraction</strong> &mdash; a strictly larger design space. If a fixed-point map is a
+contraction, its solution is unique and a local edit re-converges locally (the influence of a
+perturbation decays with graph distance). Linearity-with-bounded-spectral-radius is just one
+sufficient way to be a contraction; nonlinear, signed, or attention-based maps qualify too, as long
+as they stay contractive. So the maintenance property is available to the full DL toolbox, not only
+to linear propagation.
+</p>
+<p>
+Concretely, take a contractive equilibrium with input injection $Ax$ and a (possibly signed,
+state-dependent) propagation operator $M$:
+</p>
+$$z \;=\; \varepsilon z + Ax + sMz \;\;\Longrightarrow\;\; z^{\star}=\big((1-\varepsilon)I - sM\big)^{-1}Ax.$$
+<p>
+When $\varepsilon + s\,\rho(M) < 1$ this fixed point is unique and equals a convergent series in $M$
+&mdash; an infinite-order graph filter. The same inequality does double duty:
+</p>
+<div class="callout key">
+  <strong>One inequality, two payoffs.</strong> $\varepsilon + s\,\rho(M)<1$ simultaneously
+  (i) bounds the filter so the equilibrium exists and is unique &mdash; and if $M$ carries
+  <em>signed</em> weights, this is a frequency-adaptive filter with both low- and high-pass response
+  (heterophily-capable); and (ii) makes $\lVert (sM)^k\rVert$ decay geometrically, so a node deletion
+  is a <em>local</em> perturbation re-solvable by warm-start + ring truncation (the maintenance
+  property). Expressiveness and maintainability are governed by the same knob.
+</div>
+
+<h2>5. Proof of life: recurrentized FAGCN</h2>
+<p>
+To make the signed/heterophily case concrete we recurrentize <strong>FAGCN</strong> (Bo et al. 2021),
+whose signed attention is the canonical "beyond low-frequency" mechanism, into a state-dependent
+contractive equilibrium:
+</p>
+$$z_i' \;=\; \varepsilon\, z_i \;+\; (Ax)_i \;+\; \sum_{j\in\mathcal{N}(i)} \frac{\alpha_{ij}}{\sqrt{d_i d_j}}\, z_j, \qquad \alpha_{ij}=\tanh\!\big(g^{\top}[z_i\,\Vert\,z_j]\big)\in[-1,1].$$
+<p>
+The $\tanh$ makes the attention <em>signed</em> (so it can subtract dissimilar neighbors &mdash;
+high-pass), $\alpha$ is computed from the <em>evolving</em> $z$ (genuinely nonlinear depth), and $Ax$
+is the per-step input injection a fixed point requires. We solve it with TorchDEQ
+(<code>fixed_point_iter</code> + PhantomGrad). Contraction is not guaranteed a priori for
+state-dependent signed attention &mdash; this is exactly the regime where we have seen multistability
+before &mdash; so we treat $(\varepsilon, s)$ as the control and <em>verify</em> convergence.
+</p>
+<p>
+First smoke test (chameleon, filtered; GPU; $\varepsilon=0.4,\ s=0.3$), asking only two things: does
+it solve, and does it train?
+</p>
+<table>
+  <thead><tr><th>epoch</th><th>loss</th><th>train acc</th><th>solver nstep</th><th>solver rel-residual</th></tr></thead>
+  <tbody>
+    <tr><td>0</td><td>1.61</td><td>0.69</td><td>16</td><td>4.5e&minus;6</td></tr>
+    <tr><td>119</td><td>0.08</td><td class="good">0.98</td><td>31</td><td class="good">2.7e&minus;7</td></tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <strong>Smoke verdict: alive.</strong> The state-dependent <em>signed</em>-attention equilibrium
+  converges cleanly every epoch (residual $\sim\!10^{-7}$ in ~30 steps &mdash; contraction holds in
+  practice at $\varepsilon+s=0.7$, attention-sensitivity included) and trains end-to-end through the
+  PhantomGrad backward. The recurrentization works.
+</div>
+<p class="muted">
+Honest caveat: this run overfits hard (train 0.98, test ~0.34) &mdash; no regularization yet, and
+chameleon is tiny. That is a generalization issue to fix, not a failure of the construction; SOTA on
+this dataset is only ~0.40&ndash;0.45.
+</p>
+
+<h2>6. Where this sits, honestly</h2>
+<p>
+We are candid that none of the ingredients is new in isolation. The maintenance neighbourhood is
+<em>crowded</em>: InstantGNN already does local incremental updates with recompute-error guarantees
+(for the linear case). Re-solving a cut-out region is mechanically <em>regeneration</em>, as in Neural
+Cellular Automata (Mordvintsev et al. 2020; Graph-NCA), and the NCA&harr;DEQ equivalence is our own
+prior note (<a href="https://arxiv.org/abs/2501.03573">arXiv:2501.03573</a>). FAGCN is an existing
+architecture. What we are attempting to assemble from these is a single, currently-unoccupied claim:
+</p>
+<div class="callout">
+  <strong>The bet.</strong> Contraction generalizes the incremental-GNN trick from linear propagation
+  to the full nonlinear / attention / (eventually multimodal) toolbox. You can take a strong
+  architecture &mdash; here FAGCN &mdash; recurrentize it into a contractive equilibrium, and inherit
+  <em>both</em> its expressiveness (which InstantGNN lacks) <em>and</em> local incremental
+  maintainability (which feedforward FAGCN lacks). Linearity is a corner of the contraction space, not
+  its boundary.
+</div>
+
+<h2>7. What has to happen next</h2>
+<ol>
+  <li><strong>Regularize</strong> the recurrentized FAGCN (dropout, capacity, early-stop) to a fair
+      heterophily accuracy.</li>
+  <li><strong>Well-posedness gate</strong> &mdash; uniqueness (fixed-point gap across random inits),
+      not just convergence; and an $(\varepsilon, s)$ sweep to map where expressiveness breaks
+      contraction into multistability.</li>
+  <li><strong>Accuracy head-to-head</strong> vs MLP / SGC / APPNP / feedforward FAGCN on filtered
+      Chameleon, Squirrel, then the larger high-diameter <code>roman-empire</code>.</li>
+  <li><strong>Maintenance transfer</strong> &mdash; the payoff: show the warm-start + ring-truncation
+      deletion mechanics from Note #5 carry over to this <em>expressive, signed</em> model, which the
+      linear incumbents cannot represent and the feedforward original cannot maintain.</li>
+</ol>
+
+<footer>
+  Code: <code>experiments/fagcn_deq_smoke.py</code> (recurrentized FAGCN, TorchDEQ + PhantomGrad, GPU),
+  <code>experiments/hetero_headtohead.py</code> (baseline scaffold). Data: Platonov et al. 2023
+  filtered heterophily graphs. &middot;
+  <a href="https://github.com/AntonyJia159/deq-sets">github.com/AntonyJia159/deq-sets</a>
+</footer>
+</div>
+</body>
+</html>
