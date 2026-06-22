@@ -32,20 +32,32 @@ F_TOL, F_MAX = 1e-6, 80
 
 
 class GraphDEQ(nn.Module):
-    """Contractive graph-DEQ; the fixed-point solve is delegated to TorchDEQ."""
+    """Contractive graph-DEQ; the fixed-point solve is delegated to TorchDEQ.
 
-    def __init__(self, d_in, d_lat, k, solver):
+    norm='clipped' : clipped spectral norm (IGNN/TorchDEQ-recommended) -- only scale W
+                     DOWN when ||W|| exceeds kappa; lets ||W|| float below it. s=1.
+    norm='forced'  : rescale ||W|| to EXACTLY kappa every step (the non-standard variant
+                     we used before; pins a single uniform contraction scale).
+    """
+
+    def __init__(self, d_in, d_lat, k, solver, norm="clipped", kappa=0.9):
         super().__init__()
         self.enc = nn.Linear(d_in, d_lat)
         self.W = nn.Parameter(torch.randn(d_lat, d_lat) * 0.1)
         self.readout = nn.Linear(d_lat, k)
-        self.s = 0.9
-        # implicit-diff backward (TorchDEQ default); same solver fwd/bwd for fairness
-        self.deq = get_deq(f_solver=solver, f_max_iter=F_MAX, f_tol=F_TOL,
-                           b_solver=solver, b_max_iter=F_MAX, b_tol=F_TOL)
+        self.norm, self.kappa = norm, kappa
+        self.s = 1.0 if norm == "clipped" else kappa
+        # Backward: PhantomGrad (TorchDEQ default, ift=False). The TorchDEQ paper implemented
+        # both IFT and PhantomGrad forms of IGNN and found PhantomGrad more STABLE, so we keep
+        # it. (Backward is irrelevant at inference, which is where the deletion experiment
+        # lives -- this only affects training.)
+        self.deq = get_deq(f_solver=solver, f_max_iter=F_MAX, f_tol=F_TOL)
 
     def _Wc(self):
-        return self.W / (torch.linalg.matrix_norm(self.W, ord=2) + 1e-6)
+        sigma = torch.linalg.matrix_norm(self.W, ord=2)
+        if self.norm == "clipped":
+            return self.W * torch.clamp(self.kappa / (sigma + 1e-6), max=1.0)
+        return self.W / (sigma + 1e-6)
 
     def forward(self, Ahat, X):
         h0 = self.enc(X)
@@ -91,7 +103,11 @@ def main():
         F.cross_entropy(out[itr], y[itr]).backward()
         opt.step()
     sd = trainer.state_dict()
-    print("trained (fixed_point_iter). Now compare solvers at inference on identical weights:\n")
+    with torch.no_grad():
+        eff = (trainer.s * torch.linalg.matrix_norm(trainer._Wc(), ord=2)).item()
+    print(f"trained (fixed_point_iter, norm={trainer.norm}, kappa={trainer.kappa}). "
+          f"effective contraction s*||Wc|| = {eff:.3f}\n"
+          f"Now compare solvers at inference on identical weights:\n")
 
     ref_z = None
     print(f"{'solver':<18}{'test acc':>9}{'nstep':>8}{'rel res':>11}"
