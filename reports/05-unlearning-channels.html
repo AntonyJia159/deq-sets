@@ -230,6 +230,82 @@ locality win vanishes; and the speedups are <em>modest</em>.
   cost savings only when the graph has diameter to spare and the deleted node is not a hub.</em>
 </div>
 
+<h3>3d. Performance, and the two practical knobs</h3>
+<p>
+<strong>Accuracy anchor.</strong> How much does the deletion-enabling construction cost against a
+strong feedforward GNN? We train a tuned 2-layer GCN (test acc <code>0.809</code>, matching the
+literature's <code>0.815</code> &mdash; a legitimate anchor) and our clipped-SN DEQ across a
+<code>&kappa;</code> sweep:
+</p>
+<table>
+  <thead><tr><th>model</th><th>eff &rho;</th><th>test acc</th></tr></thead>
+  <tbody>
+    <tr><td>GCN (tuned) / GAT / APPNP / GCNII (lit)</td><td>&mdash;</td><td>0.809 / 0.830 / 0.840 / 0.855</td></tr>
+    <tr><td>DEQ &kappa;=0.5</td><td>0.50</td><td>0.671</td></tr>
+    <tr><td>DEQ &kappa;=0.7</td><td>0.70</td><td>0.707</td></tr>
+    <tr><td>DEQ &kappa;=0.9</td><td>0.89</td><td>0.755</td></tr>
+    <tr><td>DEQ &kappa;=0.99</td><td>0.99</td><td>0.773</td></tr>
+  </tbody>
+</table>
+<p>
+Two honest readings. The <em>absolute</em> gap (our DEQ tops out ~4 points under GCN) is largely an
+artifact of a deliberately minimal model &mdash; a <em>single</em> weight-tied matrix, lightly
+tuned; IGNN and the TorchDEQ paper show implicit graph models reach competitive accuracy under
+spectral normalization when scaled, and we did not chase that here. The <em>relative</em> trend is
+the real finding and is monotone: <strong>accuracy rises with <code>&kappa;</code></strong>
+(0.671 &rarr; 0.773), so tightening the contraction <em>for locality</em> directly costs accuracy.
+That is the <strong>locality&harr;expressiveness axis</strong>, measured.
+</p>
+<div class="callout">
+  <strong>An edge-of-stability echo.</strong> Recall training <em>saturates</em> the clip: the
+  optimizer drives <code>&rho;</code> up to the cap for expressiveness, so the most accurate models
+  sit right at the boundary of well-posedness (<code>&rho;&rarr;1</code>). This rhymes with
+  edge-of-stability phenomena in ordinary deep-net optimization &mdash; useful capacity accumulates
+  at the stability boundary &mdash; with a twist specific to us: <em>locality</em> is a second reason
+  to back away from that edge, not just stability. The screening length, the deletion cost, and the
+  accuracy are all governed by the same distance-below-1 that edge-of-stability is about.
+</div>
+<p>
+<strong>Knob 2: ring truncation (approximate unlearning).</strong> <code>&kappa;</code> trades
+accuracy for locality at the <em>model</em> level. On a <em>fixed</em> model we get a second,
+orthogonal knob: re-solve a ring <em>smaller</em> than the exact radius <code>R*</code>, trading
+exactness for speed at deletion time. The right metric is not residual norm but the operational one
+&mdash; how many node <strong>predictions flip</strong> versus the exact deletion (&kappa;=0.9 model):
+</p>
+<table>
+  <thead><tr><th>node</th><th>ring R</th><th>speedup (N/touched)</th><th>resid err</th><th>test pred flips</th></tr></thead>
+  <tbody>
+    <tr><td>median (deg 3)</td><td>1</td><td class="good">677&times;</td><td>2e&minus;2</td><td>1</td></tr>
+    <tr><td>median</td><td>3</td><td>22&times;</td><td>2e&minus;3</td><td>1</td></tr>
+    <tr><td>median</td><td>5</td><td>3&times;</td><td>&lt;1e&minus;4</td><td class="good">0 (exact)</td></tr>
+    <tr><td>hub (deg 168)</td><td>2</td><td class="good">6.4&times;</td><td>3e&minus;2</td><td class="good">0</td></tr>
+    <tr><td>hub</td><td>6</td><td>1.2&times;</td><td>&lt;1e&minus;4</td><td>0 (exact)</td></tr>
+  </tbody>
+</table>
+<p>
+<strong>Predictions converge far inside the exact radius.</strong> The hub reaches
+<em>zero</em> prediction change at <code>R=2</code> (6.4&times; faster) where strict exactness needs
+<code>R=6</code> (1.2&times;); the median flips a single node even at <code>677&times;</code>. So the
+approximate knob <em>recovers the cheapness</em> that strict exactness cannot deliver on a small-world
+graph &mdash; trade a handful of flips for a large speedup. A warm-start ablation isolates where the
+speed comes from: truncation is the large lever (up to 677&times; fewer nodes), while warm-starting
+the re-solve from the pre-deletion state is a modest <code>1.1&ndash;2&times;</code> multiplier on top
+(and warm and cold solves agree to <code>~10<sup>&minus;6</sup></code> &mdash; the warm-start is free,
+no exactness cost, a direct check of path-independence).
+</p>
+<div class="callout warn">
+  <strong>Honest lineage: this is regeneration, reframed.</strong> Re-solving a cut-out region back
+  to the equilibrium is mechanically what a Neural Cellular Automaton does when it
+  <em>regenerates</em> a damaged pattern (Mordvintsev et al.,
+  <a href="https://distill.pub/2020/growing-ca/">Growing NCA</a>, 2020; Grattarola's Graph-NCA for
+  the graph case), and the NCA&harr;DEQ equivalence that makes this precise is our own prior note
+  (<a href="https://arxiv.org/abs/2501.03573">arXiv:2501.03573</a>). So the <em>mechanism</em> is not
+  new. What is new here is the <em>reframing into unlearning / privacy</em> &mdash; bringing
+  regeneration-after-damage to a community that asks different questions of it &mdash; together with
+  the exactness and contraction <em>guarantees</em> NCA never claimed (NCA regenerate to a trained
+  target, approximately; a contractive equilibrium re-solves to the provably unique clean state).
+</div>
+
 <h2>4. Channel 2: the test that killed our headline</h2>
 <p>
 The hope was that an equilibrium model &mdash; whose "depth" lives in an iterated, recomputable
@@ -333,6 +409,21 @@ Given the null in &sect;4, we make no claim about weights. The defensible positi
   worsen any measured channel in the process. The contribution is the clean separation, the exact
   cheap Channel-1 mechanism, and the honest map of what the equilibrium does and does not buy.
 </div>
+<p>
+Stated as three things this note opens for discussion, in increasing order of practical weight:
+</p>
+<ol>
+  <li><strong>A two-channel theory of deletion</strong> &mdash; separating context/inference residual
+      (cleanable by re-solve) from weight residual (architecture-agnostic), so "unlearning" is scored
+      per channel instead of conflated.</li>
+  <li><strong>The locality&harr;expressiveness axis</strong> &mdash; the contraction cap
+      <code>&kappa;</code> trades accuracy for locality, monotonically and measurably; an
+      edge-of-stability story for graph equilibria.</li>
+  <li><strong>The ring-truncation&harr;exactness space</strong> &mdash; the one with real practical
+      teeth: a flexible, tunable trade of a few prediction-flips for large speedups, likely useful in
+      genuine large-graph deletion scenarios. We are candid that the <em>mechanism</em> is
+      regeneration (NCA / our arXiv:2501.03573); the contribution is the framing and the guarantees.</li>
+</ol>
 
 <h2>7. What this unlocks</h2>
 <ul>
@@ -348,6 +439,9 @@ Given the null in &sect;4, we make no claim about weights. The defensible positi
   <li><strong>The "new regions" argument</strong> &mdash; quantify the regime where Channel 1
       dominates and Channel 2 is negligible (low-memorization nodes), where the equilibrium's
       local-resolve edge is largest and the weight residual is smallest.</li>
+  <li><strong>Scaling accuracy</strong> &mdash; the <code>~4</code>-point gap to GCN is a minimal
+      single-matrix model, not a ceiling; a scaled IGNN-style DEQ should close most of it, decoupling
+      the deletion property from any accuracy sacrifice.</li>
 </ul>
 <p class="muted">
 A note on temperament: this is the first thread where the experiment overruled the story rather than
@@ -361,8 +455,9 @@ That trade &mdash; a smaller, true result over a larger, shaky one &mdash; is th
   <code>experiments/cora_deletion.py</code> (Channel-1 on Cora: degree strata &times; &kappa; sweep),
   <code>experiments/residual_decomposition.py</code> (per-channel membership AUC, DEQ vs matched-fit
   FF-GCN, <code>torch.func</code> per-sample grads),
-  <code>experiments/cora_deq_solvers.py</code> (TorchDEQ baseline, clipped SN, solver benchmark).
-  Committed through <code>87f1eb6</code>. &middot;
+  <code>experiments/cora_deq_solvers.py</code> (TorchDEQ baseline, clipped SN, solver benchmark),
+  <code>experiments/cora_perf_tradeoff.py</code> (accuracy anchor, ring-truncation + warm-start ablation).
+  &middot;
   <a href="https://github.com/AntonyJia159/deq-sets">github.com/AntonyJia159/deq-sets</a>
 </footer>
 </div>

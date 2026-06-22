@@ -142,6 +142,30 @@ def main():
                   f"{flips:>11}{test_flips:>11}{tag}")
         print()
 
+    print("=" * 60)
+    print("PART C -- warm vs cold start: isolating the warm-start speedup")
+    print("=" * 60)
+    print("Truncation reduces nodes-touched; warm-start (init in-ring at z_old, since deletion")
+    print("is a small perturbation) reduces ITERATIONS. This isolates the latter factor.\n")
+    for name in ["median", "hub"]:
+        v = targets[name]
+        adj_del = adj.tolil(); adj_del[v, :] = 0; adj_del[:, v] = 0
+        Ahat_del = renorm_sparse(adj_del.tocsr())
+        hops = bfs_hops(G, v, adj.shape[0])
+        maxR = int(np.nanmax(hops[np.isfinite(hops)]))
+        print(f"--- {name} node (deg {int(deg[v])}) ---")
+        print(f"{'R':>3}{'warm iters':>12}{'cold iters':>12}{'warm speedup':>14}"
+              f"{'warm==cold':>12}")
+        for R in range(1, min(maxR, 8) + 1):
+            restrict = torch.tensor(hops <= R)
+            with torch.no_grad():
+                z_warm, it_w = solve(Ahat_del, Wc, h0, s, z0=z_old, restrict=restrict)
+                z0_cold = z_old.clone(); z0_cold[restrict] = 0.0     # cold inside the ring
+                z_cold, it_c = solve(Ahat_del, Wc, h0, s, z0=z0_cold, restrict=restrict)
+                agree = (z_warm - z_cold).abs().max().item()
+            print(f"{R:>3}{it_w:>12}{it_c:>12}{it_c / it_w:>14.2f}{agree:>12.1e}")
+        print()
+
 
 if __name__ == "__main__":
     main()
