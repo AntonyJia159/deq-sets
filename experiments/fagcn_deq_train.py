@@ -28,8 +28,8 @@ from experiments.fagcn_deq_smoke import load
 DEV = "cuda" if torch.cuda.is_available() else "cpu"
 
 CFG = dict(d=64, eps=0.4, s=0.3, drop_in=0.6, drop_out=0.5, edge_drop=0.3,
-           lr=1e-2, wd=1e-3, epochs=300, f_max_iter=60, f_tol=1e-4)
-DATASETS = ["roman_empire", "amazon_ratings"]   # the discriminating battlegrounds
+           lr=1e-2, wd=1e-3, epochs=200, f_max_iter=30, f_tol=1e-4)  # s=0.3 -> solve ~10 iters
+DATASETS = ["roman_empire"]                     # the discriminating battleground; run alone first
 N_SPLITS = 5
 
 
@@ -96,12 +96,16 @@ def main():
     for ds in DATASETS:
         X, y, edges, deg, masks, K = load(ds)
         X, y, edges, deg = X.to(DEV), y.to(DEV), edges.to(DEV), deg.to(DEV)
+        import time
         accs = []
         for s in range(N_SPLITS):
             tr = torch.tensor(masks["train_masks"][s].astype(bool)).to(DEV)
             va = torch.tensor(masks["val_masks"][s].astype(bool)).to(DEV)
             te = torch.tensor(masks["test_masks"][s].astype(bool)).to(DEV)
-            accs.append(run_split(X.shape[1], K, edges, deg, X, y, tr, va, te, CFG))
+            t0 = time.time()
+            a = run_split(X.shape[1], K, edges, deg, X, y, tr, va, te, CFG)
+            accs.append(a)
+            print(f"  {ds} split {s}: test {a:.3f}  ({time.time()-t0:.1f}s)", flush=True)
         print(f"{ds:<20} FAGCN-DEQ test {np.mean(accs):.3f} +- {np.std(accs):.3f}", flush=True)
 
 
