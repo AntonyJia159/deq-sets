@@ -71,9 +71,9 @@ class SoftFAGCN(nn.Module):
     def s(self):
         return F.softplus(self.s_raw)
 
-    def _mha(self, z):                                      # z: (N, d)
+    def _mha(self, z, edges, norm):                        # z: (N, d)
         N, H, dh = z.shape[0], self.H, self.dh
-        dst, src, norm = self.edges[0], self.edges[1], self.norm
+        dst, src = edges[0], edges[1]
         if self.training and self.edge_drop > 0:
             keep = torch.rand(dst.shape[0], device=z.device) > self.edge_drop
             dst, src, norm = dst[keep], src[keep], norm[keep]
@@ -85,19 +85,19 @@ class SoftFAGCN(nn.Module):
         out.index_add_(0, dst, msg)
         return self.Wo(out.view(N, self.d))
 
-    def _make_f(self, h0):                                  # h0: (N, d)
+    def _make_f(self, h0, edges, norm):                    # h0: (N, d)
         s = self.s
 
         def f(z):                                          # z: (1, N, d)
             zf = z[0]
-            u = self.ln(torch.cat([zf, self._mha(zf)], dim=-1))
+            u = self.ln(torch.cat([zf, self._mha(zf, edges, norm)], dim=-1))
             g = self.W2(F.relu(self.W1(u)))
             return (h0 + s * g).unsqueeze(0)
         return f
 
     def forward(self, X, jac=False):
         h0 = self.enc(F.dropout(X, self.drop_in, self.training))
-        f = self._make_f(h0)
+        f = self._make_f(h0, self.edges, self.norm)
         z0 = torch.zeros(1, *h0.shape, device=h0.device)
         z = self.deq(f, z0)[0][-1]
         reg = z.new_zeros(())
@@ -109,7 +109,7 @@ class SoftFAGCN(nn.Module):
     @torch.no_grad()
     def diagnose(self, X):
         h0 = self.enc(X)
-        f = self._make_f(h0)
+        f = self._make_f(h0, self.edges, self.norm)
         z0 = torch.zeros(1, *h0.shape, device=h0.device)
         z = self.deq(f, z0)[0][-1]
         resid = ((f(z) - z).norm() / (z.norm() + 1e-9)).item()
@@ -145,7 +145,7 @@ def run_split(d_in, K, edges, deg, X, y, tr, va, te, cfg):
                 best_va, best_te = va_acc, te_acc
             print(f"    ep {ep:>3}: val {va_acc:.3f} test {te_acc:.3f}  "
                   f"[s {model.s.item():.2f} rho(J) {rho:.3f} broyden-resid {resid:.1e}]", flush=True)
-    return best_te
+    return best_te, model
 
 
 def main():
@@ -160,7 +160,7 @@ def main():
             va = torch.tensor(masks["val_masks"][s].astype(bool)).to(DEV)
             te = torch.tensor(masks["test_masks"][s].astype(bool)).to(DEV)
             t0 = time.time()
-            a = run_split(X.shape[1], K, edges, deg, X, y, tr, va, te, CFG)
+            a, _ = run_split(X.shape[1], K, edges, deg, X, y, tr, va, te, CFG)
             print(f"  {ds} split {s}: best test {a:.3f}  ({time.time()-t0:.0f}s)", flush=True)
 
 
