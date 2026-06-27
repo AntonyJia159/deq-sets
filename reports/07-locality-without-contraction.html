@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set-DEQ Notes #7 — Locality Without Contraction: A Susceptibility Theory of Maintainable Equilibria</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$', '$']], displayMath: [['$$', '$$']] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --ink:#1a1a1a; --muted:#666; --rule:#e2e2e2; --accent:#2b6cb0; --good:#1a7f4b; --bad:#b02a2a; --warn:#b07a1a; --bg:#fafafa; --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 48px 24px 96px; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 32px; }
+  .kicker { font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
+  h1 { font-size: 1.7rem; line-height:1.25; margin:.1em 0 .35em; }
+  .byline { color:var(--muted); font-size:.92rem; }
+  h2 { font-size:1.2rem; margin:2.2em 0 .6em; padding-bottom:.25em; border-bottom:1px solid var(--rule); }
+  h3 { font-size:1.02rem; margin:1.6em 0 .4em; }
+  p { margin:.7em 0; }
+  code { background:#f0f0f3; padding:.08em .35em; border-radius:4px; font-size:.9em;
+         font-family: "SF Mono", Consolas, "Liberation Mono", monospace; }
+  table { width:100%; border-collapse:collapse; margin:1.1em 0; font-size:.88rem; background:var(--card); }
+  th, td { padding:7px 9px; text-align:center; border-bottom:1px solid var(--rule); }
+  th { background:#f3f5f8; font-weight:600; }
+  td:first-child, th:first-child { text-align:left; }
+  .good { color:var(--good); font-weight:600; }
+  .bad  { color:var(--bad);  font-weight:600; }
+  .warn { color:var(--warn); font-weight:600; }
+  .callout { background:#eef4fb; border:1px solid #cfe0f3; border-radius:8px; padding:14px 18px; margin:1.2em 0; }
+  .callout.warn { background:#fdf3ee; border-color:#f3d8c8; }
+  .callout.null { background:#f1f3f5; border-color:#dcdfe3; }
+  .callout.key { background:#eaf6ee; border-color:#bfe3cb; }
+  .muted { color:var(--muted); }
+  ul, ol { margin:.5em 0; padding-left:1.3em; }
+  li { margin:.35em 0; }
+  .spine { counter-reset: step; background:var(--card); border:1px solid var(--rule); border-radius:8px; padding:8px 8px 8px 0; margin:1.2em 0; }
+  .spine ol { list-style:none; padding-left:0; margin:0; counter-reset: step; }
+  .spine li { display:flex; gap:12px; align-items:flex-start; padding:9px 14px; border-bottom:1px solid var(--rule); }
+  .spine li:last-child { border-bottom:none; }
+  .spine li::before { counter-increment: step; content: counter(step); flex:0 0 auto;
+        width:1.6em; height:1.6em; border-radius:50%; background:var(--accent); color:#fff;
+        font-size:.8rem; font-weight:700; display:flex; align-items:center; justify-content:center; margin-top:2px; }
+  footer { margin-top:48px; padding-top:18px; border-top:1px solid var(--rule); color:var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="kicker">Set-DEQ Notes · #7 · theory + experiments</p>
+  <h1>Locality Without Contraction: A Susceptibility Theory of Maintainable Equilibria</h1>
+  <p class="byline">Zhibai Jia · 27 June 2026 · consolidates the locality proof and the conditioning experiments</p>
+</header>
+
+<div class="callout">
+  <strong>What this note is.</strong> Note #6 bet that <em>contraction</em>, not linearity, is what makes
+  an equilibrium graph model cheaply maintainable under edits. Chasing that down forced a sharper
+  question &mdash; <em>exactly</em> what property licenses local maintenance &mdash; and the answer is
+  not contraction. This note lays out the locality argument as a clean logical spine, replaces the
+  spectral-radius story with the right object ($\sigma_{\min}(I-J)$), and reports the experiments that
+  confirm it. <strong>Honesty up front:</strong> the mathematics here is classical numerical linear
+  algebra (Demko&ndash;Moss&ndash;Smith; Benzi&ndash;Golub; Faber/Chebyshev approximation; pseudospectra).
+  Our candidate contribution is the <em>bridge</em> &mdash; using it as the well-posedness-and-maintenance
+  criterion for (possibly non-contractive) equilibrium models &mdash; and that novelty is still pending a
+  proper search.
+</div>
+
+<h2>1. The question: when is an edit a <em>local</em> event?</h2>
+<p>
+A graph equilibrium model holds a state $z^\star$ solving $z^\star=f(z^\star)$, where $f$ does one round
+of (possibly signed, attention-based, nonlinear) message passing with frozen weights. Maintenance is:
+the graph is edited (a node/edge deleted), and we want the new equilibrium <em>without</em> recomputing
+from scratch &mdash; ideally by touching only nodes near the edit. That is possible only if the edit's
+influence <strong>decays with graph distance</strong>. Everything below is a derivation of when, and how
+fast, it does.
+</p>
+<div class="spine">
+<ol>
+  <li>Poke the fixed point &rarr; the response solves a linear system in <strong>$(I-J)$</strong>; the influence map is the <strong>resolvent</strong> $(I-J)^{-1}$.</li>
+  <li>A node deletion is a <strong>compact poke</strong> (support on an $O(1)$-hop ball), so the response is the resolvent's own decay profile.</li>
+  <li>$(I-J)$ is <strong>graph-sparse</strong>; a low-degree polynomial in it reaches only a few hops.</li>
+  <li>The inverse is <strong>well-approximated by such a polynomial</strong> (Chebyshev / Faber), with error set by the spectrum's distance from the pole $\mu=+1$.</li>
+  <li><strong>Demko&ndash;Moss&ndash;Smith / Benzi&ndash;Golub</strong>: therefore the resolvent entries decay exponentially in graph geodesic distance.</li>
+  <li>The governing quantity is <strong>$\sigma_{\min}(I-J)$</strong> (distance of the spectrum from $+1$), not $\rho(J)$ &mdash; so the maintainable regime is strictly larger than contraction.</li>
+</ol>
+</div>
+
+<h2>2. Susceptibility: poking the equilibrium</h2>
+<p>
+Suppose we are at equilibrium and add a small static probe $\delta f$ to the system, so the condition
+becomes $u = f(u) + \delta f$. The state shifts $u^\star \to u^\star + \delta u$. First-order Taylor:
+</p>
+$$u^\star + \delta u = f(u^\star) + J_f(u^\star)\,\delta u + \delta f.$$
+<p>
+Because $u^\star = f(u^\star)$, those terms cancel and we are left with a strictly linear system for the
+response:
+</p>
+$$\big(I - J_f(u^\star)\big)\,\delta u = \delta f \qquad\Longrightarrow\qquad \delta u = \big(I - J_f\big)^{-1}\,\delta f.$$
+<p>
+This is the classic $L\,u=b$ architecture with $L = I - J_f(u^\star)$, the static linear operator at the
+equilibrium. The inverse $(I-J_f)^{-1}$ is the <strong>resolvent</strong> (physicists: the Green's
+function): its entry $(I-J_f)^{-1}_{ie}$ answers <em>"if I nudge node $e$, how much does node $i$
+move?"</em> Edit-locality is exactly the statement that these entries are tiny for far $i$.
+</p>
+
+<h2>3. A node deletion is a compact poke</h2>
+<p>
+The probe $\delta f$ need not be a literal external force &mdash; any local change to the equations acts
+as one. Deleting node $v$ changes the update map $f\to f'$. Measure how wrong the old solution is under
+the new rules: $r_i = f'_i(z^\star) - z^\star_i$. For any node $i$ whose neighborhood is untouched,
+$f'_i=f_i$ and so $r_i = f_i(z^\star)-z^\star_i = 0$. The residual is <strong>nonzero only where the rule
+actually changed</strong> &mdash; the $1$-hop neighbors of $v$ (or $2$-hop, once symmetric degree
+re-normalization is included). So $r$ has <em>sharp, compact support</em>: a lump on an $O(1)$-hop ball,
+exactly zero outside.
+</p>
+<div class="callout key">
+  <strong>Why compactness matters.</strong> The response is $\delta u = (I-J)^{-1} r = \sum_{e\in\text{supp}(r)} (I-J)^{-1}_{\cdot e}\, r_e$.
+  Convolving a compactly-supported lump with the resolvent's decaying kernel returns the
+  <em>kernel's own decay rate</em> &mdash; the finite support only inflates the prefactor. (If the edit's
+  footprint were itself an extended, slowly-decaying tail, the two decays would convolve and the slower
+  one would bottleneck locality. Node/edge deletion avoids this because its footprint is compact.) The
+  magnitude of the deletion lives in $\lVert r\rVert$; the <em>decay rate</em> is a property of
+  $(I-J)^{-1}$ alone.
+</div>
+
+<h2>4. The engine: a low-degree polynomial in a sparse matrix is short-range</h2>
+<p>
+$J$ does one hop of message passing, so $J_{ij}\neq 0$ only on edges &mdash; $(I-J)$ is
+<strong>graph-sparse</strong> (graph-bandwidth $1$). Now look at powers:
+</p>
+$$(J^k)_{ij} = \!\!\sum_{\text{length-}k\text{ walks } j\to i}\!\! \prod (\text{edge gains}) \;=\; 0 \quad\text{whenever } d(i,j) > k.$$
+<p>
+$J^0$ reaches $0$ hops, $J^1$ reaches $1$, $J^k$ reaches $k$. Hence any degree-$k$ polynomial
+$p_k(J)=\sum_{l\le k} c_l J^l$ has $(p_k(J))_{ij}=0$ for $d(i,j)>k$: <strong>a low-degree polynomial in
+$J$ is automatically short-range on the graph.</strong> This is the bridge between algebra (polynomial
+degree) and geometry (graph distance).
+</p>
+
+<h2>5. The inverse <em>is</em> such a polynomial &mdash; approximately (Chebyshev / Faber)</h2>
+<p>
+We want $(I-J)^{-1}=g(J)$ with $g(\mu)=\dfrac{1}{1-\mu}$. If a degree-$k$ polynomial $p_k$ approximates
+$g$ well on the spectrum of $J$, then $(I-J)^{-1}\approx p_k(J)$ is short-range, and the far-field
+entries are bounded by the <em>approximation error</em>:
+</p>
+$$\big|(I-J)^{-1}_{ij}\big| = \big|(g(J)-p_k(J))_{ij}\big| \le \max_{\mu\in\sigma(J)} |g(\mu)-p_k(\mu)| \quad\text{for } d(i,j)>k.$$
+<p>
+So the entry at distance $d$ is controlled by how well a degree-$d$ polynomial fits $1/(1-\mu)$ over the
+eigenvalues. Which polynomials, and how fast do they converge?
+</p>
+<ul>
+  <li><strong>Taylor</strong> (the Neumann series $\sum_k\mu^k$): fits near a single point $\mu=0$; converges only inside $|\mu|<1$ &mdash; the contraction case.</li>
+  <li><strong>Chebyshev</strong>: the best <em>uniform</em> fit over a real interval $[a,b]$; converges geometrically at a rate set by the interval's distance to the singularity of $g$ &mdash; even if part of $[a,b]$ lies outside the unit disk.</li>
+  <li><strong>Faber</strong>: the complex-plane generalization &mdash; best polynomial fit over a <em>region</em> enclosing the spectrum &mdash; needed when $J$ is non-symmetric and its eigenvalues are complex (our case).</li>
+</ul>
+<p>
+The one pole of $g$ sits at $\mu=+1$. So convergence &mdash; and hence spatial decay &mdash; is governed
+by <strong>how far the spectrum stays from $+1$</strong>, not by whether it sits inside the unit disk.
+</p>
+
+<h2>6. The conclusion: exponential decay on graph geodesics</h2>
+<p>
+This is exactly the setting of <strong>Demko, Moss &amp; Smith (1984)</strong> for inverses of banded
+matrices, generalized to graph-sparse matrices by <strong>Benzi &amp; Golub</strong> and collaborators:
+for $(I-J)$ sparse w.r.t. the graph and well-conditioned,
+</p>
+$$\boxed{\;\big|(I-J)^{-1}_{ij}\big| \;\le\; C\, q^{\,d(i,j)}, \qquad q = \frac{\sqrt{\kappa}-1}{\sqrt{\kappa}+1},\quad \kappa=\kappa(I-J).\;}$$
+<p>
+The entries decay <em>exponentially in graph geodesic distance</em>, with a rate set entirely by the
+<strong>condition number</strong> of $(I-J)$ &mdash; dimension-independent. Combined with §3 (the edit is a
+compact poke), the deletion response decays at this same rate: maintenance is local.
+</p>
+<div class="callout">
+  <strong>Contraction is the comfortable special case.</strong> If $\lVert J\rVert<1$, the Taylor/Neumann
+  series $\sum_k J^k$ already converges and gives decay rate $q=\lVert J\rVert$. But the Chebyshev/Faber
+  route shows this is sufficient, not necessary: the inverse stays short-range whenever the spectrum
+  avoids $+1$, <em>even if $\rho(J)>1$ and the Neumann series diverges</em>. Locality is a property of
+  conditioning, not of contraction.
+</div>
+
+<h2>7. The right probe: $\sigma_{\min}(I-J)$, not $\rho(J)$, not the eigenvalue gap</h2>
+<p>
+Since $J$ is non-symmetric (signed attention is order-dependent; value/output maps and nonlinearities
+break symmetry), its eigenvalues are complex and &mdash; crucially &mdash; <em>misleading</em>. The exact
+distance-to-singularity is the smallest singular value, $\sigma_{\min}(I-J) = 1/\lVert (I-J)^{-1}\rVert$.
+For any eigenvalue $\lambda$ with eigenvector $v$, $\lVert (I-J)v\rVert/\lVert v\rVert = |1-\lambda|$, and
+since $\sigma_{\min}$ is the minimum over <em>all</em> directions,
+</p>
+$$\mathrm{dist}\big(1, W(J)\big) \;\le\; \sigma_{\min}(I-J) \;\le\; \min_i |1-\lambda_i|, \qquad\text{equality on the right iff } J \text{ is normal.}$$
+<p>
+The eigenvalue gap $\min_i|1-\lambda_i|$ is an <em>over-optimistic</em> upper bound; for non-normal $J$
+the resolvent is large throughout a neighborhood of the spectrum (the <strong>pseudospectrum</strong>),
+and the honest margin is the distance from $+1$ to the <strong>field of values</strong> $W(J)$, which
+$\sigma_{\min}(I-J)$ tracks. Practically: <strong>report $\sigma_{\min}(I-J)$.</strong> The spectral
+radius $\rho(J)$ is doubly wrong &mdash; $+1$ is the danger point, not the unit circle, and eigenvalues
+do not even capture non-normal behavior.
+</p>
+
+<h2>8. Two thresholds: existence vs. <em>practical</em> locality</h2>
+<p>
+"Low-degree polynomial" is relative to the screening length. With $q=(\sqrt\kappa-1)/(\sqrt\kappa+1)$,
+</p>
+$$\xi = \frac{-1}{\ln q} \;\approx\; \tfrac{1}{2}\sqrt{\kappa(I-J)}\,,$$
+<p>
+so the effective hop-reach of the resolvent grows like $\sqrt{\kappa}$. This separates two conditions
+that are easy to conflate:
+</p>
+<ul>
+  <li><strong>Existence / well-posedness:</strong> $\sigma_{\min}(I-J)>0$ &mdash; the fixed point is unique-ish and findable (by Broyden). But the response can still be <em>delocalized</em> if $\kappa$ is huge.</li>
+  <li><strong>Practical locality / cheap maintenance:</strong> $\kappa(I-J)$ small enough that $\tfrac12\sqrt\kappa \ll$ graph diameter. Only then is the resolvent <em>sharply</em> local.</li>
+</ul>
+<div class="callout warn">
+  <strong>"Local in name only" is a real failure mode.</strong> An equilibrium can sit just barely off
+  $\mu=+1$ (large $\kappa$): it exists and Broyden finds it, but $\xi$ exceeds the graph diameter and the
+  resolvent is effectively dense &mdash; maintenance is <em>not</em> cheap. Two consequences: (i) the
+  Demko/Faber bound is pessimistic, so don't compute $\xi$ from it &mdash; <em>measure</em> the actual
+  edit-response decay; (ii) you need a <em>high-diameter</em> graph (e.g. roman-empire) for locality to be
+  observable at all. The useful non-contractive regime is the <em>well-conditioned</em> one: expansive
+  eigenvalues that are large in magnitude but far from $+1$ (negative/complex), giving small $\kappa$
+  despite $\rho>1$.
+</div>
+
+<h2>9. Experiments</h2>
+
+<h3>9a. The contractive cell beats the feature floor &mdash; but reach saturates</h3>
+<p>
+A contractive equilibrium FAGCN with GAT-sep tricks (multi-head signed attention, spectral-normed
+value/output, ego-separation at the readout) on <code>roman-empire</code>, against linear-propagation and
+feature-only baselines:
+</p>
+<table>
+  <thead><tr><th>model</th><th>test acc</th><th>$\rho(J)$</th><th>valid equilibrium?</th></tr></thead>
+  <tbody>
+    <tr><td>SGC / APPNP (linear, low-pass)</td><td>0.353 / 0.486</td><td>&mdash;</td><td>&mdash;</td></tr>
+    <tr><td>MLP (no graph, the floor)</td><td>0.644</td><td>&mdash;</td><td>&mdash;</td></tr>
+    <tr><td>contractive FAGCN-DEQ v2 (sep)</td><td class="good">0.682</td><td>0.55&ndash;0.71</td><td class="good">yes</td></tr>
+    <tr><td>contractive FAGCN-DEQ v3 (nonlinear MLP cell)</td><td>0.687</td><td>~0.5</td><td class="good">yes</td></tr>
+    <tr><td>same cell, unconstrained</td><td>0.690</td><td class="bad">~3</td><td class="bad">no &mdash; truncated deep net</td></tr>
+    <tr><td>GAT-sep (non-contractive SOTA-class ref)</td><td>0.888</td><td>&mdash;</td><td>&mdash;</td></tr>
+  </tbody>
+</table>
+<p>
+The contractive equilibrium clears the feature floor (first legitimate graph-beats-MLP), and adding
+nonlinear MLP expressivity on top of multi-head signed attention buys essentially nothing
+(0.682 &rarr; 0.687). The lever is not per-hop expressivity but <em>reach</em>. Sweeping the propagation
+cap $s_{\max}$ shows accuracy rising <em>only</em> as $\rho(J)$ crosses $1$:
+</p>
+<table>
+  <thead><tr><th>$s_{\max}$</th><th>test acc</th><th>learned $s$</th><th>$\rho(J)$</th><th>regime</th></tr></thead>
+  <tbody>
+    <tr><td>0.5</td><td>0.687</td><td>0.41</td><td>0.52</td><td>contractive</td></tr>
+    <tr><td>0.8</td><td>0.691</td><td>0.63</td><td>0.72</td><td>contractive</td></tr>
+    <tr><td>1.2</td><td>0.701</td><td>0.90</td><td class="warn">1.005</td><td>edge</td></tr>
+    <tr><td>1.6</td><td>0.716</td><td>1.15</td><td class="bad">1.124</td><td>non-contractive</td></tr>
+  </tbody>
+</table>
+<p class="muted">
+Caveat: the $\rho>1$ rows were solved with Picard, which cannot converge there &mdash; so those accuracies
+came from a truncated, divergent iteration (a deep net), <em>not</em> a fixed point. To know whether a
+real, maintainable equilibrium lives in that region, we need a solver that does not rely on contraction.
+</p>
+
+<h3>9b. Broyden reaches non-contractive fixed points &mdash; and a long-standing bug</h3>
+<p>
+Every prior attempt of ours to use quasi-Newton solvers (Anderson, Broyden) on graph DEQs had failed
+(stagnation / NaN). The cause was mundane and total: TorchDEQ's solvers treat tensor dimension $0$ as a
+<em>batch</em>, so a graph state of shape $(N,d)$ was solved as $N$ independent per-node systems &mdash;
+Broyden's inverse-Jacobian became block-diagonal and could not see cross-node coupling. Presenting a
+single graph as $(1, N, d)$ fixes it. With that correction, on a synthetic grid:
+</p>
+<table>
+  <thead><tr><th>$\rho(J)$ regime</th><th>Picard</th><th>Anderson</th><th>Broyden</th></tr></thead>
+  <tbody>
+    <tr><td>$\rho<1$ (contractive)</td><td class="good">~1e&minus;8</td><td class="good">~1e&minus;8</td><td class="good">~1e&minus;8</td></tr>
+    <tr><td>$\rho=1.13$&ndash;$1.23$ (non-contractive, well-conditioned)</td><td class="bad">diverges</td><td class="good">~1e&minus;6</td><td class="good">~1e&minus;7</td></tr>
+  </tbody>
+</table>
+<p>
+So genuine, well-conditioned fixed points with $\rho(J)>1$ <em>exist</em> and are findable &mdash; they are
+simply invisible to Picard. This is the empirical foundation for maintenance beyond contraction.
+</p>
+
+<h3>9c. $\sigma_{\min}(I-J)$, not $\rho$, predicts breakdown</h3>
+<p>
+Forming the dense Jacobian on a small grid and scanning the propagation scale, we can watch the three
+diagnostics against solver success directly:
+</p>
+<table>
+  <thead><tr><th>scale</th><th>$\rho(J)$</th><th>$\min_i|1-\lambda_i|$</th><th>$\sigma_{\min}(I-J)$</th><th>$\kappa(I-J)$</th><th>Picard</th><th>Broyden</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>0.87</td><td>0.40</td><td>0.179</td><td>12</td><td class="good">8e&minus;8</td><td class="good">8e&minus;8</td></tr>
+    <tr><td>4</td><td>0.98</td><td>0.35</td><td>0.167</td><td>15</td><td class="warn">7e&minus;5</td><td class="good">1e&minus;7</td></tr>
+    <tr><td>5</td><td class="warn">1.13</td><td>0.23</td><td>0.107</td><td>27</td><td class="bad">6e&minus;2</td><td class="good">1e&minus;7</td></tr>
+    <tr><td>6</td><td class="bad">1.23</td><td>0.052</td><td>0.028</td><td>110</td><td class="bad">1.3</td><td class="good">2e&minus;7</td></tr>
+    <tr><td>8</td><td>2.40</td><td>0.013</td><td class="bad">1.3e&minus;3</td><td>3800</td><td class="bad">diverge</td><td class="bad">diverge</td></tr>
+    <tr><td>10</td><td>3.00</td><td>0.022</td><td class="bad">3.7e&minus;4</td><td>16000</td><td class="bad">diverge</td><td class="bad">diverge</td></tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <strong>Clean dissociation.</strong> $\rho$ crossing $1$ kills <em>Picard</em> (scale 4&ndash;5) but
+  not Broyden, which keeps solving genuine non-contractive fixed points to $10^{-7}$ at $\rho=1.23$.
+  Broyden breaks only when $\sigma_{\min}(I-J)\to 0$ (scale 6&rarr;8), i.e. when $(I-J)$ goes near-singular
+  / the spectrum reaches $+1$ &mdash; regardless that $\rho>1$ two steps earlier. And note
+  $\sigma_{\min}(I-J) < \min_i|1-\lambda_i|$, widening to $10\times$ near breakdown
+  ($1.3\text{e-}3$ vs $0.013$): the eigenvalue gap <em>under-reads</em> the danger exactly as the
+  non-normal (Faber/field-of-values) theory predicts. $\sigma_{\min}(I-J)$ is the right, symmetry-agnostic
+  probe.
+</div>
+
+<h2>10. Where this leaves the thesis</h2>
+<p>
+The maintainability we want is governed by a single, measurable quantity &mdash; the conditioning of
+$(I-J)$, equivalently the distance of $J$'s spectrum from $+1$ &mdash; and contraction ($\rho<1$) is only
+a sufficient corner of that condition. This <em>broadens</em> the program from "force a Banach
+contraction" to "keep $(I-J)$ well-conditioned," which is the regime real DEQs already live in (Broyden,
+not Picard). Three notions collapse to one boundary: maintainable (resolvent local), well-posed (unique,
+non-marginal fixed point), and quasi-Newton-solvable ($(I-J)$ nonsingular) all fail together exactly when
+an eigenvalue of $J$ reaches $+1$.
+</p>
+<div class="callout">
+  <strong>What is borrowed vs. candidate-new.</strong> Borrowed and cited: Green's functions; decay of
+  inverses of sparse/banded well-conditioned matrices (Demko&ndash;Moss&ndash;Smith 1984; Benzi&ndash;Golub,
+  Benzi&ndash;Boito&ndash;Razouk); Chebyshev/Faber approximation; pseudospectra and the field of values
+  (Trefethen&ndash;Embree); the physics of "nearsightedness" (Kohn 1996). Candidate contribution, pending a
+  real novelty check: using $\sigma_{\min}(I-J)$ / field-of-values as the well-posedness-and-maintenance
+  criterion for equilibrium graph models, the resulting characterization of a <em>maintainable
+  non-contractive</em> regime, and the empirics above. The DEQ literature to date stays on $\rho(J)$,
+  contraction, and Frobenius Jacobian regularization (for training stability, not edit-locality) &mdash;
+  so the bridge looks open, but that must be verified before it is claimed.
+</div>
+
+<h2>11. Next</h2>
+<ol>
+  <li><strong>Soft cell + Broyden on roman-empire</strong> (free weights, LayerNorm inside): does the
+      $0.70$&ndash;$0.72$ region become a <em>real</em> equilibrium, and what is $\sigma_{\min}(I-J)$ there?</li>
+  <li><strong>The maintenance proof</strong>: at that fixed point, <em>measure</em> the edit-response decay
+      vs graph distance and the warm-vs-cold basin-flip rate &mdash; success is a measured screening length
+      $\xi \ll$ diameter, not merely $\sigma_{\min}>0$.</li>
+  <li><strong>Novelty check</strong>: Semantic Scholar + human gut-check on whether the $\sigma_{\min}(I-J)$
+      / field-of-values bridge to implicit-model maintenance is genuinely unoccupied.</li>
+</ol>
+
+<footer>
+  Code: <code>experiments/fagcn_deq_sep.py</code>, <code>fagcn_deq_mlp.py</code>,
+  <code>fagcn_deq_smax_sweep.py</code> (roman-empire cells &amp; sweep);
+  <code>experiments/broyden_synthetic.py</code>, <code>broyden_conditioning.py</code>
+  (solver &amp; conditioning experiments). Data: Platonov et al. 2023 filtered heterophily graphs. &middot;
+  <a href="https://github.com/AntonyJia159/deq-sets">github.com/AntonyJia159/deq-sets</a>
+</footer>
+</div>
+</body>
+</html>
