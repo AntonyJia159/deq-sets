@@ -309,6 +309,63 @@ diagnostics against solver success directly:
   probe.
 </div>
 
+<h3>9d. On roman: a real non-contractive equilibrium, and it is edit-local</h3>
+<p>
+The synthetic results above are confirmed on the real model. We train the <em>soft</em> cell (free
+weights, LayerNorm inside, light <code>jac_reg</code> for stability) on roman-empire and solve it with
+<strong>Broyden</strong>, presenting the graph as $(1,N,d)$ so the solver sees one coupled system. It
+trains end-to-end for 120 epochs to test $0.677$ with $\rho(J)\approx 1.2$&ndash;$1.6$ throughout and
+Broyden residual $\sim10^{-3}$ every step &mdash; a genuine, stable, <em>non-contractive</em>
+equilibrium, the regime Picard cannot enter.
+</p>
+<div class="callout warn">
+  <strong>Accuracy is not the claim.</strong> The real non-contractive equilibrium ($0.677$) is
+  comparable to &mdash; not better than &mdash; the contractive cell ($0.687$). The earlier $0.716$ from
+  the $s_{\max}$ sweep was a Picard-<em>truncation</em> artifact (a finite-depth deep net), not the
+  accuracy of any fixed point. On roman the useful graph signal beyond $\sim0.68$ is long-range, which a
+  screened equilibrium deliberately does not chase. The point of this run is <em>maintainability</em>,
+  not accuracy.
+</div>
+<p>
+Edit-locality at that fixed point: delete a node, warm-start Broyden from the pre-edit $z^\star$, and
+measure the response $\lVert\Delta_i\rVert$ versus BFS distance from the edit. The near field is sharply
+local &mdash; $1.09 \to 7\times10^{-4}$ over five hops, near-field $\xi \approx 0.5$&ndash;$0.7$ hop
+<em>even at $\rho=1.3$</em>. Beyond that sits a non-decaying floor at $\sim10^{-2}$, which turns out to
+equal the warm-vs-cold <em>basin gap</em>: not a long-range edit response, but the global ambiguity of
+which low-residual point the solver lands on &mdash; the signature of a single near-critical mode (small
+$\sigma_{\min}(I-J)$).
+</p>
+
+<h3>9e. The conditioning floor is benign</h3>
+<p>
+Is that floor a problem? A four-part verification (non-contractive model A at $\rho=1.39$ vs a
+strongly-regularized contrast model B) says no:
+</p>
+<ul>
+  <li><strong>Zero far-field prediction flips.</strong> Comparing warm-start re-solve to a cold full
+      recompute, the fraction of nodes whose <em>predicted label</em> changes beyond the edit is
+      $0.0000$ for every target. The latent floor is task-irrelevant; maintenance is
+      <strong>label-exact</strong> everywhere except the genuinely-affected region.</li>
+  <li><strong>Conditioning, not $\rho$, controls it &mdash; and it is removable.</strong> Model B lands
+      at $\rho=1.006$ (still at the edge) yet shows <em>no</em> floor (basin gap $\sim10^{-7}$), purely
+      because stronger <code>jac_reg</code> kept $\sigma_{\min}(I-J)$ healthy. The floor is a knob, not a
+      wall.</li>
+  <li><strong>One fixed, delocalized mode.</strong> The warm$-$cold difference vector has cosine $0.69$
+      across different deletions (one intrinsic $v_{\min}$ of $(I-J)$, gauge-like), and $\texttt{gap\_near}
+      \gg \texttt{gap\_far}$ (e.g. $0.54$ vs $7.6\times10^{-6}$): the real response is local; the floor is
+      a low-level global mode.</li>
+  <li><strong>Partly solver slop.</strong> Tightening the Broyden budget shrinks the gap on about half
+      the targets ($1.1\times10^{-2}\to1.4\times10^{-3}$), so some of the (already small) floor is just
+      under-convergence.</li>
+</ul>
+<div class="callout key">
+  <strong>Two regimes, made precise.</strong> Contraction gives <em>latent-global-exact</em> maintenance
+  (unique fixed point; warm $\equiv$ cold to machine precision). A well-conditioned <em>non-contractive</em>
+  equilibrium gives <strong>label-exact, sharply local</strong> maintenance, trading latent-exactness for a
+  benign, $\sigma_{\min}$-controlled floor (a single delocalized mode that changes no predictions and
+  shrinks under regularization). The broadened thesis holds in the practical sense that matters.
+</div>
+
 <h2>10. Where this leaves the thesis</h2>
 <p>
 The maintainability we want is governed by a single, measurable quantity &mdash; the conditioning of
@@ -332,20 +389,29 @@ an eigenvalue of $J$ reaches $+1$.
 </div>
 
 <h2>11. Next</h2>
+<p>
+Done since the first draft (&sect;9d&ndash;9e): the soft cell + Broyden on roman <em>is</em> a real
+non-contractive equilibrium, it is sharply edit-local, and the conditioning floor is benign
+(label-exact maintenance). What remains:
+</p>
 <ol>
-  <li><strong>Soft cell + Broyden on roman-empire</strong> (free weights, LayerNorm inside): does the
-      $0.70$&ndash;$0.72$ region become a <em>real</em> equilibrium, and what is $\sigma_{\min}(I-J)$ there?</li>
-  <li><strong>The maintenance proof</strong>: at that fixed point, <em>measure</em> the edit-response decay
-      vs graph distance and the warm-vs-cold basin-flip rate &mdash; success is a measured screening length
-      $\xi \ll$ diameter, not merely $\sigma_{\min}>0$.</li>
+  <li><strong>A more favorable showcase task.</strong> roman is adversarial to us: its useful graph
+      signal is <em>long-range</em>, so accuracy beyond $\sim0.68$ requires the long reach that destroys
+      locality. We want a task that is beyond-linear <em>and</em> local <em>and</em> maintenance-natural
+      (e.g. grid-structured Minesweeper, or a designed local-nonlinear / NCA-regeneration task), where
+      both halves &mdash; expressiveness over linear and cheap local maintenance &mdash; show at once.</li>
   <li><strong>Novelty check</strong>: Semantic Scholar + human gut-check on whether the $\sigma_{\min}(I-J)$
       / field-of-values bridge to implicit-model maintenance is genuinely unoccupied.</li>
+  <li><strong>$\sigma_{\min}(I-J)$ at scale</strong> (matrix-free, deferred): correlate the measured
+      screening length and floor with the conditioning directly.</li>
 </ol>
 
 <footer>
   Code: <code>experiments/fagcn_deq_sep.py</code>, <code>fagcn_deq_mlp.py</code>,
   <code>fagcn_deq_smax_sweep.py</code> (roman-empire cells &amp; sweep);
-  <code>experiments/broyden_synthetic.py</code>, <code>broyden_conditioning.py</code>
+  <code>fagcn_deq_broyden.py</code> (soft cell + Broyden), <code>fagcn_deq_locality.py</code>
+  (edit-locality probe), <code>verify_floor.py</code> (floor verification);
+  <code>broyden_synthetic.py</code>, <code>broyden_conditioning.py</code>
   (solver &amp; conditioning experiments). Data: Platonov et al. 2023 filtered heterophily graphs. &middot;
   <a href="https://github.com/AntonyJia159/deq-sets">github.com/AntonyJia159/deq-sets</a>
 </footer>
