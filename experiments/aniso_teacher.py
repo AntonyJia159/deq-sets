@@ -5,26 +5,26 @@ Anisotropic Diffusion (Elhag/Corso/Staerk/Bronstein 2022, arXiv:2205.00354) buil
 HIGH-PASS aggregation from the graph Laplacian. Their key operator is the directional DERIVATIVE
     B_dx = F_hat - diag( sum_j F_hat[:,j] ),   F_hat = L1-row-normalized field F,
 a 1-hop, signed (high-pass) directional operator. In DGN/GAD the field F = grad(phi) is the
-gradient of a LOW-FREQUENCY Laplacian eigenvector (the Fiedler vector) -- which is GLOBAL: deleting
-a node shifts the whole eigenvector, so the anisotropy (and the target) would be globally coupled,
-breaking edit-locality.
+gradient of a LOW-FREQUENCY Laplacian eigenvector -- which is GLOBAL (a deletion shifts the whole
+eigenvector -> breaks edit-locality) AND positional (a hidden signal the student can't observe ->
+an unpredictable label component that caps every model).
 
-We keep the operator B_dx but replace the global eigenvector field with the gradient of a RANDOM
-per-node potential psi ~ N(0,1). Same anisotropic high-pass operator; LOCAL field (deleting a node
-only changes grad(psi) on incident edges). A bank of such random fields gives PER-CHANNEL anisotropy
-once combined by a random channel-mixer (GAD's "concat anisotropic filters -> MLP" pattern).
+Our adaptation, on both counts: the field is the gradient of a random *feature* projection,
+psi = X @ w_r (w_r ~ N(0,1)^d). This is (a) LOCAL (1-hop op; a deletion only changes grad(psi) on
+incident edges) and (b) LEARNABLE (a function of the observed features X, exactly the kind of
+signed feature-difference weighting FAGCN's attention can represent). A bank of such random fields
+gives PER-CHANNEL anisotropy once combined by a random channel-mixer (GAD's concat-filters->MLP).
 
-Teacher (k local layers, then a random MLP readout):
-    bank = [ I, A_hat(low-pass), B_dx^(1..R)(aniso high-pass from random potentials) ]   # all 1-hop
+Teacher (k local layers, then a random nonlinear readout, quantile-binned to balanced classes):
+    bank = [ A_hat(low-pass), B_dx^(1..R)(aniso high-pass, feature-gradient fields) ]   # all 1-hop
     H_0 = X (random Gaussian features)
-    H_{l+1} = tanh( concat_o[ O H_l ] @ W_l )          # W_l random: per-channel anisotropic mix
-    label = argmax( relu(H_k @ Wa) @ Wb )              # random nonlinear readout
-By construction: features alone are uninformative (random X -> MLP at chance); the signal is
-high-pass + anisotropic (low-pass SGC/APPNP cannot match); it is nonlinear (needs >linear filter);
-and it is k-hop LOCAL (every operator is 1-hop), so screening length k is optimal -> maintainable.
-
-This module = the teacher + a label generator + a quick sanity (class balance, feature-only probe).
-The MLP/SGC/APPNP/ours comparison and the edit-locality/regeneration probe are the next scripts.
+    H_{l+1} = tanh( concat[ H_l, {O H_l : O in bank} ] @ W_l )     # W_l random channel-mixer
+    s = relu(H_k @ Wa) @ wb ;  y = quantile_bin(s, K)              # balanced K-class labels
+By construction: features alone are uninformative (label needs neighbor aggregation -> MLP ~chance);
+the signal is high-pass + anisotropic (low-pass SGC/APPNP cannot match); it is nonlinear (a linear
+filter, even multi-hop high-pass, cannot match); and it is k-hop LOCAL, so screening length k is
+optimal -> maintainable. generate() accepts an edges/deg override (with X and thresholds fixed) so
+an edited graph can be re-labelled for the edit-locality / regeneration probe.
 
 Run:  D:\\deq-venv\\Scripts\\python.exe -u -m experiments.aniso_teacher
 """
@@ -44,7 +44,7 @@ def sym_norm_adj(edges, deg, N):
 
 def directional_derivative(edges, N, psi):
     """DGN B_dx from a node potential psi: field F[i,j]=psi[j]-psi[i] (edge i<-j), L1-row-normalized,
-    minus the centering diagonal. edges=[dst,src]; entry (row=dst i, col=src j)."""
+    minus the centering diagonal. edges=[dst,src]; entry at (row=dst i, col=src j)."""
     dst, src = edges[0], edges[1]
     f = psi[src] - psi[dst]                                   # F[i,j] = psi[j] - psi[i]
     denom = torch.zeros(N, device=psi.device).index_add_(0, dst, f.abs()) + 1e-6
@@ -55,42 +55,42 @@ def directional_derivative(edges, N, psi):
     return torch.sparse_coo_tensor(idx, vals, (N, N)).coalesce()
 
 
-def build_bank(edges, deg, N, R, gen):
-    """Operator bank: identity (passthrough, handled in forward), A_hat, and R random B_dx."""
-    bank = [sym_norm_adj(edges, deg, N)]
-    for _ in range(R):
-        psi = torch.randn(N, generator=gen, device=edges.device)
-        bank.append(directional_derivative(edges, N, psi))
-    return bank
-
-
 class AnisoTeacher:
-    """Fixed random local-anisotropic-diffusion teacher -> k-hop-local nonlinear node labels."""
-    def __init__(self, edges, deg, N, d_feat=16, d_hid=16, R=4, k=3, K=5, seed=0):
-        self.edges, self.N, self.d_feat, self.K = edges, N, d_feat, K
+    """Fixed random local-anisotropic-diffusion teacher -> k-hop-local nonlinear node labels.
+    Field source = random feature projections (learnable + local)."""
+    def __init__(self, edges, deg, N, d_feat=16, R=4, k=3, K=5, seed=0):
+        self.edges, self.deg, self.N = edges, deg, N
+        self.d_feat, self.K, self.k = d_feat, K, k
+        self.t = max(0, k - 1)                                # linear-diffusion hops; reach = t + 1
         g = torch.Generator(device=edges.device).manual_seed(seed)
-        self.bank = build_bank(edges, deg, N, R, g)
-        n_op = 1 + len(self.bank)                              # +1 for identity passthrough
-        self.Ws, dims = [], [d_feat] + [d_hid] * k
-        for l in range(k):
-            fan = dims[l] * n_op
-            self.Ws.append(torch.randn(fan, dims[l + 1], generator=g, device=edges.device) / fan ** 0.5)
-        self.Wa = torch.randn(d_hid, d_hid, generator=g, device=edges.device) / d_hid ** 0.5
-        self.wb = torch.randn(d_hid, generator=g, device=edges.device) / d_hid ** 0.5  # -> scalar
-        self.gen = g
+        self.proj = [torch.randn(d_feat, generator=g, device=edges.device) for _ in range(R)]
+        self.a = torch.randn(R, generator=g, device=edges.device)      # field combination weights
+        self.X = torch.randn(N, d_feat, generator=g, device=edges.device)
+        self.thresholds = None
 
     @torch.no_grad()
-    def generate(self):
-        X = torch.randn(self.N, self.d_feat, generator=self.gen, device=self.edges.device)
-        H = X
-        for W in self.Ws:
-            Z = torch.cat([H] + [torch.sparse.mm(O, H) for O in self.bank], dim=1)
-            H = torch.tanh(Z @ W)
-        s = torch.relu(H @ self.Wa) @ self.wb                  # scalar teacher output per node
-        # quantile-bin the scalar into K BALANCED classes (removes the argmax class-collapse)
-        q = torch.quantile(s, torch.linspace(0, 1, self.K + 1, device=s.device)[1:-1])
-        y = torch.bucketize(s, q)
-        return X, y
+    def generate(self, edges=None, deg=None):
+        """label = quantile-bin( sum_r a_r * || B_dx^r ( A_hat^t X ) ||^2 ).
+        Structured + SHALLOW so it is learnable: t linear-diffusion hops (GAD's linear step), then
+        anisotropic directional derivatives, then a NONLINEAR (squared-energy) readout. High-pass
+        (derivative) + anisotropic (random directional fields) + nonlinear (square) + (t+1)-hop local;
+        a linear readout cannot match the square, low-pass cannot keep the derivative."""
+        edges = self.edges if edges is None else edges
+        deg = self.deg if deg is None else deg
+        Ahat = sym_norm_adj(edges, deg, self.N)
+        Xd = self.X
+        for _ in range(self.t):                               # linear anisotropy-free diffusion
+            Xd = torch.sparse.mm(Ahat, Xd)
+        s = torch.zeros(self.N, device=edges.device)
+        for w, a in zip(self.proj, self.a):
+            D = torch.sparse.mm(directional_derivative(edges, self.N, self.X @ w), Xd)
+            s = s + a * (D ** 2).sum(1)                       # squared directional high-freq energy
+        self.s = (s - s.mean()) / (s.std() + 1e-6)            # standardized continuous target (regression)
+        if self.thresholds is None:                           # fix thresholds from the base graph
+            self.thresholds = torch.quantile(
+                s, torch.linspace(0, 1, self.K + 1, device=s.device)[1:-1])
+        y = torch.bucketize(s, self.thresholds)
+        return self.X, y
 
 
 def feature_only_probe(X, y, K, epochs=300):
@@ -116,7 +116,7 @@ def main():
     teacher = AnisoTeacher(edges, deg, N, d_feat=d_feat, R=R, k=k, K=K, seed=0)
     X, y = teacher.generate()
     counts = torch.bincount(y, minlength=K).cpu().numpy()
-    print(f"grid {L}x{L}={N} nodes | teacher: R={R} random fields, k={k} hops, K={K} classes")
+    print(f"grid {L}x{L}={N} nodes | teacher: R={R} feature-gradient fields, k={k} hops, K={K} classes")
     print(f"class balance: {counts}  (chance acc = {1.0/K:.3f})")
     feat_acc = feature_only_probe(X, y, K)
     print(f"feature-only logistic test acc: {feat_acc:.3f}  "
