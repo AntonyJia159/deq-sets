@@ -1,15 +1,18 @@
-"""Step 1: who can learn the anisotropic-diffusion teacher? (REGRESSION on the continuous energy)
+"""Step 1: who can learn the high-pass teacher? (REGRESSION on the continuous energy)
 
-Teacher (aniso_teacher.py) target = sum_r a_r || B_dx^r (A_hat^t X) ||^2 : a (t+1)-hop-local,
-anisotropic, high-pass, NONLINEAR (squared) energy. We regress the standardized scalar and report
-test R^2 (a continuous target -> R^2 is far more sensitive than 5-way binning).
+Teacher (aniso_teacher.py, target='variance') = sum_r a_r Var_{j~i}(X_j w_r): a 1-hop-local,
+high-pass, NONLINEAR (squared) energy built from PURE neighbor averages -- node i's own features
+never enter, so a features-only MLP has a true 0 floor (no self-leak). We regress the standardized
+scalar and report test R^2 (a continuous target -> R^2 is far more sensitive than 5-way binning).
 
 Predictions by construction:
-  MLP (features only)        R^2 ~ 0  (label needs the graph)
-  SGC / APPNP (low-pass lin) R^2 ~ 0  (low-pass kills the derivative; linear cannot square)
-  Linear-HP (lin on multi-hop hi+lo bank) R^2 ~ 0  (has high-pass features but a LINEAR readout
-                             cannot square -> isolates "beyond-linear", not just "beyond-low-pass")
-  FAGCN-DEQ (ours)           R^2 high (signed/high-pass + nonlinear equilibrium)
+  MLP (features only)   R^2 ~ 0   (target depends only on NEIGHBORS' features, never X_i)
+  SGC (linear prop)     R^2 ~ 0   (linear cannot square -> cannot form mean(psi^2))
+  Linear-HP (linear)    R^2 ~ 0   (high-pass features but a LINEAR readout still cannot square)
+  APPNP (MLP+propagate) R^2 PARTIAL  (NOT linear: one relu MLP can square node-locally, then a FIXED
+                             alpha-propagation averages -> the right shape, but single-shot/fixed)
+  FAGCN-DEQ (ours)      R^2 BEST  (learned equilibrium: node-local square + flexible aggregation)
+SGC/Linear-HP at 0 = the beyond-LINEAR evidence; APPNP is the fair partial nonlinear baseline.
 
 Random 50/25/25 splits, 3 seeds. Run:
   D:\\deq-venv\\Scripts\\python.exe -u -m experiments.aniso_compare
@@ -30,7 +33,7 @@ from experiments.fagcn_deq_mlp import FAGCNDEQMLP, CFG as DEQ_CFG
 from experiments.cora_deletion import renorm_sparse
 
 DEV = "cuda" if torch.cuda.is_available() else "cpu"
-L, D_FEAT, R, K_HOPS = 30, 16, 4, 3
+L, D_FEAT, R, K_HOPS = 40, 16, 4, 3
 N_SPLITS = 3
 DEQ = dict(DEQ_CFG, drop_in=0.1, drop_out=0.3, edge_drop=0.1, epochs=150)
 
@@ -125,8 +128,8 @@ def main():
 
     rows = {}
     builders = {"MLP (no graph)": lambda: MLP(D_FEAT, 64, 1),
-                "SGC (low-pass lin)": lambda: SGC(D_FEAT, 1),
-                "APPNP (low-pass lin)": lambda: APPNP(D_FEAT, 64, 1)}
+                "SGC (linear prop)": lambda: SGC(D_FEAT, 1),
+                "APPNP (MLP+prop)": lambda: APPNP(D_FEAT, 64, 1)}  # relu MLP then propagate: NONLINEAR
     for name, b in builders.items():
         v, t0 = [], time.time()
         for s in range(N_SPLITS):
@@ -150,9 +153,9 @@ def main():
     print(f"  {'FAGCN-DEQ (ours)':<22} R^2 {np.mean(v):+.3f} +- {np.std(v):.3f}  ({time.time()-t0:.0f}s)",
           flush=True)
 
-    best_lin = max(rows["SGC (low-pass lin)"], rows["APPNP (low-pass lin)"], rows["Linear-HP"])
-    print(f"\n  ours R^2 {rows['FAGCN-DEQ (ours)']:.3f} | best-linear R^2 {best_lin:.3f} | "
-          f"MLP R^2 {rows['MLP (no graph)']:.3f}", flush=True)
+    best_lin = max(rows["SGC (linear prop)"], rows["Linear-HP"])           # truly-linear baselines
+    print(f"\n  ours R^2 {rows['FAGCN-DEQ (ours)']:.3f} | APPNP (MLP+prop) R^2 {rows['APPNP (MLP+prop)']:.3f} "
+          f"| best-LINEAR R^2 {best_lin:.3f} | MLP R^2 {rows['MLP (no graph)']:.3f}", flush=True)
 
 
 if __name__ == "__main__":

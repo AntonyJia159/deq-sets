@@ -42,13 +42,29 @@ def sym_norm_adj(edges, deg, N):
     return torch.sparse_coo_tensor(edges, vals, (N, N)).coalesce()
 
 
-def directional_derivative(edges, N, psi):
+def neighbor_mean_adj(edges, deg, N):
+    """Row-normalized adjacency M = D^-1 A, NO self-loop: (M psi)_i = mean_{j~i} psi_j.
+    Pure neighbor average -- node i's OWN value never enters. A target built from M and a
+    feature projection psi=X@w depends only on {X_j : j~i}, never X_i, so it is INVISIBLE to a
+    features-only MLP (leak-free) -- unlike the directional derivative, whose field weights use
+    psi_i and so leak the center back into the label."""
+    vals = 1.0 / deg[edges[0]].clamp(min=1.0)
+    return torch.sparse_coo_tensor(edges, vals, (N, N)).coalesce()
+
+
+def directional_derivative(edges, N, psi, diag=True):
     """DGN B_dx from a node potential psi: field F[i,j]=psi[j]-psi[i] (edge i<-j), L1-row-normalized,
-    minus the centering diagonal. edges=[dst,src]; entry at (row=dst i, col=src j)."""
+    minus the centering diagonal. edges=[dst,src]; entry at (row=dst i, col=src j).
+    diag=False drops the centering diagonal -> a PURELY OFF-DIAGONAL (neighbor-only) signed operator:
+    (B_off X)_i = sum_{j~i} fhat_ij X_j depends only on neighbors' features, never X_i. The field
+    WEIGHTS fhat_ij ~ (psi_j-psi_i) are still signed/anisotropic/high-pass (teacher-fixed constants),
+    so this stays high-pass while being leak-free for a features-only MLP."""
     dst, src = edges[0], edges[1]
     f = psi[src] - psi[dst]                                   # F[i,j] = psi[j] - psi[i]
     denom = torch.zeros(N, device=psi.device).index_add_(0, dst, f.abs()) + 1e-6
     fhat = f / denom[dst]                                     # L1-row-normalized field
+    if not diag:
+        return torch.sparse_coo_tensor(edges, fhat, (N, N)).coalesce()
     colsum = torch.zeros(N, device=psi.device).index_add_(0, src, fhat)   # sum_j F_hat[:,i]
     idx = torch.cat([edges, torch.arange(N, device=psi.device).repeat(2, 1)], dim=1)
     vals = torch.cat([fhat, -colsum])                        # off-diag F_hat + diag -colsum
@@ -56,12 +72,28 @@ def directional_derivative(edges, N, psi):
 
 
 class AnisoTeacher:
-    """Fixed random local-anisotropic-diffusion teacher -> k-hop-local nonlinear node labels.
-    Field source = random feature projections (learnable + local)."""
-    def __init__(self, edges, deg, N, d_feat=16, R=4, k=3, K=5, seed=0):
+    """Fixed random local high-pass teacher -> local nonlinear node labels.
+    Field source = random feature projections (learnable + local). Two targets:
+      'nbr_sq' (default): leak-free 1-hop NEIGHBOR SECOND-MOMENT -- s_i = sum_r a_r mean_{j~i}(X_j w_r)^2.
+          Node-LOCAL nonlinearity (square of each node's own projection) then a plain neighbor average:
+          leak-free (no X_i), nonlinear (beats every linear baseline), and EXPRESSIBLE by our cell
+          (each node squares its projection in z_j, the next equilibrium layer averages neighbor z).
+          Smooth/monotone (no mean^2 cancellation), so stable to fit. Reach = 1 (maximally local).
+      'aniso_local': leak-free 1-hop ANISOTROPIC squared energy --
+          s_i = sum_r a_r || sum_{j~i} fhat^r_ij X_j ||^2, fhat = off-diagonal directional field.
+          Square of a neighbor-AGGREGATE (no X_i term): leak-free for MLP, high-pass/anisotropic
+          (signed directional weights), AND expressible by our aggregate-then-nonlinear cell
+          (unlike neighbor-variance, which needs a per-edge square). Reach = 1 (maximally local).
+      'variance': leak-free 1-hop NEIGHBOR-VARIANCE s_i = sum_r a_r Var_{j~i}(X_j w_r). Also
+          leak-free, but Var = mean(psi^2) - mean(psi)^2 needs squaring EACH neighbor before the
+          sum -> a per-edge nonlinearity our aggregate-then-nonlinear cell cannot form in one step.
+      'aniso': the original DGN-style directional squared-energy WITH the centering diagonal +
+          k-hop diffusion (anisotropic, k-hop, but its diagonal/diffusion leak psi_i into MLP)."""
+    def __init__(self, edges, deg, N, d_feat=16, R=4, k=3, K=5, seed=0, target="nbr_sq"):
         self.edges, self.deg, self.N = edges, deg, N
         self.d_feat, self.K, self.k = d_feat, K, k
         self.t = max(0, k - 1)                                # linear-diffusion hops; reach = t + 1
+        self.target = target
         g = torch.Generator(device=edges.device).manual_seed(seed)
         self.proj = [torch.randn(d_feat, generator=g, device=edges.device) for _ in range(R)]
         self.a = torch.randn(R, generator=g, device=edges.device)      # field combination weights
@@ -69,22 +101,46 @@ class AnisoTeacher:
         self.thresholds = None
 
     @torch.no_grad()
-    def generate(self, edges=None, deg=None):
-        """label = quantile-bin( sum_r a_r * || B_dx^r ( A_hat^t X ) ||^2 ).
-        Structured + SHALLOW so it is learnable: t linear-diffusion hops (GAD's linear step), then
-        anisotropic directional derivatives, then a NONLINEAR (squared-energy) readout. High-pass
-        (derivative) + anisotropic (random directional fields) + nonlinear (square) + (t+1)-hop local;
-        a linear readout cannot match the square, low-pass cannot keep the derivative."""
-        edges = self.edges if edges is None else edges
-        deg = self.deg if deg is None else deg
-        Ahat = sym_norm_adj(edges, deg, self.N)
+    def _energy(self, edges, deg):
+        if self.target == "nbr_sq":                          # leak-free 1-hop neighbor second-moment
+            M = neighbor_mean_adj(edges, deg, self.N)         # s_i = sum_r a_r mean_{j~i}(X_j w_r)^2
+            s = torch.zeros(self.N, device=edges.device)
+            for w, a in zip(self.proj, self.a):
+                psi2 = (self.X @ w) ** 2                      # NODE-LOCAL nonlinearity (squarable in z_j)
+                s = s + a * torch.sparse.mm(M, psi2[:, None]).squeeze(1)   # then neighbor-averaged
+            return s
+        if self.target == "aniso_local":                     # leak-free 1-hop anisotropic energy
+            s = torch.zeros(self.N, device=edges.device)
+            for w, a in zip(self.proj, self.a):
+                B = directional_derivative(edges, self.N, self.X @ w, diag=False)  # neighbor-only
+                D = torch.sparse.mm(B, self.X)               # square of a pure-neighbor aggregate
+                s = s + a * (D ** 2).sum(1)
+            return s
+        if self.target == "variance":                        # leak-free 1-hop neighbor variance
+            M = neighbor_mean_adj(edges, deg, self.N)
+            s = torch.zeros(self.N, device=edges.device)
+            for w, a in zip(self.proj, self.a):
+                psi = self.X @ w                             # neighbor-only field source
+                var = torch.sparse.mm(M, (psi ** 2)[:, None]).squeeze(1) \
+                    - torch.sparse.mm(M, psi[:, None]).squeeze(1) ** 2
+                s = s + a * var                              # E[psi^2|nbr] - E[psi|nbr]^2 >= 0
+            return s
+        Ahat = sym_norm_adj(edges, deg, self.N)              # original anisotropic directional energy
         Xd = self.X
-        for _ in range(self.t):                               # linear anisotropy-free diffusion
+        for _ in range(self.t):
             Xd = torch.sparse.mm(Ahat, Xd)
         s = torch.zeros(self.N, device=edges.device)
         for w, a in zip(self.proj, self.a):
             D = torch.sparse.mm(directional_derivative(edges, self.N, self.X @ w), Xd)
-            s = s + a * (D ** 2).sum(1)                       # squared directional high-freq energy
+            s = s + a * (D ** 2).sum(1)
+        return s
+
+    @torch.no_grad()
+    def generate(self, edges=None, deg=None):
+        """Continuous standardized energy self.s (regression target) + quantile-binned labels y."""
+        edges = self.edges if edges is None else edges
+        deg = self.deg if deg is None else deg
+        s = self._energy(edges, deg)
         self.s = (s - s.mean()) / (s.std() + 1e-6)            # standardized continuous target (regression)
         if self.thresholds is None:                           # fix thresholds from the base graph
             self.thresholds = torch.quantile(
@@ -110,13 +166,13 @@ def feature_only_probe(X, y, K, epochs=300):
 
 def main():
     print(f"device = {DEV}")
-    L, d_feat, R, k, K = 30, 16, 4, 3, 5
+    L, d_feat, R, k, K = 40, 16, 4, 3, 5
     edges, deg, N = grid_graph(L)
     edges, deg = edges.to(DEV), deg.to(DEV)
-    teacher = AnisoTeacher(edges, deg, N, d_feat=d_feat, R=R, k=k, K=K, seed=0)
+    teacher = AnisoTeacher(edges, deg, N, d_feat=d_feat, R=R, k=k, K=K, seed=0, target="nbr_sq")
     X, y = teacher.generate()
     counts = torch.bincount(y, minlength=K).cpu().numpy()
-    print(f"grid {L}x{L}={N} nodes | teacher: R={R} feature-gradient fields, k={k} hops, K={K} classes")
+    print(f"grid {L}x{L}={N} nodes | teacher: variance, R={R} feature fields, K={K} classes")
     print(f"class balance: {counts}  (chance acc = {1.0/K:.3f})")
     feat_acc = feature_only_probe(X, y, K)
     print(f"feature-only logistic test acc: {feat_acc:.3f}  "
