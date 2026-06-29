@@ -109,6 +109,17 @@ class AnisoTeacher:
 
     @torch.no_grad()
     def _energy(self, edges, deg):
+        if self.target == "maxreach":                        # TROPICAL (max-plus) task, not spectral
+            gamma, dst, src = 0.7, edges[0], edges[1]         # z_i = max(psi_i, gamma*max_{j~i} z_j)
+            psi = self.X @ torch.stack(self.proj, dim=1)      # (N, R) channels;  fixed point =
+            z = psi.clone()                                   # gamma-discounted MAX-reachable feature
+            for _ in range(40):                               # value iteration (gamma<1 -> contraction)
+                nbr = torch.full_like(z, -1e30)
+                nbr.scatter_reduce_(0, dst[:, None].expand(-1, z.shape[1]), z[src],
+                                    reduce="amax", include_self=False)
+                z = torch.maximum(psi, gamma * nbr)
+            return (z * self.a).sum(1)                        # max is an ORDER STATISTIC: not a
+                                                              # function of any LINEAR aggregate
         if self.target == "interleaved":                     # prop -> relu -> prop -> square
             Ahat = sym_norm_adj(edges, deg, self.N)           # needs TWO nonlinear stages with a
             s = torch.zeros(self.N, device=edges.device)      # propagation BETWEEN them: no DECOUPLED

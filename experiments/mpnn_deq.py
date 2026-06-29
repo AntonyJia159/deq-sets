@@ -55,6 +55,7 @@ class MPNNDEQ(nn.Module):
         d, mh, m = cfg["d"], cfg["msg_hidden"], cfg["mlp_hidden"]
         self.d = d
         self.s_max, self.jac_gamma = cfg["s_max"], cfg["jac_gamma"]
+        self.agg = cfg.get("agg", "sum")                     # "sum" (linear semiring) | "max" (tropical)
         self.enc = nn.Linear(d_in, d)
         self.Wm = nn.Linear(2 * d, mh)                      # per-edge message MLP layer 1 (SN'd)
         self.Wm2 = nn.Linear(mh, d, bias=False)            # per-edge message MLP layer 2 (SN'd)
@@ -83,8 +84,12 @@ class MPNNDEQ(nn.Module):
             dst, src, norm = dst[keep], src[keep], norm[keep]
         e = torch.cat([z[dst], z[src]], dim=-1)                   # (E, 2d): ego || neighbor
         m = F.relu(e @ Wm_n.t() + self.Wm.bias) @ Wm2_n.t()       # (E, d) NONLINEAR per-edge message
+        if self.agg == "max":                                     # TROPICAL aggregation (order stat)
+            agg = torch.full((N, self.d), -1e30, device=z.device, dtype=z.dtype)
+            agg.scatter_reduce_(0, dst[:, None].expand(-1, self.d), m, reduce="amax", include_self=False)
+            return torch.where(agg < -1e29, torch.zeros_like(agg), agg)   # no-neighbor -> 0
         agg = torch.zeros(N, self.d, device=z.device, dtype=z.dtype)
-        agg.index_add_(0, dst, norm.unsqueeze(-1) * m)            # sym-normalized aggregation
+        agg.index_add_(0, dst, norm.unsqueeze(-1) * m)            # sym-normalized SUM (linear semiring)
         return agg
 
     def _make_f(self, h0, edges=None, norm=None):
