@@ -61,9 +61,11 @@
   than other editable models." It is a <strong>maintainability framework</strong>: a single condition
   $\sigma_{\min}(I-J)>0$ characterizes edit-locality for the <em>entire</em> equilibrium family &mdash;
   linear PPR (InstantGNN), nonlinear, signed, interleaved &mdash; and a single algorithm (warm-start
-  local re-solve) maintains all of them, including in the <em>non-contractive</em> ($\rho(J)>1$) regime.
-  Expressivity is a per-task knob within that family, and on controlled tasks it <em>ties</em> the
-  strongest maintainable incumbent. The science is the characterization, not a horse-race win.
+  local re-solve) maintains all of them, including in the <em>non-contractive</em> ($\rho(J)>1$) regime
+  and across <em>semirings</em> (sum-product <em>and</em> tropical max-plus). Expressivity is a per-task knob
+  within that family &mdash; on a fixed semiring it <em>ties</em> the strongest maintainable incumbent; the
+  one real, controlled difference is the <em>semiring</em> itself (&sect;5), which the linear-push incumbents
+  cannot leave. The science is the characterization, not a horse-race win.
 </div>
 
 <h2>1. The right reference class: editable models, split by maintenance mechanism</h2>
@@ -180,6 +182,8 @@ on the square-then-propagate task). <strong>The separating tasks are exactly the
   <strong>Null result, stated plainly.</strong> On controlled local tasks, the nonlinear equilibrium
   does <em>not</em> reliably out-express the strongest maintainable incumbent (a linear equilibrium with
   a nonlinear head). Where one model wins it is by $\le 0.09$ and the direction flips with the task.
+  &sect;5 explains <em>why</em> &mdash; we were testing inside the wrong algebra &mdash; and finds the one
+  axis where a real, controlled difference does appear.
 </div>
 <h3>4c. Real heterophily does not rescue it</h3>
 <p>
@@ -191,7 +195,72 @@ contribution is <span class="warn">suspicious</span>, and roman is not clean evi
 win either.
 </p>
 
-<h2>5. So what is the contribution?</h2>
+<h2>5. The semiring axis: where a real difference <em>does</em> appear</h2>
+<p>
+The null in &sect;4 has a precise cause. Manifold/spectral operators are <strong>functions of the
+Laplacian</strong>, $g(L)$ &mdash; and $g(L)X$ is, for <em>any</em> filter $g$ (high-pass or low-pass), a
+<strong>linear functional of $X$</strong>. So the task $(L^kX)^2$ is $\varphi(\text{linear aggregate})$,
+which is exactly what a linear-propagation model with a nonlinear head computes. Linear algebra <em>is</em>
+the <strong>sum-product semiring</strong> ($\sum_j L_{ij}f_j$); we had been building tasks inside the
+incumbent's own algebra, so a tie was inevitable.
+</p>
+<p>
+The escape is an <strong>order statistic</strong> &mdash; $\max$ over the neighbourhood &mdash; which is
+<em>not</em> a function of any linear aggregate. That is the <strong>tropical (max-plus) semiring</strong>
+$(\max,+)$: Viterbi, Bellman&ndash;Ford, DTW. The neural-algorithmic-reasoning line establishes that the
+aggregator must match the algorithm's semiring (Veli&ccaron;kovi&cacute; <em>Neural Execution</em>, 2019;
+Xu et al. <em>algorithmic alignment</em>, 2020; Dudzik&ndash;Veli&ccaron;kovi&cacute; <em>GNNs are Dynamic
+Programmers</em>, 2022). We test it directly with a $2\times2$: a spectral task $(L^2\psi)^2$ vs a tropical
+task (the $\gamma$-discounted max-reachable feature $z_i=\max(\psi_i,\gamma\max_{j}z_j)$), each against
+sum-, max-, and learnable-temperature log-sum-exp aggregation (40&times;40 grid, test $R^2$).
+</p>
+<table>
+  <tr><th>model \ task</th><th>spectral (linear)</th><th>tropical (max-plus)</th></tr>
+  <tr><td>InstantGNN-linear (sum)</td><td>0.459</td><td>0.481</td></tr>
+  <tr><td>MPNN sum-agg</td><td>0.567</td><td>0.529</td></tr>
+  <tr><td>MPNN <strong>max-agg</strong></td><td>0.553</td><td class="good"><strong>0.683</strong></td></tr>
+  <tr><td>MPNN log-sum-exp (learn $\beta$)</td><td class="good">0.599</td><td>0.497</td></tr>
+</table>
+<p>
+The <strong>controlled</strong> comparison is the diagnostic one: changing only the aggregator from sum to
+max <em>inside the same cell</em> lifts the tropical score $0.566\to0.683$ ($+0.12$, $\sim\!4\sigma$) while
+costing nothing on spectral. So there <em>is</em> a real, mechanistic expressivity difference &mdash; it is
+the aggregation <strong>algebra</strong>, and the linear-push incumbents are locked in the sum row
+(max-plus has no linear push).
+</p>
+<div class="callout">
+  <strong>Why the gap is $+0.12$ and not categorical &mdash; a locality bound.</strong> A sum-model does not
+  collapse to zero on the tropical task ($0.48$&ndash;$0.57$) because an edit-local neighbourhood is
+  <em>low-dimensional</em>: a wide linear-propagation readout takes $\sim\!d$ linear measurements of it, and
+  if $d\gtrsim$ (neighbourhood size) an MLP head can approximately recover the individual neighbours and
+  compute anything &mdash; including $\max$. So <strong>on strictly-local tasks a wide linear-readout model is
+  approximately universal, and expressivity gaps are inherently bounded</strong> (they grow only with degree
+  or range, which trade against locality). The expressivity tie of &sect;4 is, near enough, a consequence of
+  demanding edit-locality &mdash; not a failure of task design.
+</div>
+<p>
+<strong>An honest negative on a tidier design.</strong> The natural learner would be a single
+log-sum-exp aggregator with a learnable temperature ($\beta\to0$: mean; $\beta\to\infty$: max), dialling to
+the right semiring per task. It does not work out of the box: it ties/best on spectral ($0.599$, $\beta\approx1.1$)
+but <em>under</em>-performs hard max on tropical ($0.497$, $\beta\approx1.3$ &mdash; it never sharpens; weight
+decay pulls $\beta$ down and the sharpening gradient is weak). So hard max remains the cleaner tropical
+demonstrator, and "one model spans semirings" is plausible but undemonstrated.
+</p>
+<div class="callout key">
+  <strong>And the tropical equilibrium stays maintainable &mdash; under the <em>same</em> characterization.</strong>
+  The max-agg cell, trained on the tropical task and probed by node deletion, is exactly maintainable
+  (warm $=$ cold to $4.7\times10^{-7}$) and sharply local ($\xi\approx0.6$ hop). On a small grid where the
+  dense Jacobian is formable, $\sigma_{\min}(I-J)=0.28$ and $\mathrm{dist}(1,\mathrm{spec})=0.34$ are healthy
+  and predict $\xi$; the only tropical-specific subtlety is that $\max$ is non-smooth, but the argmax routing
+  switches only in the edit <em>core</em> ($54\%$ within 2 hops, $\sim\!1\%$ beyond 3) &mdash; the far field, which
+  <em>is</em> the locality, has a frozen routing, so the Chebyshev&ndash;Faber argument behind $\sigma_{\min}$
+  applies cleanly. (A log-sum-exp cell, being smooth, removes even that subtlety.) So one condition,
+  $\sigma_{\min}(I-J)$, governs edit-locality across <em>both</em> semirings. <span class="muted">[Correction
+  to an earlier draft: a $\rho(J)=1.4$ figure for the tropical cell was a power-method artifact on the
+  non-smooth subgradient; the dense value is $\rho=0.66<1$, and it is <em>not</em> a sup-norm contraction.]</span>
+</div>
+
+<h2>6. So what is the contribution?</h2>
 <p>
 Strip away what did not survive and three things remain, all supported by the experiments above:
 </p>
@@ -199,22 +268,29 @@ Strip away what did not survive and three things remain, all supported by the ex
   <li><strong>A characterization.</strong> $\sigma_{\min}(I-J)$ &mdash; the distance of the spectrum from
   $+1$, not $\rho$ &mdash; governs edit-locality of an implicit model. This is non-obvious: a fixed point
   <em>looks</em> global yet is provably $\xi$-local. It is trivial for finite-depth and is the content for
-  equilibria. <span class="muted">(§7 theory; the $\rho{=}0.955,\ \xi{\approx}1$ datum in §3.)</span></li>
+  equilibria. <span class="muted">(Note #7 theory; the $\rho{=}0.955,\ \xi{\approx}1$ datum in &sect;3.)</span></li>
   <li><strong>An algorithm.</strong> Warm-start local re-solve maintains nonlinear / signed / interleaved
   equilibria after an edit &mdash; the generalization of InstantGNN's linear incremental update to the
   regime where no delta-push exists, including non-contractive $\rho(J)>1$ fixed points found by Broyden.</li>
-  <li><strong>A unification.</strong> The same condition and algorithm cover the whole family; the
-  decoupled-linear incumbents are the special case where the resolvent is linear. Expressivity is a knob
-  you turn within a uniformly-maintainable family, not a separate axis.</li>
+  <li><strong>A unification, across semirings.</strong> The same condition $\sigma_{\min}(I-J)$ and the same
+  warm-start algorithm cover the whole family &mdash; decoupled-linear (InstantGNN, the linear-resolvent
+  special case), nonlinear sum-product, <em>and</em> tropical max-plus (&sect;5). Expressivity is a knob you
+  turn <em>within</em> a uniformly-maintainable family, and the linear-push incumbents can only ever sit in
+  the sum-product corner of it.</li>
 </ol>
 
-<h2>6. Limitations &amp; open checks</h2>
+<h2>7. Limitations &amp; open checks</h2>
 <ul>
-  <li>The expressivity advantage of interleaved nonlinear propagation is <em>not</em> demonstrated on a
-  clean local task; the separating tasks are unlearnable, and real heterophily (roman) is confounded by a
-  strong MLP. We claim a <em>tie</em>, honestly.</li>
-  <li>The warm-start speedup ($1.5\times$ in iterations) is modest; the real lever is ring-truncation on
-  <em>high-diameter</em> graphs &mdash; still to be shown at scale on a large real graph.</li>
+  <li>The expressivity advantage is real but <em>bounded</em>: it appears on the <em>semiring</em> axis
+  (sum&rarr;max, $+0.12$ controlled, &sect;5), not on any single-nonlinearity task within a fixed semiring,
+  and locality caps its magnitude. We do <em>not</em> claim a broad "more expressive" result.</li>
+  <li>"One model spans semirings" (learnable-temperature log-sum-exp) is <em>undemonstrated</em> &mdash; the
+  naive version under-sharpens ($\beta$ stuck $\approx1.3$); it needs a $\beta$-optimisation fix.</li>
+  <li>The tropical maintenance leans on a <em>frozen-routing</em> linearisation; it holds because routing
+  switches are core-confined ($\sim\!1\%$ far-field), but a fully nonlinear (max-plus / Thompson-metric)
+  treatment is the rigorous version we have not written.</li>
+  <li>The warm-start speedup ($1.5\times$&ndash;$3\times$ in iterations) is modest; the real lever is
+  ring-truncation on <em>high-diameter</em> graphs &mdash; still to be shown at scale on a large real graph.</li>
   <li>Novelty of the bridge is still pending: is "InstantGNN generalized to nonlinear equilibria $+$ a
   $\sigma_{\min}$ edit-locality characterization" genuinely open, or folklore? (See the editability
   literature record; an advisor gut-check is queued.)</li>
@@ -222,9 +298,10 @@ Strip away what did not survive and three things remain, all supported by the ex
 
 <footer>
   Set-DEQ Notes #8 · experiments: <code>operator_compare.py</code>, <code>sign_check.py</code>,
-  <code>unroll_vs_eq.py</code>, <code>maintenance_demo.py</code>, <code>maintenance_compare.py</code> ·
-  builds on #7 (the $\sigma_{\min}$ susceptibility theory). Honesty note: this report contains a null
-  result we chose to surface rather than bury.
+  <code>unroll_vs_eq.py</code>, <code>maintenance_demo.py</code>, <code>maintenance_compare.py</code>,
+  <code>semiring_compare.py</code>, <code>maintenance_tropical.py</code>, <code>maxplus_conditioning.py</code> ·
+  builds on #7 (the $\sigma_{\min}$ susceptibility theory). Honesty note: this report surfaces a null
+  result (and a failed tidy-up) rather than burying them, and corrects an earlier $\rho{>}1$ overclaim.
 </footer>
 </div>
 </body>
