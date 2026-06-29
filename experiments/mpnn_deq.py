@@ -73,9 +73,11 @@ class MPNNDEQ(nn.Module):
     def s(self):
         return self.s_max * torch.sigmoid(self.s_raw)
 
-    def _aggregate(self, z, Wm_n, Wm2_n):
+    def _aggregate(self, z, Wm_n, Wm2_n, edges=None, norm=None):
         N = z.shape[0]
-        dst, src, norm = self.edges[0], self.edges[1], self.norm
+        dst, src = (self.edges if edges is None else edges)[0], \
+                   (self.edges if edges is None else edges)[1]
+        norm = self.norm if norm is None else norm
         if self.training and self.edge_drop > 0:                  # DropEdge
             keep = torch.rand(dst.shape[0], device=z.device) > self.edge_drop
             dst, src, norm = dst[keep], src[keep], norm[keep]
@@ -85,13 +87,14 @@ class MPNNDEQ(nn.Module):
         agg.index_add_(0, dst, norm.unsqueeze(-1) * m)            # sym-normalized aggregation
         return agg
 
-    def _make_f(self, h0):
+    def _make_f(self, h0, edges=None, norm=None):
+        """edges/norm override the trained buffers -> re-solve on an EDITED graph (maintenance)."""
         Wm_n, Wm2_n = _sn(self.Wm.weight), _sn(self.Wm2.weight)
         W1_n, W2_n = _sn(self.W1.weight), _sn(self.W2.weight)
         s = self.s
 
         def f(z):
-            agg = self._aggregate(z, Wm_n, Wm2_n)
+            agg = self._aggregate(z, Wm_n, Wm2_n, edges, norm)
             u = torch.cat([z, agg], dim=-1)                       # ego || aggregate
             g = F.relu(u @ W1_n.t() + self.W1.bias) @ W2_n.t()    # ego-sep update MLP
             return h0 + s * g

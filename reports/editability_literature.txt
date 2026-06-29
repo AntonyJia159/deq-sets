@@ -176,6 +176,56 @@ UNOCCUPIED INTERSECTION (our claim):
    (the 'locality' editing metric). This is the nonlinear-equilibrium
    generalization of InstantGNN, justified by Demko-Moss-Smith/Benzi-Golub."
 
+--------------------------------------------------------------------------------
+MAINTENANCE TAXONOMY (4-way) -- expressivity vs how you maintain after an edit
+--------------------------------------------------------------------------------
+Split the candidate models by HOW an edit is propagated. Reach = edit-radius = xi
+for ALL of them (same resolvent, truncated or full); the decay within the reach
+ball is governed by conditioning in every case. What differs is the MECHANISM.
+
+(1) DECOUPLED-LINEAR  [InstantGNN, PPRGo, SGC, APPNP, SIGN]
+    form: linear propagation A^k X, nonlinearity OFF TO THE SIDE (node-wise MLP
+    before or after ALL propagation; propagation chain stays linear).
+    maintain: CHEAP EXACT INCREMENTAL -- maintain residuals, PUSH only the delta
+    (PPR/forward-push invariants rely on linear superposition).
+    cost: ~size of push frontier; exact. EXPRESSIVITY: WEAK (operator family R^2
+    0.0-0.33; cannot interleave nonlinearity with propagation).
+
+(2) INTERLEAVED FINITE-DEPTH  [K-layer GCN/GIN; also STACKED SIGN = multi-hop per
+    layer -- NOT a 4th class, just fatter layers in this same family]
+    form: sigma(A sigma(A ... x)) -- nonlinearity BETWEEN every propagation.
+    maintain: LOCAL RECOMPUTE ONLY. The nonlinearity is a BARRIER: you cannot push
+    through an MLP. So it is L separate push-phases with a MATERIALIZE step between
+    (push linear block -> recompute node-MLP on the changed frontier -> push next
+    block, frontier grows ~h hops/layer). Must STORE every intermediate-layer state.
+    cost: ~(L*h)-hop ball, with bespoke per-layer residual bookkeeping = "editable
+    but UNWIELDY". EXPRESSIVITY: STRONG (matches the equilibrium).
+    Also: naive depth is UNSTABLE (GIN collapse 0.20@K2 -> 0.07@K3, oversmoothing).
+
+(3) EQUILIBRIUM  [ours: well-conditioned nonlinear DEQ/IGNN-class]
+    form: one fixed point z=f(z); f interleaves propagation+nonlinearity, run to
+    convergence (a weight-tied interleaved net at infinite/adaptive depth).
+    maintain: WARM-START LOCAL RE-SOLVE -- start from old z*, perturb, re-solve;
+    the solver propagates through the nonlinearity BY ITERATING; warm-start => few
+    iters (only the xi-ball is far from solution); IFT => O(1) MEMORY (no stored
+    intermediate states); reach xi set by sigma_min, not hand-tuned depth K.
+    cost: ~xi-ball; SAME complexity class as (2) but ONE object, no per-layer
+    bookkeeping. EXPRESSIVITY: STRONG (= interleaved).
+
+UNIFYING VIEW: a weight-tied interleaved net run to convergence IS the equilibrium;
+finite-depth interleaved is a TRUNCATED equilibrium; decoupled-linear is the LINEAR
+resolvent (bonus: exact delta-push). The SAME resolvent-decay theory + the single
+knob sigma_min(I-J) explains the edit-locality of ALL THREE. So:
+  * vs (1): we WIN ON EXPRESSIVITY (editability previously REQUIRED linearity; we
+    show conditioning, not linearity, is the enabler -> editable class enlarged to
+    interleaved-nonlinear/signed/anisotropic).
+  * vs (2): expressivity TIES; our edge is MECHANISM -- single local re-solve vs
+    L-layer push-and-materialize bookkeeping, + O(1) memory + adaptive xi +
+    stability. NOT a categorical maintenance win, but a cleaner one.
+  * the THEORY (sigma_min characterization) covers the WHOLE family -- the science.
+DROP any "beyond-finite-depth expressivity" claim; it is false (unroll K~=reach
+matches the equilibrium).
+
 OPEN NOVELTY CHECKS (do before claiming):
   [ ] Fetch Implicit-vs-Unfolded (2111.06592) exact equilibrium-vs-finite-depth
       claim -- does anyone already say reach=edit-length for equilibria?
