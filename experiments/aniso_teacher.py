@@ -109,6 +109,16 @@ class AnisoTeacher:
 
     @torch.no_grad()
     def _energy(self, edges, deg):
+        if self.target == "interleaved":                     # prop -> relu -> prop -> square
+            Ahat = sym_norm_adj(edges, deg, self.N)           # needs TWO nonlinear stages with a
+            s = torch.zeros(self.N, device=edges.device)      # propagation BETWEEN them: no DECOUPLED
+            for w, a in zip(self.proj, self.a):               # model (one nonlinearity, before OR
+                psi = (self.X @ w)[:, None]                   # after linear prop) can express it;
+                Lpsi = psi - torch.sparse.mm(Ahat, psi)       # only an INTERLEAVED cell can. reach~2.
+                h = torch.relu(Lpsi)                          # nodewise nonlinearity (interleaved)
+                Lh = h - torch.sparse.mm(Ahat, h)
+                s = s + a * Lh.squeeze(1) ** 2                # then square
+            return s
         if self.target == "laplacian":                       # (L^k psi)^2 : Laplacian/biharmonic energy
             Ahat = sym_norm_adj(edges, deg, self.N)           # L = I - Ahat (normalized Laplacian)
             s = torch.zeros(self.N, device=edges.device)      # k=1 Laplacian, k=2 biharmonic, ... reach=k
