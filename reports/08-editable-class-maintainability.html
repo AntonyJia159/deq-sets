@@ -239,12 +239,17 @@ the aggregation <strong>algebra</strong>, and the linear-push incumbents are loc
   demanding edit-locality &mdash; not a failure of task design.
 </div>
 <p>
-<strong>An honest negative on a tidier design.</strong> The natural learner would be a single
-log-sum-exp aggregator with a learnable temperature ($\beta\to0$: mean; $\beta\to\infty$: max), dialling to
-the right semiring per task. It does not work out of the box: it ties/best on spectral ($0.599$, $\beta\approx1.1$)
-but <em>under</em>-performs hard max on tropical ($0.497$, $\beta\approx1.3$ &mdash; it never sharpens; weight
-decay pulls $\beta$ down and the sharpening gradient is weak). So hard max remains the cleaner tropical
-demonstrator, and "one model spans semirings" is plausible but undemonstrated.
+<strong>A single model that spans semirings &mdash; as a generalist, not a specialist.</strong> The natural
+learner is one log-sum-exp aggregator with a learnable temperature ($\beta\to0$: mean; $\beta\to\infty$:
+max). Out of the box it under-sharpens ($\beta$ stuck $\approx1.3$, tropical only $0.497$) &mdash; but that is
+a fixable artifact: weight decay pulls $\beta$ down and it shares the small base learning rate. Freeing
+$\beta$ (own param group, no weight decay, higher lr, high init) recovers most of it: one model reaches
+spectral $0.580$ ($\beta\!\approx\!4.9$) and tropical $0.593$ ($\beta\!\approx\!7.9$) &mdash; $\beta$ moves
+toward max where the task is tropical, and the tropical score jumps $0.497\to0.593$. So a single smooth
+model genuinely covers both columns. It still <em>trails the hard-max specialist by</em> $\sim\!0.09$ on the
+pure max-plus target (a finite-$\beta$ soft-max averages the top few neighbours), so hard max remains the
+sharpest tropical demonstrator &mdash; but "one model spans semirings" is now supported, with a soft-vs-hard
+gap rather than a failure.
 </p>
 <div class="callout key">
   <strong>And the tropical equilibrium stays maintainable &mdash; under the <em>same</em> characterization.</strong>
@@ -284,8 +289,10 @@ Strip away what did not survive and three things remain, all supported by the ex
   <li>The expressivity advantage is real but <em>bounded</em>: it appears on the <em>semiring</em> axis
   (sum&rarr;max, $+0.12$ controlled, &sect;5), not on any single-nonlinearity task within a fixed semiring,
   and locality caps its magnitude. We do <em>not</em> claim a broad "more expressive" result.</li>
-  <li>"One model spans semirings" (learnable-temperature log-sum-exp) is <em>undemonstrated</em> &mdash; the
-  naive version under-sharpens ($\beta$ stuck $\approx1.3$); it needs a $\beta$-optimisation fix.</li>
+  <li>"One model spans semirings" (learnable-temperature log-sum-exp) works as a <em>generalist</em> once
+  $\beta$ is freed from weight decay (spectral $0.580$, tropical $0.593$, $\beta$ dialling $4.9\!\to\!7.9$),
+  but a soft aggregator still trails the hard-max <em>specialist</em> by $\sim\!0.09$ on the pure max-plus
+  target. The clean single-model dial is a soft-vs-hard compromise, not a free lunch.</li>
   <li>The tropical maintenance leans on a <em>frozen-routing</em> linearisation; it holds because routing
   switches are core-confined ($\sim\!1\%$ far-field), but a fully nonlinear (max-plus / Thompson-metric)
   treatment is the rigorous version we have not written.</li>
@@ -299,7 +306,8 @@ Strip away what did not survive and three things remain, all supported by the ex
 <footer>
   Set-DEQ Notes #8 · experiments: <code>operator_compare.py</code>, <code>sign_check.py</code>,
   <code>unroll_vs_eq.py</code>, <code>maintenance_demo.py</code>, <code>maintenance_compare.py</code>,
-  <code>semiring_compare.py</code>, <code>maintenance_tropical.py</code>, <code>maxplus_conditioning.py</code> ·
+  <code>semiring_compare.py</code>, <code>maintenance_tropical.py</code>, <code>maxplus_conditioning.py</code>,
+  <code>beta_fix_check.py</code> ·
   builds on #7 (the $\sigma_{\min}$ susceptibility theory). Honesty note: this report surfaces a null
   result (and a failed tidy-up) rather than burying them, and corrects an earlier $\rho{>}1$ overclaim.
 </footer>
