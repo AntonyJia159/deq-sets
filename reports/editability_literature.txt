@@ -1,0 +1,187 @@
+================================================================================
+EDITABILITY / MAINTAINABILITY OF (GRAPH) NEURAL NETWORKS -- LITERATURE RECORD
+Maintained for the DEQ-sets project. Last updated 2026-06-29.
+Question we are positioning against: after a GRAPH EDIT (node/edge/feature
+deletion), how do you cheaply and correctly UPDATE a trained model's outputs,
+and when is the effect of the edit LOCAL? Our angle: an implicit/equilibrium
+model's fixed point is EDIT-LOCAL exactly when (I-J) is well-conditioned
+(sigma_min(I-J) bounded away from 0), by resolvent decay (Demko-Moss-Smith /
+Benzi-Golub); then warm-start + local re-solve maintains it. Below: who has
+done what, and where the gap is.
+================================================================================
+
+TL;DR MAP OF THE FIELD (five clusters; our gap in CAPS at the end of each)
+  1. Graph UNLEARNING / certified removal  -> goal is FORGETTING (privacy), not
+     cheap correct maintenance. Influence-function / Newton-step updates.
+     GAP: NOT about equilibrium models; locality of the edit is assumed/bounded
+     per-method, never tied to a CONDITION NUMBER of a fixed-point map.
+  2. Editable GNNs / model editing          -> goal is CORRECTING mispredictions
+     while not disturbing others ("locality" metric). EGNN freezes propagation.
+     GAP: edits the WEIGHTS to fix outputs; not GRAPH edits, not equilibrium.
+  3. Dynamic-graph incremental inference     -> InstantGNN updates only AFFECTED
+     nodes after each edge event. THE CLOSEST PRECEDENT -- but LINEAR (PPR).
+     GAP: linear propagation only; no nonlinear equilibrium; no conditioning
+     characterization of WHY the update stays local.
+  4. Implicit / equilibrium GNNs            -> IGNN/IDGNN use fixed points for
+     LONG-RANGE expressivity; well-posedness via Perron-Frobenius contraction.
+     GAP: locality is treated as a LIMITATION to overcome (they WANT global
+     reach), never as a maintainability FEATURE; no edit/warm-start story.
+  5. Numerical foundations                   -> resolvent/inverse decay (Demko,
+     Benzi-Golub) and low-rank update (Sherman-Morrison-Woodbury) are exactly
+     our machinery, but unconnected to GNN editing in the ML literature.
+     GAP: nobody imports DMS/SMW to certify+exploit edit-locality of a NONLINEAR
+     graph equilibrium.
+
+OUR ONE-LINE POSITION: the nonlinear-equilibrium generalization of InstantGNN,
+with a CONDITIONING-BASED (sigma_min(I-J)) characterization of when warm-start
+local re-solve is valid -- i.e. resolvent-decay editability for implicit GNNs.
+
+--------------------------------------------------------------------------------
+1. GRAPH UNLEARNING / CERTIFIED REMOVAL
+--------------------------------------------------------------------------------
+GNNDelete (Cheng et al., ICLR 2023, arXiv:2302.13406)
+  - Model-agnostic LAYER-WISE deletion operator inserted AFTER GNN layers; only
+    updates representations of nodes in the local enclosing subgraph of the
+    deleted element. Two objectives: Deleted Edge Consistency (remove influence)
+    + Neighborhood Influence (preserve the rest).
+  - 12.3x faster / 9.3x less memory than retraining; up to +38.8% AUC vs prior.
+  - RELEVANCE: "only update the local subgraph" = a locality assumption baked in
+    by construction. We would instead DERIVE the locality radius from sigma_min.
+
+GIF: Graph Influence Function (Wu et al., 2023, arXiv:2304.02835)
+  - Influence-function unlearning for feature/node/edge removal; closed-form-ish
+    parameter update estimating the effect of removing data.
+Certified Edge Unlearning / CEU (Wu et al., KDD 2023)
+  - Closed-form influence-function update on parameters for edge removal, with
+    (eps,delta) theoretical removal bounds; accounts for the removed edge's nbhd.
+IDEA (arXiv:2407.19398) ; Certified Signed Graph Unlearning (ICLR 2026,
+  arXiv:2511.14168) ; "Graph Unlearning: A Review" survey.
+  - Theme: Newton/influence updates + propagation-aware Hessian, certified
+    (eps,delta). Local propagation BOUNDS appear, but as privacy guarantees.
+  WHERE WE DIFFER: unlearning's goal is to make the model behave as if data were
+  never seen (forgetting). Ours is correctness+cost of MAINTENANCE under graph
+  change, and the central object is the fixed-point resolvent, not the Hessian.
+
+--------------------------------------------------------------------------------
+2. EDITABLE GNNs / MODEL EDITING (and the editing metrics we should adopt)
+--------------------------------------------------------------------------------
+EGNN: Editable Graph Neural Network for Node Classification
+  (Liu et al., 2023, arXiv:2305.15529)
+  - Corrects mispredictions by STITCHING an MLP onto a frozen GNN; DISABLES
+    neighbor propagation during editing (propagation is the source of editing
+    instability / non-locality) but keeps it for prediction.
+  - Insight we can cite: propagation makes edits NON-LOCAL & unstable -> they
+    avoid it; we instead show a WELL-CONDITIONED equilibrium keeps propagation
+    AND stays local.
+Gradient Rewiring for Editable GNN Training (arXiv:2410.15556).
+Knowledge-editing metric triple (from the LLM model-editing literature; e.g.
+  "A Survey on Knowledge Editing of Neural Networks", arXiv:2310.19704):
+    RELIABILITY  - the edit takes (edited input gives intended output)
+    GENERALITY   - it generalizes to equivalent inputs
+    LOCALITY     - unrelated inputs are UNCHANGED   <-- our "edit-locality"
+  ADOPT THIS VOCABULARY: our "far-field prediction unchanged" = their LOCALITY
+  metric; "label-exact local re-solve" = their RELIABILITY. Frames our work in
+  the established editing-evaluation language.
+
+--------------------------------------------------------------------------------
+3. DYNAMIC-GRAPH INCREMENTAL INFERENCE  (the closest precedent)
+--------------------------------------------------------------------------------
+InstantGNN (Zheng et al., KDD 2022)  *** CLOSEST PRIOR WORK ***
+  - Maintains approximate Personalized-PageRank propagation; on each edge event
+    updates ONLY the affected nodes locally; impact on the rest is carried by
+    the next propagation step. Amortized O(1)-ish per event; structural+feature
+    updates; adaptive head retrain only when accumulated drift crosses a thresh.
+  - THIS IS THE LINEAR VERSION OF OUR IDEA. PPR = (I - (1-a)P)^{-1} applied to a
+    personalization vector: a linear resolvent. They exploit its locality
+    implicitly. WE GENERALIZE TO A NONLINEAR EQUILIBRIUM z=f(z) and make the
+    locality condition EXPLICIT (sigma_min(I-J)), with warm-start Broyden as the
+    update. Must cite + benchmark against (the linear baseline to beat).
+DyGRAIN (IJCAI 2022) - incremental LEARNING on dynamic graphs (catastrophic
+  forgetting under time-varying receptive fields); about training, not inference.
+Incrementally-Computable Neural Networks (arXiv:2307.14988)
+  - Vector-quantize intermediate activations so small input edits reuse cached
+    values; ~12x fewer ops for streams of atomic edits. General NN, not graphs;
+    a COMPLEMENTARY engineering trick (value reuse) to our equilibrium warm-start.
+"A survey of dynamic graph neural networks" (arXiv:2404.18211) - taxonomy ref;
+  note their framing: incoming nodes/edges change receptive fields and can flip
+  predictions under fixed params (the phenomenon our edit-locality bounds).
+  BOUNDARY (from our own notes): dynamic-GNN lit assumes the graph is genuinely
+  EVOLVING (path-dependent history matters); we assume a STATIC graph being
+  edited (path-independent; the fixed point is a pure function of the current
+  graph). Different problem, related machinery.
+
+--------------------------------------------------------------------------------
+4. IMPLICIT / EQUILIBRIUM GRAPH NEURAL NETWORKS
+--------------------------------------------------------------------------------
+IGNN: Implicit Graph Neural Networks (Gu et al., NeurIPS 2020, arXiv:2009.06211)
+  - Prediction = fixed point Z* = phi(A Z* W + U(X)); well-posedness requires
+    Perron-Frobenius lambda_pf(|A (x) W|) <= 1 (a CONTRACTION condition).
+  - Sells the fixed point for LONG-RANGE dependence / no over-smoothing -- i.e.
+    they want GLOBAL reach. We point out reach = edit-length = xi (same
+    resolvent), so their global-reach regime is exactly the NON-maintainable one;
+    the maintainable regime is short-xi (well-conditioned, NOT contraction-tight).
+IDGNN: Efficient & Effective Implicit DYNAMIC GNN (arXiv:2406.17894)
+  - Implicit model for dynamic graphs; contribution = recast training as bilevel
+    optimization w/ moving averages -> up to 1600x training speed-up. "First
+    implicit NN for dynamic graphs."
+  - CHECKED: NOT about warm-start edit maintenance, NOT edit-locality, NOT
+    conditioning/resolvent. Their "dynamic" = aggregate over time during
+    TRAINING. Name-collision risk but DIFFERENT contribution. Distinguish clearly.
+IGNN-Solver (arXiv:2410.08524) - learns a small GNN to accelerate the fixed-point
+  solve (Anderson), 1.5-8x faster inference. Orthogonal (faster solve); could be
+  combined with our warm-start.
+Implicit vs Unfolded GNNs (Yang et al., arXiv:2111.06592) - directly relevant to
+  our equilibrium-vs-finite-depth question; compares implicit equilibria to
+  finite-depth unfolded nets (expressivity/robustness). [PDF wouldn't parse; FETCH
+  HTML/abstract next session -- need their exact claim on when the two differ.]
+TorchDEQ (arXiv:2310.18605) - the library we use. RevDEQ (arXiv:2509.12917) -
+  exact reversible gradients, constant memory (an alternative to implicit-diff).
+
+--------------------------------------------------------------------------------
+5. NUMERICAL FOUNDATIONS (our actual machinery; absent from the GNN-edit lit)
+--------------------------------------------------------------------------------
+Demko, Moss & Smith (1984) - inverse of a banded SPD matrix decays exponentially
+  off-diagonal; rate set by bandwidth + extreme eigenvalues (=> condition number).
+Benzi & Golub; Benzi & Razouk "Bounds for the entries of matrix functions..."
+  (cs.emory.edu/~benzi) - generalize decay to f(A) and to graph-sparse A (decay
+  in GEODESIC graph distance). THIS is the bound we use: |(I-J)^{-1}_ij| <=
+  C q^{d(i,j)}, q=(sqrt(kappa)-1)/(sqrt(kappa)+1), kappa=kappa(I-J).
+  -> screening length xi ~ sqrt(kappa)/2. (Localization of matrix factorizations,
+  arXiv:1305.1618, for the factorization analog.)
+Sherman-Morrison-Woodbury (1950s) - exact inverse update under a LOW-RANK
+  modification B = A + P Q^T. A graph edit (delete edge/node) IS a low-rank +
+  sparse modification of (I-J). Survey of low-rank preconditioner updates
+  (arXiv:2406.15120 and refs). RELEVANCE: gives an alternative EXACT local-update
+  route (vs Broyden warm-start) and a principled cost model for the edit.
+
+--------------------------------------------------------------------------------
+SYNTHESIS / WHERE THE WHITE SPACE IS
+--------------------------------------------------------------------------------
+* The model-editing world has the right METRICS (reliability/generality/
+  locality) but edits WEIGHTS of feedforward nets.
+* The unlearning world has CERTIFIED local updates but for FORGETTING via
+  influence functions, not fixed-point maintenance.
+* The dynamic-graph world (InstantGNN) has LOCAL incremental inference but only
+  for LINEAR propagation (PPR resolvent).
+* The implicit-GNN world has the FIXED POINT but uses it for GLOBAL reach and
+  proves only contraction well-posedness; treats locality as a limitation.
+* The numerical world has the exact decay+update theory (DMS/Benzi-Golub/SMW)
+  but it has not been imported to GNN editing.
+
+UNOCCUPIED INTERSECTION (our claim):
+  "An implicit/equilibrium GNN's fixed point is EDIT-LOCAL iff (I-J) is
+   well-conditioned (sigma_min(I-J) away from 0, NOT requiring contraction);
+   then a graph edit can be maintained by warm-start local re-solve, with a
+   provable screening length xi ~ sqrt(kappa)/2 and far-field invariance
+   (the 'locality' editing metric). This is the nonlinear-equilibrium
+   generalization of InstantGNN, justified by Demko-Moss-Smith/Benzi-Golub."
+
+OPEN NOVELTY CHECKS (do before claiming):
+  [ ] Fetch Implicit-vs-Unfolded (2111.06592) exact equilibrium-vs-finite-depth
+      claim -- does anyone already say reach=edit-length for equilibria?
+  [ ] Search: "graph condition number" + "editability"/"locality" combined.
+  [ ] Search: monotone-operator / non-contractive implicit GNN well-posedness
+      (edge-of-well-posedness) -- anyone use sigma_min instead of spectral radius?
+  [ ] Geng gut-check: is InstantGNN-generalization-to-nonlinear-equilibria a
+      known folklore result or genuinely open?
+================================================================================
