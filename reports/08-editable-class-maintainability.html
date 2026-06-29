@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set-DEQ Notes #8 — What the Equilibrium Buys: A Maintainability Framework, and an Honest Expressivity Null</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$', '$']], displayMath: [['$$', '$$']] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --ink:#1a1a1a; --muted:#666; --rule:#e2e2e2; --accent:#2b6cb0; --good:#1a7f4b; --bad:#b02a2a; --warn:#b07a1a; --bg:#fafafa; --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 48px 24px 96px; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 32px; }
+  .kicker { font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
+  h1 { font-size: 1.7rem; line-height:1.25; margin:.1em 0 .35em; }
+  .byline { color:var(--muted); font-size:.92rem; }
+  h2 { font-size:1.2rem; margin:2.2em 0 .6em; padding-bottom:.25em; border-bottom:1px solid var(--rule); }
+  h3 { font-size:1.02rem; margin:1.6em 0 .4em; }
+  p { margin:.7em 0; }
+  code { background:#f0f0f3; padding:.08em .35em; border-radius:4px; font-size:.9em;
+         font-family: "SF Mono", Consolas, "Liberation Mono", monospace; }
+  table { width:100%; border-collapse:collapse; margin:1.1em 0; font-size:.88rem; background:var(--card); }
+  th, td { padding:7px 9px; text-align:center; border-bottom:1px solid var(--rule); }
+  th { background:#f3f5f8; font-weight:600; }
+  td:first-child, th:first-child { text-align:left; }
+  .good { color:var(--good); font-weight:600; }
+  .bad  { color:var(--bad);  font-weight:600; }
+  .warn { color:var(--warn); font-weight:600; }
+  .callout { background:#eef4fb; border:1px solid #cfe0f3; border-radius:8px; padding:14px 18px; margin:1.2em 0; }
+  .callout.warn { background:#fdf3ee; border-color:#f3d8c8; }
+  .callout.null { background:#f1f3f5; border-color:#dcdfe3; }
+  .callout.key { background:#eaf6ee; border-color:#bfe3cb; }
+  .muted { color:var(--muted); }
+  ul, ol { margin:.5em 0; padding-left:1.3em; }
+  li { margin:.35em 0; }
+  footer { margin-top:48px; padding-top:18px; border-top:1px solid var(--rule); color:var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="kicker">Set-DEQ Notes · #8 · framework + experiments + a null result</p>
+  <h1>What the Equilibrium Buys: A Maintainability Framework for Editable Graph Models, and an Honest Expressivity Null</h1>
+  <p class="byline">Zhibai Jia · 29 June 2026 · consolidates the conversion-principle, the maintenance taxonomy, and the head-to-head</p>
+</header>
+
+<div class="callout">
+  <strong>What this note is.</strong> Note #7 established that local maintainability is governed by
+  $\sigma_{\min}(I-J)$, not contraction. This note asks the harder follow-up that #7 deferred:
+  <em>given that, what does an equilibrium model actually buy over the alternatives, and over which
+  baseline class?</em> The answer reshaped the thesis. We report it straight, including a
+  <strong>null result on expressivity</strong> that we went looking to confirm rather than avoid.
+</div>
+
+<div class="callout key">
+  <strong>Thesis, after the dust settled.</strong> The contribution is <em>not</em> "more expressive
+  than other editable models." It is a <strong>maintainability framework</strong>: a single condition
+  $\sigma_{\min}(I-J)>0$ characterizes edit-locality for the <em>entire</em> equilibrium family &mdash;
+  linear PPR (InstantGNN), nonlinear, signed, interleaved &mdash; and a single algorithm (warm-start
+  local re-solve) maintains all of them, including in the <em>non-contractive</em> ($\rho(J)>1$) regime.
+  Expressivity is a per-task knob within that family, and on controlled tasks it <em>ties</em> the
+  strongest maintainable incumbent. The science is the characterization, not a horse-race win.
+</div>
+
+<h2>1. The right reference class: editable models, split by maintenance mechanism</h2>
+<p>
+"More expressive than every GNN on local tasks" was never the claim and is hopeless: for a reach-$k$
+local target a $k$-layer network is expressively sufficient (we verify this in §4). The claim that
+matters is <em>among models that admit cheap <strong>local</strong> edit-maintenance</em>. That class
+splits cleanly by <em>how</em> an edit propagates &mdash; and the split is the whole story.
+</p>
+<table>
+  <tr><th>class</th><th>form</th><th>maintain after an edit</th><th>expressivity</th></tr>
+  <tr><td>Decoupled-linear<br><span class="muted">InstantGNN, PPRGo, SGC, APPNP, SIGN</span></td>
+      <td>linear prop $A^kX$; nonlinearity off to the side (node-MLP)</td>
+      <td class="good">cheap exact incremental (push the delta; PPR invariants)</td>
+      <td>weak&ndash;moderate</td></tr>
+  <tr><td>Interleaved finite-depth<br><span class="muted">$K$-layer GCN/GIN; stacked SIGN</span></td>
+      <td>$\sigma(A\,\sigma(A\cdots x))$, nonlinearity <em>between</em> hops</td>
+      <td class="warn">local recompute only &mdash; $L$ push-and-materialize phases, store all layers</td>
+      <td>strong</td></tr>
+  <tr><td>Equilibrium <em>(ours)</em></td>
+      <td>$z=f(z)$, interleaved, run to convergence</td>
+      <td class="good">warm-start local re-solve; O(1) memory; reach $\xi$ from $\sigma_{\min}$</td>
+      <td>strong</td></tr>
+</table>
+<p>
+The unifying observation: a weight-tied interleaved net run to convergence <em>is</em> the equilibrium;
+finite-depth is a <em>truncated</em> equilibrium; decoupled-linear is the <em>linear</em> resolvent (with
+the bonus of exact delta-push). The same resolvent-decay theory and the single knob
+$\sigma_{\min}(I-J)$ explain the edit-locality of all three. The decoupled class is editable
+<em>because</em> linear superposition lets you push a delta; interleaving nonlinearity destroys that, so
+the expressive rows are maintainable only by local <em>re-solve</em> &mdash; which is exactly what the
+equilibrium framing makes into a single clean operation instead of $L$-layer bookkeeping.
+</p>
+
+<h2>2. A controlled testbed: a local operator teacher</h2>
+<p>
+To probe expressivity on a <em>local</em> graph we built a random teacher whose label is the squared
+energy of a local operator applied to random node features $X$, on a 2-D grid:
+$$ s_i \;=\; \sum_{r} a_r\,\big((\mathcal{O}^{(k)}\,X w_r)_i\big)^2, \qquad
+   \mathcal{O}\in\{\,L=I-\hat A\ (\text{Laplacian}),\ \text{neighbour-mean},\ \text{directional}\,\}. $$
+Order $k$ sets the reach ($k{=}1$ Dirichlet, $k{=}2$ biharmonic $\Delta^2$), giving a principled
+locality knob &mdash; and a pleasing mirror of the theory: the <em>task</em> is a low-degree polynomial
+in $L$, while <em>maintenance</em> is a low-degree polynomial in $J$. Two variants matter:
+<strong>propagate-then-square</strong> $(L^k\psi)^2$ and <strong>square-then-propagate</strong>
+$\overline{(\psi^2)}$; a feature-only MLP is near-chance on the leak-free variants (the label lives in
+the neighbourhood, not the node).
+</p>
+
+<h2>3. The maintenance result (clean)</h2>
+<p>
+Train the general per-edge-nonlinear MPNN as an equilibrium on the biharmonic task, delete an interior
+node, and re-solve by warm-starting from the old fixed point. Measured against the model-editing triple
+(<em>reliability</em>, <em>generality</em>, <em>locality</em>) plus cost:
+</p>
+<table>
+  <tr><th>property</th><th>measurement</th><th>result</th></tr>
+  <tr><td>Reliability / exactness</td><td>warm-start vs cold (from-zero) re-solve</td>
+      <td class="good">identical to $4.7\times10^{-7}$ (path-independent &mdash; warm-start is free correctness)</td></tr>
+  <tr><td>Locality</td><td>edit-response decay vs graph distance</td>
+      <td class="good">clean exponential, screening length $\xi\approx 1.1$ hops</td></tr>
+  <tr><td>Cost</td><td>warm vs cold iterations; prediction ring radius</td>
+      <td>$40$ vs $61$ iters ($1.5\times$); predictions move only within $6$ hops $\ll$ diameter $78$</td></tr>
+</table>
+<div class="callout key">
+  <strong>The headline diagnostic.</strong> This model had $\rho(J)=0.955$ &mdash; a hair under the
+  contraction boundary &mdash; yet $\xi\approx 1$ hop. A model can be <em>barely</em> contractive and
+  still sharply edit-local, because what governs the decay is the distance of the spectrum from $+1$
+  ($\sigma_{\min}(I-J)$), not $\rho$. This is the §7 thesis made concrete on a real trained model.
+</div>
+<p>
+On a high-diameter graph the dominant cost lever is not the $1.5\times$ warm-start but the
+<em>ring radius</em>: only a $6$-hop ball ($\sim$113 of 1600 nodes) actually moves, so one re-solves a
+small local patch and freezes the rest. This is the non-contractive generalization of InstantGNN's
+linear incremental update &mdash; valid because $(I-J)$ is well-conditioned, not because it is a contraction.
+</p>
+
+<h2>4. The expressivity null (honest)</h2>
+<p>
+We went looking to <em>confirm</em> that the nonlinear equilibrium out-expresses the maintainable
+incumbents on local tasks. It does not, robustly. Three experiments.
+</p>
+<h3>4a. Going to equilibrium buys no local expressivity over a matched unroll</h3>
+<p>
+Our own cell, unrolled $K\approx\text{reach}$ steps (a weight-tied finite-depth net), <em>matches</em>
+the full equilibrium &mdash; because reach $=$ edit-length $=\xi$, so an edit-local equilibrium is just a
+depth-$\sim\xi$ net.
+</p>
+<table>
+  <tr><th>task</th><th>unroll $K{=}1$</th><th>$K{=}3$</th><th>$K{=}5$</th><th>equilibrium</th></tr>
+  <tr><td>Laplacian (reach 1)</td><td>0.574</td><td>0.707</td><td>0.715</td><td>0.724</td></tr>
+  <tr><td>biharmonic (reach 2)</td><td>0.283</td><td>0.538</td><td class="good">0.594</td><td>0.561</td></tr>
+</table>
+<h3>4b. Against the linear maintainable incumbent: a wash</h3>
+<p>
+InstantGNN's propagation <em>is</em> a linear fixed point $z=\alpha h_0+(1-\alpha)\hat A z$. Build it
+with the same encoder, the same ego-separated head, the same solver &mdash; only the message is linear.
+Both are edit-local ($\xi<1$ hop) and exactly maintainable (warm $=$ cold). Expressivity:
+</p>
+<table>
+  <tr><th>task</th><th>InstantGNN-linear (PPR)</th><th>ours (MPNN-DEQ)</th></tr>
+  <tr><td>Laplacian (propagate-then-square)</td><td>0.458</td><td>0.543</td></tr>
+  <tr><td>interleaved (prop&rarr;relu&rarr;prop&rarr;square)</td><td class="bad">0.542</td><td>0.508</td></tr>
+</table>
+<p>
+$\pm 0.05$, task-dependent &mdash; the linear incumbent even <em>wins</em> the interleaved task. The
+reason is instructive: a full-resolvent linear propagation plus a <em>nonlinear head</em> already covers
+propagate-then-square (the head does the square), and <code>relu</code> has a dominant linear component,
+so an <code>relu</code>-interleaved target is mostly decoupled-expressible. A target that truly needs
+interleaving (a pure-square interior nonlinearity, $(L(L\psi)^2)^2$) would separate them &mdash; but it
+also requires a <em>pre-aggregation</em> square, which our own cell cannot learn well (it scores 0.155
+on the square-then-propagate task). <strong>The separating tasks are exactly the ones nobody learns.</strong>
+</p>
+<div class="callout null">
+  <strong>Null result, stated plainly.</strong> On controlled local tasks, the nonlinear equilibrium
+  does <em>not</em> reliably out-express the strongest maintainable incumbent (a linear equilibrium with
+  a nonlinear head). Where one model wins it is by $\le 0.09$ and the direction flips with the task.
+</div>
+<h3>4c. Real heterophily does not rescue it</h3>
+<p>
+The obvious retort is "use real data." On roman-empire the signed nonlinear equilibrium beats linear
+propagation by $+27$ points (SGC $0.35\to$ ours $0.68$) &mdash; but it clears the <em>graph-free MLP</em>
+($0.644$) by only $+3.8$. So the $+27$ is "linear low-pass is actively <em>harmful</em> on heterophily,"
+not "our propagation extracts real graph signal beyond features." With the MLP that close, propagation's
+contribution is <span class="warn">suspicious</span>, and roman is not clean evidence of an expressivity
+win either.
+</p>
+
+<h2>5. So what is the contribution?</h2>
+<p>
+Strip away what did not survive and three things remain, all supported by the experiments above:
+</p>
+<ol>
+  <li><strong>A characterization.</strong> $\sigma_{\min}(I-J)$ &mdash; the distance of the spectrum from
+  $+1$, not $\rho$ &mdash; governs edit-locality of an implicit model. This is non-obvious: a fixed point
+  <em>looks</em> global yet is provably $\xi$-local. It is trivial for finite-depth and is the content for
+  equilibria. <span class="muted">(§7 theory; the $\rho{=}0.955,\ \xi{\approx}1$ datum in §3.)</span></li>
+  <li><strong>An algorithm.</strong> Warm-start local re-solve maintains nonlinear / signed / interleaved
+  equilibria after an edit &mdash; the generalization of InstantGNN's linear incremental update to the
+  regime where no delta-push exists, including non-contractive $\rho(J)>1$ fixed points found by Broyden.</li>
+  <li><strong>A unification.</strong> The same condition and algorithm cover the whole family; the
+  decoupled-linear incumbents are the special case where the resolvent is linear. Expressivity is a knob
+  you turn within a uniformly-maintainable family, not a separate axis.</li>
+</ol>
+
+<h2>6. Limitations &amp; open checks</h2>
+<ul>
+  <li>The expressivity advantage of interleaved nonlinear propagation is <em>not</em> demonstrated on a
+  clean local task; the separating tasks are unlearnable, and real heterophily (roman) is confounded by a
+  strong MLP. We claim a <em>tie</em>, honestly.</li>
+  <li>The warm-start speedup ($1.5\times$ in iterations) is modest; the real lever is ring-truncation on
+  <em>high-diameter</em> graphs &mdash; still to be shown at scale on a large real graph.</li>
+  <li>Novelty of the bridge is still pending: is "InstantGNN generalized to nonlinear equilibria $+$ a
+  $\sigma_{\min}$ edit-locality characterization" genuinely open, or folklore? (See the editability
+  literature record; an advisor gut-check is queued.)</li>
+</ul>
+
+<footer>
+  Set-DEQ Notes #8 · experiments: <code>operator_compare.py</code>, <code>sign_check.py</code>,
+  <code>unroll_vs_eq.py</code>, <code>maintenance_demo.py</code>, <code>maintenance_compare.py</code> ·
+  builds on #7 (the $\sigma_{\min}$ susceptibility theory). Honesty note: this report contains a null
+  result we chose to surface rather than bury.
+</footer>
+</div>
+</body>
+</html>
