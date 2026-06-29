@@ -64,6 +64,7 @@ class MPNNDEQ(nn.Module):
         self.head = nn.Sequential(                          # ego-sep readout on concat[z*, h0]
             nn.Linear(2 * d, d), nn.ReLU(), nn.Dropout(cfg["drop_out"]), nn.Linear(d, k))
         self.s_raw = nn.Parameter(torch.tensor(0.4))       # s = s_max*sigmoid(.) ~ 0.36 init
+        self.beta_raw = nn.Parameter(torch.tensor(0.5))    # logsumexp temp beta=softplus(.) ~1 init
         self.drop_in, self.edge_drop = cfg["drop_in"], cfg["edge_drop"]
         self.register_buffer("edges", edges)
         self.register_buffer("norm", 1.0 / torch.sqrt(deg[edges[0]] * deg[edges[1]]))
@@ -88,6 +89,17 @@ class MPNNDEQ(nn.Module):
             agg = torch.full((N, self.d), -1e30, device=z.device, dtype=z.dtype)
             agg.scatter_reduce_(0, dst[:, None].expand(-1, self.d), m, reduce="amax", include_self=False)
             return torch.where(agg < -1e29, torch.zeros_like(agg), agg)   # no-neighbor -> 0
+        if self.agg == "logsumexp":                               # SMOOTH, learnable temperature beta:
+            beta = F.softplus(self.beta_raw) + 1e-3               # beta->0 mean, beta->inf max (spans
+            ms = beta * m                                         # the sum<->tropical semiring continuum)
+            mmax = torch.full((N, self.d), -1e30, device=z.device, dtype=z.dtype)
+            mmax.scatter_reduce_(0, dst[:, None].expand(-1, self.d), ms, reduce="amax", include_self=False)
+            mmax = mmax.detach()                                  # stability offset (cancels in grad)
+            ex = torch.exp(ms - mmax[dst])
+            ssum = torch.zeros(N, self.d, device=z.device, dtype=z.dtype)
+            ssum.index_add_(0, dst, ex)
+            agg = (mmax + torch.log(ssum.clamp(min=1e-30))) / beta
+            return torch.where(ssum < 1e-20, torch.zeros_like(agg), agg)  # no-neighbor -> 0
         agg = torch.zeros(N, self.d, device=z.device, dtype=z.dtype)
         agg.index_add_(0, dst, norm.unsqueeze(-1) * m)            # sym-normalized SUM (linear semiring)
         return agg

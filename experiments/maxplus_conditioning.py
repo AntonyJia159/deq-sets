@@ -27,6 +27,7 @@ from experiments.fagcn_deq_locality import delete_node, build_adj, bfs_hops
 DEV = "cuda" if torch.cuda.is_available() else "cpu"
 L, D_FEAT, R, d = 8, 8, 3, 16
 MAXHOP = 8
+AGG = "logsumexp"      # "max" (hard, non-smooth subgradient) | "logsumexp" (SMOOTH, learnable beta)
 
 
 @torch.no_grad()
@@ -63,7 +64,7 @@ def main():
     teacher = AnisoTeacher(edges, deg, N, d_feat=D_FEAT, R=R, k=1, seed=0, target="maxreach")
     teacher.generate()
     X, t = teacher.X, teacher.s
-    cfg = dict(CFG, d=d, msg_hidden=d, mlp_hidden=d, agg="max", drop_in=0.0, drop_out=0.0,
+    cfg = dict(CFG, d=d, msg_hidden=d, mlp_hidden=d, agg=AGG, drop_in=0.0, drop_out=0.0,
                edge_drop=0.0, jac_gamma=0.0)
     torch.manual_seed(0)
     model = MPNNDEQ(D_FEAT, 1, edges, deg, cfg).to(DEV)
@@ -80,7 +81,9 @@ def main():
     z0 = torch.zeros(N, d, device=DEV)
     z_star, it = solve(f0, z0)
     rate = (((f0(z_star) - z_star).norm() / z_star.norm())).item()
-    print(f"grid {L}x{L}={N}, d={d}, tropical fit; Picard {it} iters, resid {rate:.1e}", flush=True)
+    btag = f", beta={F.softplus(model.beta_raw).item():.2f}" if AGG == "logsumexp" else ""
+    print(f"grid {L}x{L}={N}, d={d}, agg={AGG}{btag}; tropical fit; Picard {it} iters, resid {rate:.1e}",
+          flush=True)
 
     # dense Jacobian (subgradient) at the fixed point
     def f_flat(zf):

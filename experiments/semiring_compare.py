@@ -65,7 +65,8 @@ def train(Cls, cfg, edges, deg, X, t, tr, va, te):
             v = r2(out, t, va)
             if v > bv:
                 bv, bt = v, r2(out, t, te)
-    return bt
+    beta = F.softplus(m.beta_raw).item() if cfg.get("agg") == "logsumexp" else float("nan")
+    return bt, beta
 
 
 def main():
@@ -76,7 +77,8 @@ def main():
 
     models = [("InstantGNN-linear (sum)", LinearPPRDEQ, dict(CFG)),
               ("MPNN-DEQ  sum-agg",        MPNNDEQ,      dict(CFG, agg="sum")),
-              ("MPNN-DEQ  MAX-agg",        MPNNDEQ,      dict(CFG, agg="max"))]
+              ("MPNN-DEQ  MAX-agg",        MPNNDEQ,      dict(CFG, agg="max")),
+              ("MPNN-DEQ  logSExp-agg",    MPNNDEQ,      dict(CFG, agg="logsumexp"))]
     results = {}
     for tname, k, tlabel in TASKS:
         teacher = AnisoTeacher(edges, deg, N, d_feat=D_FEAT, R=R, k=k, seed=0, target=tname)
@@ -85,10 +87,12 @@ def main():
         print(f"== task: {tlabel} [{tname} k={k}] ==", flush=True)
         for mname, Cls, cfg in models:
             t0 = time.time()
-            v = [train(Cls, cfg, edges, deg, X, t, *splits(N, s)) for s in range(N_SPLITS)]
+            res = [train(Cls, cfg, edges, deg, X, t, *splits(N, s)) for s in range(N_SPLITS)]
+            v = [r[0] for r in res]; betas = [r[1] for r in res]
             results[(tname, mname)] = (np.mean(v), np.std(v))
-            print(f"   {mname:<26} R^2 {np.mean(v):+.3f} +- {np.std(v):.3f}  ({time.time()-t0:.0f}s)",
-                  flush=True)
+            btag = f"  beta~{np.nanmean(betas):.2f}" if cfg.get("agg") == "logsumexp" else ""
+            print(f"   {mname:<26} R^2 {np.mean(v):+.3f} +- {np.std(v):.3f}{btag}  "
+                  f"({time.time()-t0:.0f}s)", flush=True)
         print(flush=True)
 
     print("=== 2x2 SUMMARY (test R^2) ===", flush=True)
