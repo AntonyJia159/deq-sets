@@ -74,7 +74,14 @@ def directional_derivative(edges, N, psi, diag=True):
 class AnisoTeacher:
     """Fixed random local high-pass teacher -> local nonlinear node labels.
     Field source = random feature projections (learnable + local). Two targets:
-      'nbr_sq' (default): leak-free 1-hop NEIGHBOR SECOND-MOMENT -- s_i = sum_r a_r mean_{j~i}(X_j w_r)^2.
+      'laplacian': spectral-convolution energy s_i = sum_r a_r ((L^k psi_r)_i)^2, L = I - Ahat the
+          normalized Laplacian, psi_r = X w_r. k=1 = Dirichlet/Laplacian energy (reach 1), k=2 =
+          BIHARMONIC (Delta^2, thin-plate; reach 2), ... -> a principled reach hierarchy = the
+          locality<->reach knob. PROPAGATE(L^k) then square: linear can't square; APPNP squares
+          BEFORE propagating (wrong order) so it also fails; aggregate-then-nonlinear cells win.
+          (Small MLP center-leak: L differences from the center, so the pure psi_i^2 fraction is
+          features-visible -- bounded and measured, not engineered away.)
+      'nbr_sq': leak-free 1-hop NEIGHBOR SECOND-MOMENT -- s_i = sum_r a_r mean_{j~i}(X_j w_r)^2.
           Node-LOCAL nonlinearity (square of each node's own projection) then a plain neighbor average:
           leak-free (no X_i), nonlinear (beats every linear baseline), and EXPRESSIBLE by our cell
           (each node squares its projection in z_j, the next equilibrium layer averages neighbor z).
@@ -102,6 +109,15 @@ class AnisoTeacher:
 
     @torch.no_grad()
     def _energy(self, edges, deg):
+        if self.target == "laplacian":                       # (L^k psi)^2 : Laplacian/biharmonic energy
+            Ahat = sym_norm_adj(edges, deg, self.N)           # L = I - Ahat (normalized Laplacian)
+            s = torch.zeros(self.N, device=edges.device)      # k=1 Laplacian, k=2 biharmonic, ... reach=k
+            for w, a in zip(self.proj, self.a):
+                f = (self.X @ w)[:, None]
+                for _ in range(self.k):                       # apply L: Lf = f - Ahat f (1 hop each)
+                    f = f - torch.sparse.mm(Ahat, f)
+                s = s + a * f.squeeze(1) ** 2                 # PROPAGATE(L^k) THEN square (vs APPNP's
+            return s                                          # square-then-propagate -> defeats APPNP)
         if self.target == "nbr_sq":                          # leak-free 1-hop neighbor second-moment
             M = neighbor_mean_adj(edges, deg, self.N)         # s_i = sum_r a_r mean_{j~i}(X_j w_r)^2
             s = torch.zeros(self.N, device=edges.device)
