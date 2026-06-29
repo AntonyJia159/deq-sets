@@ -226,12 +226,82 @@ knob sigma_min(I-J) explains the edit-locality of ALL THREE. So:
 DROP any "beyond-finite-depth expressivity" claim; it is false (unroll K~=reach
 matches the equilibrium).
 
+--------------------------------------------------------------------------------
+6. IMPLICIT MODELS x NEURAL ALGORITHMIC REASONING (scanned 2026-06-29) -- the
+   EXPRESSIVITY/EXECUTION angle is ALREADY OCCUPIED, incl. tropical
+--------------------------------------------------------------------------------
+DEAR -- Deep Equilibrium Algorithmic Reasoner (Cnops/Numeroso/Velickovic?,
+  arXiv:2402.06445, 2024): trains a DEQ to find the fixed point that an
+  ALGORITHM's solution represents -- EXPLICITLY Bellman-Ford, Floyd-Warshall
+  (= tropical/max-plus shortest path), SCC, insertion sort (CLRS-30). Insight:
+  "once the optimum is found, further iterations don't change the output" => it's
+  an equilibrium. *** So "a DEQ can compute a tropical/algorithmic equilibrium"
+  is NOT NOVEL -- DEAR did it. *** BUT: STATIC instances only; NO edit-locality,
+  NO maintenance/warm-start, NO conditioning, NO semiring-as-design-axis.
+Neural Algorithmic Reasoners are Implicit Planners (Deac et al., NeurIPS 2021,
+  arXiv:2110.05442) + XLVIN (arXiv:2010.13146): VALUE ITERATION (max-plus
+  planning) as an implicit/recurrent reasoner. Tropical-equilibrium-for-planning
+  also taken. (Lineage: Value Iteration Networks, Tamar 2016.)
+IterGNN (arXiv:2010.13547): adaptive/unbounded-depth iterative GNN, universal
+  approx of iterative algorithms, scale-generalization. EIGNN (arXiv:2202.10720):
+  efficient infinite-depth implicit GNN. Both = expressivity/depth, not maintenance.
+POSITIONING CONSEQUENCE (load-bearing, decide before the Geng smell-check):
+  * DO NOT sell "DEQs can do tropical / algorithmic operators" -> DEAR's turf.
+  * UNOCCUPIED LAND = edit-locality + MAINTENANCE + the sigma_min characterization
+    (DEAR explicitly: "static instances rather than evolving graphs").
+  * Demote tropical to a SPAN-PROOF ("the maintenance theory spans semirings"),
+    cite DEAR/VIN so we don't overclaim. Geng Q sharpens to: "given DEAR owns
+    implicit-algorithmic-EXECUTION, is implicit-algorithmic-MAINTENANCE a paper?"
+
+--------------------------------------------------------------------------------
+PAPER-READINESS GAPS (the experiment section is ~40% built; theory is solid)
+--------------------------------------------------------------------------------
+  [1] RING-TRUNCATION is the #1 gap (ZJ's flag): currently just a "ring radius"
+      number. Needs a HEADLINE FIGURE at SCALE: truncation radius R vs
+      (pred error vs exact) vs (wall-clock/op speedup), benchmarked against
+      recompute-from-scratch AND real InstantGNN, on a LARGE-DIAMETER graph
+      (road net / mesh / large grid; small-world Cora hid the savings).
+  [2] SCALE: all <=56x56 grids + small real graphs. Need >=1 large streaming
+      real graph (millions of edges, a sequence of edits).
+  [3] REAL BASELINES: "InstantGNN-linear" is our linear-cell PROXY, not the
+      actual InstantGNN / dynamic-PPR. Benchmark the real ones.
+  [4] sigma_min AS A LAW: turn the few dissociation points into a scatter --
+      predicted sigma_min/dist(1,W(J)) vs MEASURED xi across many models/tasks.
+  [5] SEEDS: 3 -> 5-10 with error bars on headline numbers.
+
+--------------------------------------------------------------------------------
+DESIGN-SPACE REFRAME: lead with MAINTENANCE; motivate via ROBUSTNESS
+--------------------------------------------------------------------------------
+Tropical is weak as a headline (locality<->tropical tension + DEAR pre-empts the
+expressivity claim). Stronger framing of the liberalized design space:
+  * ROBUSTNESS = the concrete unoccupied use case. Order statistics (median /
+    trimmed-mean / max-min) are the textbook robust-to-outliers alternative to the
+    MEAN; on a STREAMING graph with noisy/ADVERSARIAL edge churn you want robust
+    LOCAL aggregation AND cheap maintenance -- and linear-push incumbents CANNOT
+    do robust aggregation (it's a nonlinear order statistic). Combines order-stat
+    + local + maintainable + a real application.
+  * Robust-statistics DL lineage (descendants of median-not-mean): robust losses
+    (Huber, Tukey, Barron-2019 adaptive); order-stat aggregation (max/median pool,
+    PNA); BYZANTINE-ROBUST FL aggregation (coordinate-median, trimmed-mean, Krum,
+    GEOMETRIC MEDIAN -- Blanchard'17, Yin'18, RFA) <- ties [[federated-direction]];
+    distributional/quantile (QR-DQN, Implicit Quantile Nets); DRO/CVaR (worst-case
+    = max, tropical-flavoured); gradient clipping (Winsorized grad); sparsemax/
+    top-k/MoE routing (soft order-stat selection).
+  * TWO clean hooks: (a) geometric-median aggregation = WEISZFELD fixed-point
+    iteration => robust aggregation is NATIVELY a DEQ; (b) the aggregator SPECTRUM
+    mean -> trimmed/median -> max IS the sum-product -> robust -> tropical axis,
+    log-sum-exp/quantile interpolating; only the MEAN end is linear-push-maintainable.
+  * "Maintenance for the expressive models people ALREADY deploy" (signed/attention/
+    nonlinear), not exotic operators -- bring InstantGNN-style maintenance to the
+    expressive class; tropical = the categorical proof it extends past linear.
+
 OPEN NOVELTY CHECKS (do before claiming):
   [ ] Fetch Implicit-vs-Unfolded (2111.06592) exact equilibrium-vs-finite-depth
       claim -- does anyone already say reach=edit-length for equilibria?
   [ ] Search: "graph condition number" + "editability"/"locality" combined.
   [ ] Search: monotone-operator / non-contractive implicit GNN well-posedness
       (edge-of-well-posedness) -- anyone use sigma_min instead of spectral radius?
-  [ ] Geng gut-check: is InstantGNN-generalization-to-nonlinear-equilibria a
-      known folklore result or genuinely open?
+  [ ] Geng gut-check: given DEAR owns implicit-algorithmic-EXECUTION, is
+      implicit-algorithmic-MAINTENANCE (sigma_min + warm-start + ring-truncation)
+      a paper on its own? And: is the robustness use-case the right headline?
 ================================================================================
