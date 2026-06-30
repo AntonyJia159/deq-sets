@@ -328,6 +328,28 @@ ROBUSTNESS USE-CASE -- concrete prior art + the experiment to build:
     regime), NOT temporal-graph-prediction benchmarks. The "scale" gap = a large graph +
     an EDIT WORKLOAD, not a dynamic-graph-learning task.
 
+  * EXPERIMENT RECORD (adv_robustness.py, 2026-06-30): two findings, one honest non-result.
+    (1) CONTAINMENT works and is aggregator-agnostic: inject K=2 adversarial edges at a
+        victim (connect to most target-OPPOSITE nodes, cheap structural Nettack), warm-start
+        re-solve; the prediction shift decays cleanly near-field (1.2e-2 -> 1.1e-5 over 6
+        hops, screening length xi ~ 0.71 hops << diameter 62). An adversarial edge is just a
+        spurious edit; sigma_min caps its reach. (The far-field uptick is the edge's OTHER
+        endpoint lighting its own local ball -- a second equally-contained source.) This is
+        the cheap robustness result and needs NO robust aggregator.
+    (2) ROBUSTNESS<->CONTRAST TENSION (honest non-result): a geometric-median aggregator (one
+        Weiszfeld/IRLS reweight FOLDED into the DEQ iteration -- differentiated natively, no
+        nested loop; added as agg="geomedian" in mpnn_deq) CANNOT fit the Laplacian at any
+        coupling (R^2 ~ -0.04 up to rho=0.45, vs sum-agg's 0.65). Reason: the geometric median
+        is robust BECAUSE it discards neighbourhood spread, but the Laplacian/Dirichlet operator
+        IS the spread. So robust aggregation is NOT a free drop-in; pairing it with a contrast
+        target gives "robustness by degeneracy" (a constant predictor is trivially un-draggable
+        -- an artifact to avoid). Its real payoff is on a CENTRAL-TENDENCY / consensus-denoising
+        task (outlier-corrupted node features, drag-the-mean attack), which is the proper next
+        build and was deliberately NOT faked here.
+    NOTE (infra): hardened mpnn_deq _sn with a CPU-SVD fallback (cuSOLVER gesvdj intermittently
+    fails on small matrices), and the trainer now guards non-finite steps (cuda index_add atomics
+    are nondeterministic and can tip a boundary-contractive cell into a NaN blow-up over epochs).
+
 OPEN NOVELTY CHECKS (do before claiming):
   [ ] Fetch Implicit-vs-Unfolded (2111.06592) exact equilibrium-vs-finite-depth
       claim -- does anyone already say reach=edit-length for equilibria?

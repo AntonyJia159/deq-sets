@@ -45,8 +45,15 @@ CFG = dict(d=64, msg_hidden=64, mlp_hidden=64, s_max=1.0, jac_gamma=0.3,
 
 
 def _sn(W):
-    """Spectral-normalize to operator norm 1 (exact; works for non-square too)."""
-    return W / torch.linalg.matrix_norm(W, ord=2)
+    """Spectral-normalize to operator norm 1 (exact; works for non-square too).
+
+    cuSOLVER's gesvdj occasionally fails to converge on small matrices (LinAlgError code 64);
+    fall back to exact CPU SVD in that case (rare path; identical value, gradient preserved)."""
+    try:
+        s = torch.linalg.matrix_norm(W, ord=2)
+    except (torch.linalg.LinAlgError, RuntimeError):
+        s = torch.linalg.matrix_norm(W.cpu(), ord=2).to(W.device)
+    return W / s
 
 
 class MPNNDEQ(nn.Module):
@@ -100,6 +107,19 @@ class MPNNDEQ(nn.Module):
             ssum.index_add_(0, dst, ex)
             agg = (mmax + torch.log(ssum.clamp(min=1e-30))) / beta
             return torch.where(ssum < 1e-20, torch.zeros_like(agg), agg)  # no-neighbor -> 0
+        if self.agg == "geomedian":   # ROBUST: one Weiszfeld/IRLS step toward the geometric median,
+            nw = norm.unsqueeze(-1)   # FOLDED into the DEQ iteration (no nested loop -> amortized).
+            msum = torch.zeros(N, self.d, device=z.device, dtype=z.dtype)
+            wsum = torch.zeros(N, 1, device=z.device, dtype=z.dtype)
+            msum.index_add_(0, dst, nw * m); wsum.index_add_(0, dst, nw)
+            anchor = msum / wsum.clamp(min=1e-12)                  # sym-normalized mean = Weiszfeld anchor
+            dist = (m - anchor[dst]).norm(dim=-1, keepdim=True)    # (E,1) each message's deviation
+            w = nw / (dist + 1e-3)                                 # down-weight outlier (far) messages
+            num = torch.zeros(N, self.d, device=z.device, dtype=z.dtype)
+            den = torch.zeros(N, 1, device=z.device, dtype=z.dtype)
+            num.index_add_(0, dst, w * m); den.index_add_(0, dst, w)
+            agg = num / den.clamp(min=1e-12)
+            return torch.where(den < 1e-11, torch.zeros_like(agg), agg)  # no-neighbor -> 0
         agg = torch.zeros(N, self.d, device=z.device, dtype=z.dtype)
         agg.index_add_(0, dst, norm.unsqueeze(-1) * m)            # sym-normalized SUM (linear semiring)
         return agg
