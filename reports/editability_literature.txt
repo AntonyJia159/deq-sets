@@ -295,6 +295,28 @@ expressivity claim). Stronger framing of the liberalized design space:
     nonlinear), not exotic operators -- bring InstantGNN-style maintenance to the
     expressive class; tropical = the categorical proof it extends past linear.
 
+ROBUSTNESS USE-CASE -- concrete prior art + the experiment to build:
+  * PRIOR ART (the robustness half already exists, STATIC): Soft Medoid aggregation,
+    Geisler et al. "Reliable GNNs via Robust Aggregation" (NeurIPS 2020) -- replaces
+    GCN weighted-MEAN neighbor aggregation with a DIFFERENTIABLE medoid / geometric-
+    median-style aggregator, PROVES certifiable robustness to structural attacks.
+    Follow-ups: Soft Median, GNNGuard (Zhang & Zitnik 2020). Graph attacks to attack
+    WITH: Nettack (Zugner et al. 2018, targeted), Metattack (Zugner & Gunnemann 2019,
+    meta-learned global). Federated analog: RFA geometric-median grad aggregation.
+  * WHY GNNs are vulnerable: message passing PROPAGATES the attacker -- a few edge
+    flips near a target dominate a MEAN aggregate; a median/medoid DOWN-WEIGHTS the
+    injected outlier neighbors instead of averaging them in.
+  * THE NEW BIT (unoccupied) = the STREAMING/MAINTENANCE half. Soft Medoid is static;
+    nobody does robust-AND-cheaply-maintained under adversarial edge churn. The robust
+    aggregator is a nonlinear order statistic -> linear-push (InstantGNN/PPR) CAN'T do
+    it; recurrentized as an equilibrium it is differentiated by IMPLICIT DIFF (geometric
+    median = WEIZFELD fixed point) and maintained by warm-start local re-solve.
+  * EXPERIMENT SKETCH: train a geometric-median-aggregation EQUILIBRIUM; subject the
+    graph to Nettack/Metattack-style edge injections ARRIVING IN A STREAM; show BOTH
+    (i) ROBUSTNESS -- median holds where mean collapses -- and (ii) MAINTAINABILITY --
+    warm-start + ring-truncation keeps each update local/cheap as attack edges churn.
+    Soft Medoid gives (i); (ii) under streaming edits is OUR contribution.
+
 OPEN NOVELTY CHECKS (do before claiming):
   [ ] Fetch Implicit-vs-Unfolded (2111.06592) exact equilibrium-vs-finite-depth
       claim -- does anyone already say reach=edit-length for equilibria?
