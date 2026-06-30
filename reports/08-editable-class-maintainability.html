@@ -312,47 +312,84 @@ gap rather than a failure.
 
 <h2>6. So what is the contribution?</h2>
 <p>
-Strip away what did not survive and three things remain, all supported by the experiments above:
+Not an expressivity stride &mdash; and it does not need to be. The contribution is to <strong>relocate the
+enabler of cheap editing from <em>linearity</em> to <em>conditioning</em></strong>. Three things survive the
+experiments above, all in service of that move:
 </p>
 <ol>
   <li><strong>A characterization.</strong> $\sigma_{\min}(I-J)$ &mdash; the distance of the spectrum from
-  $+1$, not $\rho$ &mdash; governs edit-locality of an implicit model. This is non-obvious: a fixed point
-  <em>looks</em> global yet is provably $\xi$-local. It is trivial for finite-depth and is the content for
-  equilibria. <span class="muted">(Note #7 theory; the $\rho{=}0.955,\ \xi{\approx}1$ datum in &sect;3.)</span></li>
+  $+1$, not $\rho$ &mdash; governs edit-locality of an implicit model. Non-obvious: a fixed point
+  <em>looks</em> global yet is provably $\xi$-local. Trivial for finite-depth, the content for equilibria,
+  and now <em>quantitative</em> &mdash; the Faber/$\sigma_{\min}$ reach upper-bounds measured reach on
+  $22/22$ configs and predicts it tightly in the edit-local regime (&sect;3b).
+  <span class="muted">(#7 theory; the $\rho{=}0.955,\ \xi{\approx}1$ datum in &sect;3.)</span></li>
   <li><strong>An algorithm.</strong> Warm-start local re-solve maintains nonlinear / signed / interleaved
   equilibria after an edit &mdash; the generalization of InstantGNN's linear incremental update to the
-  regime where no delta-push exists, including non-contractive $\rho(J)>1$ fixed points found by Broyden.</li>
-  <li><strong>A unification, across semirings.</strong> The same condition $\sigma_{\min}(I-J)$ and the same
+  regime where no delta-push exists, in <em>constant memory</em>, including non-contractive $\rho(J)>1$
+  fixed points found by Broyden.</li>
+  <li><strong>A unification, across semirings.</strong> One condition ($\sigma_{\min}(I-J)$) and one
   warm-start algorithm cover the whole family &mdash; decoupled-linear (InstantGNN, the linear-resolvent
-  special case), nonlinear sum-product, <em>and</em> tropical max-plus (&sect;5). Expressivity is a knob you
-  turn <em>within</em> a uniformly-maintainable family, and the linear-push incumbents can only ever sit in
-  the sum-product corner of it.</li>
+  special case), nonlinear sum-product, <em>and</em> tropical max-plus (&sect;5). The linear-push incumbents
+  can only ever sit in the sum-product corner of it.</li>
 </ol>
+<div class="callout key">
+  <strong>The liberalised design space (the headline).</strong> The linear maintainable incumbents
+  (InstantGNN / APPNP / SGC) buy constant-memory editing <em>only</em> for linear propagation &mdash; i.e.
+  for weak models. Because the real enabler is the conditioning of $(I-J)$, not linearity, editability
+  <em>detaches</em> from the linear special case: an already-deployed, already-strong architecture &mdash; a
+  molecular GINE/PNA net, a point-cloud DGCNN, a GatedGCN &mdash; can be recurrentised and <em>inherit</em>
+  $O(1)$-memory edit-locality with the $\sigma_{\min}$ reach guarantee, which no linear-push method can give
+  it. The tropical/max-plus result (&sect;5) is what makes &ldquo;recurrentise <em>anything</em>&rdquo;
+  non-rhetorical: the span provably reaches aggregators <em>outside the linear closure</em>, not merely a
+  little further inside it.
+</div>
+<p>
+The real-graph payoff is therefore measured in <em>which architectures become cheaply maintainable</em>, not
+in accuracy points &mdash; editability brought to the expressive models people already run.
+</p>
+<p>
+<strong>Where the expressivity itself cashes out</strong> is narrow and domain-shaped, and we say so plainly:
+order statistics (max/min) carry real signal in <em>molecular property prediction</em> (PNA, Corso et al.
+2020 &mdash; extremal-substructure semantics, demonstrated on real benchmarks) and in <em>3D point-cloud /
+mesh</em> learning (PointNet / DGCNN max-pooling is the default aggregator) &mdash; but <em>not</em> on
+citation / heterophily node classification, which is exactly why expressivity tied there. The win is real in
+chemistry, geometry, algorithmic reasoning, and adversarial robustness; it is not universal.
+</p>
+<p>
+<strong>The within-semiring tie is a premise, not a shortfall.</strong> We need not out-express the
+maintainable incumbents on accuracy, because the contribution is orthogonal to accuracy: maintainability of
+an expressive class. The constant-memory and parameter-efficiency virtues of equilibrium models are
+established in prior work and inherited here, not re-argued &mdash; though $O(1)$ memory is load-bearing for
+the warm-start cost story above and is invoked as such.
+</p>
 
 <h2>7. Limitations &amp; open checks</h2>
 <ul>
-  <li>The expressivity advantage is real but <em>bounded</em>: it appears on the <em>semiring</em> axis
-  (sum&rarr;max, $+0.12$ controlled, &sect;5), not on any single-nonlinearity task within a fixed semiring,
-  and locality caps its magnitude. We do <em>not</em> claim a broad "more expressive" result.</li>
-  <li>"One model spans semirings" (learnable-temperature log-sum-exp) works as a <em>generalist</em> once
-  $\beta$ is freed from weight decay (spectral $0.580$, tropical $0.593$, $\beta$ dialling $4.9\!\to\!7.9$),
-  but a soft aggregator still trails the hard-max <em>specialist</em> by $\sim\!0.09$ on the pure max-plus
-  target. The clean single-model dial is a soft-vs-hard compromise, not a free lunch.</li>
-  <li>The tropical maintenance leans on a <em>frozen-routing</em> linearisation; it holds because routing
+  <li><strong>Ring-truncation at scale is the #1 gap.</strong> The warm-start iteration speedup
+  ($1.5\times$&ndash;$3\times$) is modest; the real lever is freezing all but a small prediction ring on a
+  <em>high-diameter</em> graph &mdash; still to be demonstrated at scale on a large real streaming-edit graph
+  against a recompute / InstantGNN baseline.</li>
+  <li><strong>The $\sigma_{\min}$-vs-$\rho$ question is not settled by the &sect;3b sweep.</strong> A
+  single-knob sweep moves the two together (and the trained cell self-limits to $\rho<1$), so it confirms the
+  <em>magnitude</em> law but cannot crown $\sigma_{\min}$ over $\rho$ on its own; the dissociation rests on
+  the separate $\rho\approx1.3$-yet-local runs (<code>fagcn_deq_locality</code>, <code>broyden_conditioning</code>).</li>
+  <li><strong>Tropical maintenance leans on a frozen-routing linearisation.</strong> It holds because routing
   switches are core-confined ($\sim\!1\%$ far-field), but a fully nonlinear (max-plus / Thompson-metric)
   treatment is the rigorous version we have not written.</li>
-  <li>The warm-start speedup ($1.5\times$&ndash;$3\times$ in iterations) is modest; the real lever is
-  ring-truncation on <em>high-diameter</em> graphs &mdash; still to be shown at scale on a large real graph.</li>
-  <li>Novelty of the bridge is still pending: is "InstantGNN generalized to nonlinear equilibria $+$ a
-  $\sigma_{\min}$ edit-locality characterization" genuinely open, or folklore? (See the editability
-  literature record; an advisor gut-check is queued.)</li>
+  <li><strong>The single-model semiring dial is a soft-vs-hard compromise.</strong> Learnable-temperature
+  log-sum-exp works as a generalist once $\beta$ is freed from weight decay (spectral $0.580$, tropical
+  $0.593$, $\beta$ dialling $4.9\!\to\!7.9$), but still trails the hard-max specialist by $\sim\!0.09$ on the
+  pure max-plus target &mdash; not a free lunch.</li>
+  <li><strong>Bridge novelty is pending an advisor gut-check.</strong> Is &ldquo;InstantGNN generalised to
+  nonlinear equilibria $+$ a $\sigma_{\min}$ edit-locality characterization&rdquo; genuinely open, or
+  folklore? (See the editability literature record.)</li>
 </ul>
 
 <footer>
   Set-DEQ Notes #8 · experiments: <code>operator_compare.py</code>, <code>sign_check.py</code>,
   <code>unroll_vs_eq.py</code>, <code>maintenance_demo.py</code>, <code>maintenance_compare.py</code>,
   <code>semiring_compare.py</code>, <code>maintenance_tropical.py</code>, <code>maxplus_conditioning.py</code>,
-  <code>beta_fix_check.py</code> ·
+  <code>beta_fix_check.py</code>, <code>sigma_min_law.py</code> ·
   builds on #7 (the $\sigma_{\min}$ susceptibility theory). Honesty note: this report surfaces a null
   result (and a failed tidy-up) rather than burying them, and corrects an earlier $\rho{>}1$ overclaim.
 </footer>
