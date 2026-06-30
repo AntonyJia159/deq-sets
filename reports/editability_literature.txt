@@ -315,7 +315,18 @@ ROBUSTNESS USE-CASE -- concrete prior art + the experiment to build:
     graph to Nettack/Metattack-style edge injections ARRIVING IN A STREAM; show BOTH
     (i) ROBUSTNESS -- median holds where mean collapses -- and (ii) MAINTAINABILITY --
     warm-start + ring-truncation keeps each update local/cheap as attack edges churn.
-    Soft Medoid gives (i); (ii) under streaming edits is OUR contribution.
+    Soft Medoid gives (i); (ii) under a stream of edits is OUR contribution.
+  * FRAMING (path-independence -- do NOT call this "dynamic/temporal graphs"): our
+    regime is "STATIC GRAPH IN FLUX" -- an edit is a SPURIOUS correction, not signal;
+    the fixed point is a pure function of the CURRENT graph (warm-start == cold
+    recompute, no hysteresis). This is the OPPOSITE of dynamic/temporal-graph learning
+    (TGN etc.), where the edit SEQUENCE is the signal and the model is path-dependent
+    by design. Robustness FITS this perfectly: an adversarial/noisy edge IS spurious by
+    definition, so we want to be robust to it (median down-weights) AND absorb it locally
+    (path-independent re-solve) WITHOUT treating it as information. Right baselines =
+    recompute-from-scratch + InstantGNN-style incremental MAINTENANCE (also edit-workload
+    regime), NOT temporal-graph-prediction benchmarks. The "scale" gap = a large graph +
+    an EDIT WORKLOAD, not a dynamic-graph-learning task.
 
 OPEN NOVELTY CHECKS (do before claiming):
   [ ] Fetch Implicit-vs-Unfolded (2111.06592) exact equilibrium-vs-finite-depth
