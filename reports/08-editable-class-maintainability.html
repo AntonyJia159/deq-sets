@@ -142,6 +142,51 @@ small local patch and freezes the rest. This is the non-contractive generalizati
 linear incremental update &mdash; valid because $(I-J)$ is well-conditioned, not because it is a contraction.
 </p>
 
+<h3>3b. Is $\sigma_{\min}(I-J)$ a <em>law</em> for edit-locality, or folklore? (the $\xi$ sweep)</h3>
+<p>
+The §3 callout asserts the conditioning of $(I-J)$ &mdash; not $\rho(J)$ &mdash; governs the screening
+length. We tested it quantitatively. Sweep the contraction knob $s_{\max}$ (with $\texttt{jac\_gamma}=0$,
+so $s_{\max}$ is the only lever) across $22$ trained cells (Anderson-solved so the fixed point is reached
+even near the boundary). At each landed fixed point form the dense Jacobian, read the
+$2$-norm condition number $\kappa_2(I-J)=\sigma_{\max}/\sigma_{\min}$, convert to the Demko&ndash;Moss&ndash;Smith /
+Faber decay rate $q=\tfrac{\sqrt{\kappa}-1}{\sqrt{\kappa}+1}$, and compare the predicted reach
+$\xi_{\text{pred}}=-1/\ln q$ to the <em>measured</em> reach $\xi_{\text{meas}}$ (log-slope of the edit
+response vs graph distance after a node deletion). Three findings, two of them caveats &mdash; reported in full:
+</p>
+<table>
+  <tr><th>claim</th><th>measurement</th><th>result</th></tr>
+  <tr><td>Faber/$\sigma_{\min}$ reach is a valid <em>upper bound</em></td>
+      <td>$\xi_{\text{meas}}<\xi_{\text{pred}}$ across the sweep</td>
+      <td class="good">holds on $22/22$ configs (ratio $0.20$&ndash;$0.81$)</td></tr>
+  <tr><td>Tight (proportional) in the edit-local <em>binding</em> regime</td>
+      <td>$\kappa\le 8$: fit $\xi_{\text{meas}}\approx a\,\xi_{\text{pred}}$</td>
+      <td class="good">$a\approx 0.6$, Pearson $r\approx 0.87$&ndash;$0.92$, $R^2\approx 0.5$&ndash;$0.7$</td></tr>
+  <tr><td>Loose near singularity ($\sigma_{\min}\to 0$)</td>
+      <td>$\kappa>40$: $\xi_{\text{pred}}$ vs $\xi_{\text{meas}}$</td>
+      <td class="warn">$\xi_{\text{pred}}\!=\!3.4$&ndash;$4.0$ but $\xi_{\text{meas}}\!\approx\!0.7$&ndash;$0.9$ &mdash; worst-case $\ne$ typical reach</td></tr>
+</table>
+<div class="callout key">
+  <strong>The law, stated honestly.</strong> The conditioning of $(I-J)$ is a <em>rigorous upper bound</em>
+  on edit-reach everywhere, and a <em>tight, proportional predictor</em> in the regime where the bound
+  binds (small $\kappa$, $\xi\lesssim 1.5$ hops &mdash; exactly the edit-local regime we care about). So
+  &ldquo;editability is governed by $\sigma_{\min}(I-J)$&rdquo; is a quantitative, falsifiable statement,
+  not folklore. Near singularity the bound goes <em>conservative</em>: the worst-case mode that
+  $\sigma_{\min}$ tracks is not the typical perturbation, so real operators stay <em>more</em> local than
+  the bound &mdash; the &ldquo;local in name only&rdquo; failure mode (§7) is a worst case the trained models
+  did not hit.
+</div>
+<p>
+<strong>What this sweep does <em>not</em> show.</strong> Because $s_{\max}$ moves $\rho(J)$ and
+$\sigma_{\min}(I-J)$ together &mdash; and the trained cell self-limits to $\rho\le 0.97$ throughout, never
+crossing the contraction boundary &mdash; the two scalars are <em>collinear</em> here and predict
+$\xi_{\text{meas}}$ about equally well (Spearman $\approx 0.81$ vs $0.84$). This sweep therefore confirms
+the <em>magnitude</em> law but cannot by itself crown $\sigma_{\min}$ over $\rho$. The dissociation &mdash;
+$\rho(J)>1$ yet still edit-local, where the $\rho$-based Neumann intuition predicts divergence and only
+$\sigma_{\min}$/dist$(1,\,\mathrm{spec})$ survives &mdash; rests on the separate $\rho\approx1.3$ runs
+(<code>fagcn_deq_locality</code> roman, <code>broyden_conditioning</code>), not on this one.
+(<code>sigma_min_law.py</code>.)
+</p>
+
 <h2>4. The expressivity null (honest)</h2>
 <p>
 We went looking to <em>confirm</em> that the nonlinear equilibrium out-expresses the maintainable
