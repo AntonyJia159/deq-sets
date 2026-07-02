@@ -49,6 +49,27 @@ regime — *that* is "detach maintainability from linearity."
 (cost = solve iterations, not O(1)); vs the **dense transformer**, we can select *and* the edit is
 σ_min-local (bounded ξ-ball) instead of a full-suffix recompute. Never "cheaper locality than Mamba."
 
+### The unification we contribute — one face is linear (ρ), the other is nonlinear (σ_min)
+The right diagram is NOT "graph propagation ≈ sequence propagation" — that linear equivalence is being
+worked *right now* (Message-Passing State-Space Models 2505.18728; Message-Passing→Linearized Graph
+Sequence Models 2605.12358; GNN-as-graph-resolvent `(I−αÃ)⁻¹`, 2101.11859). **We cite that as the *linear
+face*, we do not claim it.** The unification we add is one axis up:
+
+> **{ linear graph propagation, linear sequence propagation } = ONE face** — the `ρ` / linear-resolvent
+> special case, same theorem on two topologies (chain vs general graph; Demko–Moss–Smith is topology-
+> agnostic). **{ nonlinear DEQ } = the GENERAL face** — `σ_min(I−J)`, which *reduces* to `1−ρ` in the linear
+> limit and *dissociates* from ρ in the nonlinear one (ρ>1 yet edit-local).
+
+What's genuinely unclaimed (novelty scan 2026-07-02) is the pair: **(a)** reading the resolvent as *certified
+edit-locality via σ_min conditioning* — not an *imposed* decay mask (RetNet/KMS `γ^|i−j|`, Mamba-2 SSD
+off-diagonal decay are decay *put in*), and not *forward* propagation (the GNN resolvent) — but decay
+*derived* as a reach guarantee; **(b)** doing it on a nonlinear equilibrium where ρ and σ_min come apart.
+Linear models cannot produce (b) and no one has measured σ_min-screening on a nonlinear DEQ. Cautions so we
+don't overclaim: do **not** claim first to notice graph≈sequence (active), nor first to use the resolvent in
+SSMs (Mamba-2 SSD writes the decay matrix explicitly), nor first to control a DEQ's Jacobian spectrum (Bai
+2106.14342 — but that's ρ-for-stability, not σ_min-for-edit-reach). The sliver is the σ_min *edit-locality*
+reading on the *nonlinear* equilibrium.
+
 ### Identity: this is an attention-based NCA with *certified* regeneration
 Exact correspondence, not metaphor: local sliding-window attention = NCA local update rule; equilibrium
 = NCA `t→∞`; **edit → warm-start local re-solve = damage → regeneration**; bidirectional window = the
