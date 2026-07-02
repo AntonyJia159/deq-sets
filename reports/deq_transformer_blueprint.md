@@ -79,6 +79,44 @@ Graph-NCA (Grattarola), and ZJ's own NCA↔DEQ equivalence (self-cite, 2501.0357
 with no reach theorem — our σ_min contribution is **the first regeneration-reach guarantee for an NCA**.
 Preferred framing: *"a self-organizing attention field that provably regenerates locally after edits."*
 
+### Margolus / staggered-block correspondence (ZJ, 2026-07-03) — a note, not a claim
+**Block** attention (non-overlapping partition) = a Margolus-neighborhood block CA (Toffoli–Margolus 1987):
+a single block layer can't cross a block seam, and **two interleaved layers staggered by half a block** =
+the Margolus double-step that mixes across seams (one block/two layers). Payoffs: (i) this reframes
+2606.02680's ad-hoc **"boundary repair"** (hand-added seam edges) as a clumsy rediscovery of the Margolus
+stagger — and **the equilibrium subsumes both** (the fixed point crosses seams regardless of partition:
+converge, don't repair). (ii) It slots our two sparsity choices onto two CA conventions: **sliding-window ↔
+overlapping-neighborhood CA** (overlap buys mixing, costs redundancy) vs **staggered-block ↔ Margolus**
+(no overlap, mixing deferred to the alternation, cheaper). (iii) DEQ realization: make the cell the
+composition `f = (partition B) ∘ (partition A)` so one iteration = one Margolus double-step; the **σ_min
+certificate is unchanged** — `(I−J)` just has a staggered-block sparsity instead of banded (topology-agnostic
+DMS). **Caveat (don't overreach):** Margolus is prized for *reversible* CA (bijective block rule); that half
+does **not** transfer — our edit-locality is from σ_min *conditioning*, not reversibility. Cite the
+neighborhood/mixing structure only. Scope: a *remark* + possible future-work arm (staggered-block DEQ), NOT
+a plot; experiments stay sliding-window.
+
+### The four lands — one operator, four projections (a framing figure, not a claim of unification)
+The central object is **a local operator on a graph, iterated/inverted to a fixed point, whose edit-response
+is the resolvent `(I−J)⁻¹` with decay governed by `σ_min(I−J)`.** Each "land" is a *projection* of it:
+
+| land | substrate | topology | linear? | depth | edit-decay governed by |
+|---|---|---|---|---|---|
+| **Graph** (GNN / InstantGNN) | message passing | general graph | linear (incumbents) | iterated → fixed | `ρ(A)` — graph resolvent `(I−αÃ)⁻¹` |
+| **SSM** (Mamba / S4) | linear recurrence | 1-D chain | linear | scan (unrolled ∞) | `ρ(A)` = `1−σ_min` on a chain |
+| **Transformer** | attention | attention graph | nonlinear | finite `L` | truncated Neumann `Σ_{k≤L} Jᵏ` |
+| **NCA** (Neural CA) | local rule | lattice / graph | nonlinear | `t→∞` | fixed point — *heuristic, no bound* |
+| **Ours** | sparse-attn **equilibrium** | attention graph | **nonlinear** | **∞ (DEQ)** | **`σ_min(I−J)` — certified** |
+
+Read the map as: **linearize** → Graph/SSM (`ρ`); **truncate depth** → Transformer (Neumann); **drop the
+certificate** → NCA (heuristic regeneration). The edges between lands are the known correspondences we cite,
+not invent: SSM↔Graph (chain = 1-D graph; the linear unifiers 2505.18728 / 2605.12358 / 2101.11859),
+Transformer↔SSM (Mamba-2 state-space duality: linear attention ≡ SSM), Transformer↔Graph (attention *is* a
+directed graph), Transformer↔NCA (our iterated-attention identity), Graph↔NCA (Graph-NCA, Grattarola). The
+one **empty cell everything points at** — nonlinear + equilibrium + *certified* — is ours, and `σ_min(I−J)`
+is the master invariant that lives at the center and reduces to `1−ρ` on every linear edge. Honest scope: the
+figure is **exposition**; the linear unification among the outer lands is prior art. Our contribution is the
+center cell, not the map.
+
 ### Two regimes, two attention directions
 - **Decode / generation → CAUSAL** window (`i` attends `[i−w, i]`): relay is forward-only; this is the
   C1 expressivity test.
