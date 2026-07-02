@@ -11,6 +11,30 @@ with distance (Demko–Moss–Smith / Faber), giving a *certified* reach.
 detach it (get it from σ_min conditioning) and buy a more expressive nonlinear member of the same
 maintainable class.
 
+### Identity: this is an attention-based NCA with *certified* regeneration
+Exact correspondence, not metaphor: local sliding-window attention = NCA local update rule; equilibrium
+= NCA `t→∞`; **edit → warm-start local re-solve = damage → regeneration**; bidirectional window = the
+spatial, no-time-arrow regime of regeneration. So the maintenance model *is* an attention-based Graph-NCA
+on the attention graph. Novel identity + community (self-organization / NCA): Growing-NCA (Mordvintsev),
+Graph-NCA (Grattarola), and ZJ's own NCA↔DEQ equivalence (self-cite, 2501.03573) regenerate *heuristically*
+with no reach theorem — our σ_min contribution is **the first regeneration-reach guarantee for an NCA**.
+Preferred framing: *"a self-organizing attention field that provably regenerates locally after edits."*
+
+### Two regimes, two attention directions
+- **Decode / generation → CAUSAL** window (`i` attends `[i−w, i]`): relay is forward-only; this is the
+  C1 expressivity test.
+- **Edit / maintenance → BIDIRECTIONAL** window (`i` attends `[i−w, i+w]`): the document is fully present,
+  you edit and re-settle in both directions. This matches code (defs after uses, edits hit callers above
+  and below) and RAG chunk-swaps, and it is the NCA damage-regeneration regime. C2/C4 use this.
+
+### Applicability of the (I−J) theory to ORDINARY transformers
+`(I−J)δz=δf` needs a fixed point, so the resolvent-decay reach is *exact only for equilibrium models*. But
+a feedforward L-layer transformer propagates an edit as a product of L layer-Jacobians = the first L terms
+of the Neumann series `(I−J)⁻¹=Σ_k J^k` (paths of length ≤ L). So a finite transformer is a **truncation**
+of the resolvent, the DEQ is the `L→∞` limit, and our reach **upper-bounds a finite transformer's reach**
+too (conservative, sound). Practical insight transfers to any transformer via attention-reachability
+(combinatorial support) + σ_min (quantitative decay). DEQ = the clean setting where reach is a theorem.
+
 ---
 
 ## Positioning — what we upgrade over KV-cache incumbents
