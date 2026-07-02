@@ -35,6 +35,30 @@ of the resolvent, the DEQ is the `L→∞` limit, and our reach **upper-bounds a
 too (conservative, sound). Practical insight transfers to any transformer via attention-reachability
 (combinatorial support) + σ_min (quantitative decay). DEQ = the clean setting where reach is a theorem.
 
+### Gradient mode: phantom is a *truncation*, not a failure — and it mirrors the reach cliff
+The stability probe found phantom (1-step) gradient caps MQAR recall at ~0.45 while exact IFT hits 1.00.
+This is **not** "phantom can't train peaked transformers" — phantom (Geng et al. 2021) and the original
+DEQ-Transformer (Bai et al. 2019) train fine. Phantom is a **truncated-Neumann** approximation of the
+adjoint `(I−J)⁻¹`, and MQAR's retrieval signal lives in the *deep* Neumann terms (the multi-hop relay), so
+a 1-step phantom under-credits exactly the peaking pathway. It is the **backward/adjoint mirror of the
+forward finite-unroll reach cliff**: *tasks where equilibrium beats unroll (forward) are the same tasks
+where IFT beats phantom (backward)* — one criterion, two sides of the map. Well-mixed natural language is
+fine with phantom; a sharp relay (MQAR) needs IFT. **Use `ift=True` + Anderson for the recall-critical
+runs**; `grad=5` blowing up (ρ→8) is undamped tuning (τ<1 unset), not fundamental.
+
+### Prior art we BUILD ON (do not claim these as ours)
+The bidirectional/infilling machinery already exists and speaking the field's language is an asset (Geng's
+"worth the exposure"), so we cite it and sit on top:
+- **Infilling / dual-mode LMs.** FIM (Bavarian et al. 2022) reorders `[prefix][suffix][middle]` to get
+  tri-source ("ante / post / edited region") conditioning *cheaply* with a plain causal model and no
+  after-`t` positional embeddings — shipped in StarCoder/CodeLlama/DeepSeek-Coder. Prefix-LM / UniLM
+  (Dong et al. 2019, switchable masks), GLM (Du et al. 2022, AR blank-infill), XLNet, and diffusion LMs
+  (SEDD, LLaDA) generate bidirectionally / any-order. A **bidirectional-window DEQ is an infilling model** —
+  the NCA regeneration regime restated. **Unclaimed by all of them: a *certified* reach for the re-settle.**
+  Novelty stays pinned on the σ_min certificate, not on the bidirectionality.
+- **Incremental / self-adjusting computation** (Acar) and InstantGNN's affected-subgraph propagation — the
+  substrate for the support-graph re-solve below.
+
 ---
 
 ## Positioning — what we upgrade over KV-cache incumbents
@@ -56,6 +80,36 @@ looseness costs **compute, never correctness**. And its tightness is governed by
 well-conditioned** (r≈0.9) and conservative near singularity. So keeping κ small makes the certificate
 both exact and efficient. One-line pitch: **replace an uncertified lossy heuristic with a sound, exact,
 conditioning-tightened certificate of edit reach.**
+
+---
+
+## Two efficiency components (certify with σ_min, execute on the support graph)
+
+**Warm start (state the mechanism precisely).** Seed the solver at the *old* equilibrium `z*`. An edit is a
+local perturbation to `h0`; Anderson/Broyden from `z*` converges in `O(ξ)` iterations, and the residual only
+lifts *inside* the ξ-ball — outside it `f(z*)≈z*`, so those coordinates arrive already-converged and cost
+nothing. That is the concrete "downstream tokens are not recomputed from scratch."
+
+**Support-graph incremental re-solve (promoted from "later" to a named component).** The support of the
+attention matrix (nonzero-weight indices) *is* a sparse dependency graph. Re-solving only over the region
+reachable from the edit along that graph, freezing the rest, is **self-adjusting computation** (Acar) applied
+to a fixed point — the sequence analog of InstantGNN's affected-subgraph propagation. This is **complementary
+to σ_min, not redundant**: σ_min gives the *a-priori worst-case* ξ-ball (lets you budget/certify before
+touching anything); the realized support is the *actual* frontier you propagate along (usually ≪ the ball,
+matching the empirically-loose-bound finding). **Certify with σ_min; execute on the support graph.** Because
+the support is data-dependent it is typically far sparser than a fixed sliding window.
+
+**Positional edits — relative PE is *necessary but not sufficient*; sparsity is load-bearing.** Absolute PE:
+an insert shifts every downstream position → global invalidation. Relative PE (RoPE) only shifts the offset
+of each **straddling** edge (`i<p<j` for an insert at `p`); with *dense* attention there are `O(n)` straddling
+long edges (begin↔end) → still effectively global. Only **sparsity** localizes it: a window `w` confines
+straddling edges to a **width-`w` band** around the cut (far regions shift uniformly, so their attention is
+byte-identical). So an insertion has **three regimes**: (i) within `w` of the cut — direct perturbation,
+recompute the band; (ii) begin↔end of a block wider than `w` — perturbed only *through the equilibrium relay*,
+σ_min-decayed within ξ; (iii) a truly distant generation point — `O(distance)` fundamental, amortized only by
+the C4 multi-scale coarse channel. Relative PE handles the uniform-shift bookkeeping, sparsity confines the
+direct hit, σ_min + multiscale handle propagation. **Make relative PE the default for the insert/delete (v2)
+story** — but the localization comes from sparsity, not from the PE choice.
 
 ---
 
