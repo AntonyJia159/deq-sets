@@ -11,6 +11,44 @@ with distance (Demko–Moss–Smith / Faber), giving a *certified* reach.
 detach it (get it from σ_min conditioning) and buy a more expressive nonlinear member of the same
 maintainable class.
 
+### The thesis in one table — detaching maintainability from linearity
+The maintainable class was *assumed* to require linearity. It doesn't; it requires good conditioning.
+
+|                              | selection / recall (expressive) | cheap edit-maintenance          |
+|------------------------------|:-------------------------------:|:-------------------------------:|
+| Linear SSM / Mamba           | ✗                               | ✓ (O(1), from **linearity**)    |
+| Dense softmax transformer    | ✓                               | ✗ (mid-context edit ⇒ full-suffix invalidation) |
+| **Sparse softmax DEQ (us)**  | ✓                               | ✓* (σ_min-local, from **sparsity**) |
+
+Only the last row has both. Cheap locality is *not* the prize — Mamba already has it and hasn't displaced
+attention, precisely because people reach for a transformer for the **recall/selection** the linear model
+gave up to get that locality (documented: the MQAR gap in Zoology/Based; hybrids Based/Griffin/Jamba add
+attention back *to recover recall*). We are not re-selling locality; we offer **maintainability without
+surrendering recall** — the combination neither incumbent has.
+
+**Sharper still — Mamba's ✓ is *append*-cheap, not *edit*-cheap.** SSM-state reuse is documented as
+**all-or-nothing**: a fused recurrent state can be reused only if the *entire* prefix matches; it supports
+no partial / incremental / segmented reuse. So Mamba is cheap for **append** (roll the state forward) but a
+**mid-context edit is *worse* than a transformer** — it invalidates the single fused state and forces a
+full-suffix recompute with no per-position granularity to fall back on (a KV cache at least keeps per-token
+K,V). So the **edit** sub-regime we target is *open for both incumbents*, not a crowded lane. (Mamba's
+constant-state locality is nonetheless commercially hot: Mamba-3 @ ICLR'26, NVIDIA Nemotron-3 hybrids,
+Amazon Mamba2-primed hybrids, SGLang/vLLM hybrid paging — but the applications are *streaming/append*
+real-time inference, not mid-context editing.)
+
+**Why σ_min is literally the generalization of Mamba's ρ (the theorem, not the analogy).** For a *linear*
+map `A`, an edit propagates as `Σ_k A^k = (I−A)⁻¹`, spatial decay set by `ρ(A)` — that *is* Mamba's
+cheap-locality mechanism. For a *nonlinear equilibrium* `f`, the edit propagates through the fixed-point
+Jacobian: `(I−J)⁻¹`, decay set by **σ_min(I−J)**; when `f` is linear, `J=A` and σ_min reduces to the ρ
+story. So σ_min(I−J) is the maintainability mechanism for **any** map, and Mamba's ρ is its linear special
+case. We didn't invent a new maintenance; we generalized the linear one to cover the selection-capable
+regime — *that* is "detach maintainability from linearity."
+
+**The honest cost (`*`).** Our maintenance is not O(1) like Mamba's — we re-solve the equilibrium in the
+σ_min-certified ξ-ball. Defensible claims only: vs **Mamba**, same maintainable class but we can *select*
+(cost = solve iterations, not O(1)); vs the **dense transformer**, we can select *and* the edit is
+σ_min-local (bounded ξ-ball) instead of a full-suffix recompute. Never "cheaper locality than Mamba."
+
 ### Identity: this is an attention-based NCA with *certified* regeneration
 Exact correspondence, not metaphor: local sliding-window attention = NCA local update rule; equilibrium
 = NCA `t→∞`; **edit → warm-start local re-solve = damage → regeneration**; bidirectional window = the
@@ -58,6 +96,26 @@ The bidirectional/infilling machinery already exists and speaking the field's la
   Novelty stays pinned on the σ_min certificate, not on the bidirectionality.
 - **Incremental / self-adjusting computation** (Acar) and InstantGNN's affected-subgraph propagation — the
   substrate for the support-graph re-solve below.
+- **Attention-as-a-directed-graph** is an established lens we adopt, not invent: an attention mask = a
+  directed information-flow graph over positions (edge src→tgt = tgt reads src in one layer); stacking
+  layers gives a **reachability closure** `R_ℓ(t)` (positions reachable by walking edges backward).
+  *Attention Flows* (2009.07053), *Lost in Transmission* (2505.08140), FlowTracer (2606.10646). Empirical
+  properties of these graphs, all relevant to us: (i) **>90% sparse**, head-specific/content-adaptive
+  (MInference 2407.02490, SampleAttention 2406.15486) → the realized support graph is far sparser than the
+  window (helps the support-graph re-solve); (ii) **not purely metric-local — O(1) global hubs = attention
+  sinks**, provably necessary for some tasks (2603.11487; "Spike/Sparse/Sink" 2603.05498) → real attention
+  is *local structure + bounded locality-breaking hubs*, which is **exactly the C4 multi-scale design** (so
+  C4 matches how attention is already shaped, not an add-on); (iii) **induction heads** (prefix-match+copy)
+  are the documented long-range motif our MQAR relay rides; (iv) caveat: **rank collapse** thins the
+  effective graph in deep layers.
+- **C1's closest precedent — "Locality Does Not Imply Reachability" (2606.02680).** Feedforward
+  block-sparse causal attention: being *inside* a local window does NOT guarantee information reaches you
+  (block-boundary bottlenecks), which they fix with ad-hoc "**boundary repair**" (hand-added edges at block
+  edges). This is C1 stated as a problem, in a finite transformer. **Our two-part gap over it:** (a)
+  **equilibrium restores reachability** without hand-placed boundary edges (the K→∞ that closes the gaps a
+  finite block-sparse stack leaves open), and (b) they give **no quantitative decay bound** — σ_min/Faber
+  supplies the *screening length* they lack. Must-read-in-full before writing C1; cite as the precedent
+  that makes the reach question legible to reviewers.
 
 ---
 
