@@ -193,14 +193,19 @@ def fit_xi(dists, dz, noise=0.0):
     through the noise tail would flatten the slope and fake a huge xi — the exact trap from the graph
     version; (iii) least-squares on the survivors.
     Returns xi in POSITIONS (divide by sw.W for hops) and the number of points used."""
+    # HOP-GRANULARITY (v5 fix): the DMS envelope decays PER HOP (one hop = one window = W positions);
+    # a profile flat across the first window then collapsing is envelope-CONSISTENT, but a per-position
+    # fit reads it as slope~0 -> xi=inf -> fake violation (v4.1's filler 'inf' rows). Bin distances into
+    # hops ceil(d/W) first; the fitted xi is then directly in hops (no /W conversion afterwards).
     dists, dz = np.asarray(dists), np.asarray(dz)
-    ds = np.unique(dists)
-    mean_dz = np.array([dz[dists == d].mean() for d in ds])
+    hops = np.ceil(dists / sw.W).astype(int)                # d=0 -> hop 0 (the edited site itself)
+    hs = np.unique(hops)
+    mean_dz = np.array([dz[hops == h].mean() for h in hs])
     floor = max(1e-8, 1e-5 * mean_dz.max(), 3.0 * noise)    # measured noise floor dominates when available
     use = mean_dz > floor
     if use.sum() < 3:
         return np.nan, int(use.sum())
-    slope, _ = np.polyfit(ds[use], np.log(mean_dz[use]), 1)
+    slope, _ = np.polyfit(hs[use], np.log(mean_dz[use]), 1)
     if slope >= 0:                                          # no decay measurable (profile flat/rising)
         return np.inf, int(use.sum())
     return -1.0 / slope, int(use.sum())
@@ -237,10 +242,12 @@ def main():
         gen = torch.Generator().manual_seed(7)
         seqs = [sw.gen_mqar(1, ck["stage_gap"], gen)[0] for _ in range(N_SEQS)]
         kappa, rho, smin = kappa_of(m, seqs[0])
-        mdiv, ra, rb = multistability_probe(m, seqs[0])
+        # v5: probe EVERY base sequence (v4 probed only seqs[0], confounding edit-induced multistability
+        # with sequence-dependent multistability in the wc==cc readout)
+        divs = [multistability_probe(m, sq)[0] for sq in seqs]
         print(f"[{os.path.basename(path)}] recall={ck['recall']:.3f} rho={rho:.3f} smin={smin:.3f} "
-              f"kappa={kappa:.1f} xi_faber={faber_xi(kappa):.2f} | multistable-probe: cold-vs-cold "
-              f"div={mdiv:.1e} (resids {ra:.1e}/{rb:.1e})", flush=True)
+              f"kappa={kappa:.1f} xi_faber={faber_xi(kappa):.2f} | multistable-probe per-seq divs: "
+              + "  ".join(f"{dv:.1e}" for dv in divs), flush=True)
 
         # [D] ASSEMBLE, per edit-class: pool profiles -> fit xi -> envelope test (C2a only).
         # ANNOTATION: xi is fit in positions then converted to HOPS (/W) because Faber's unit is one
@@ -275,10 +282,18 @@ def main():
                 print(f"    {mode:>10}: peak|dz|={peak:.1e} < 10x noise({noise_max:.1e})  "
                       f"wc==cc={np.mean(wc):.1e}  -> CONTAINED (below noise)", flush=True)
                 continue
-            xi_pos, npts = fit_xi(Dc, Zc, noise=noise_max)
-            xi_meas = xi_pos / sw.W
-            verdict = ("ENVELOPE " + ("OK" if xi_meas <= faber_xi(kappa) else "VIOLATED")) \
-                if mode != "relevant" else "transport (xi not meaningful)"
+            xi_meas, npts = fit_xi(Dc, Zc, noise=noise_max)   # hop-binned: already in hops
+            # v5: only FILLER is a fair envelope witness (must-carry: a causal relay transports ALL
+            # bindings, so unqueried-value edits legitimately ride the carry — transport, not violation)
+            if mode == "filler":
+                if np.isnan(xi_meas):        # sequence shorter than ~3 windows: no hop-bins to fit;
+                    verdict = "contained within ~1 window (too short for a hop-granularity fit)"
+                else:
+                    verdict = "ENVELOPE " + ("OK" if xi_meas <= faber_xi(kappa) else "VIOLATED")
+            elif mode == "irrelevant":
+                verdict = "must-carry transport (state-relevant, output-irrelevant)"
+            else:
+                verdict = "transport (xi not meaningful)"
             profiles[f"{os.path.basename(path)}_{mode}"] = dict(dists=Dc, dz=Zc)
             print(f"    {mode:>10}: xi_meas={xi_meas:>6.2f} hops (n={npts})  far/near={farfrac:.3f}  "
                   f"peak={peak:.1e}  wc==cc={np.mean(wc):.1e}  -> {verdict}", flush=True)
