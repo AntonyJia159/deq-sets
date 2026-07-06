@@ -44,6 +44,20 @@ story. So σ_min(I−J) is the maintainability mechanism for **any** map, and Ma
 case. We didn't invent a new maintenance; we generalized the linear one to cover the selection-capable
 regime — *that* is "detach maintainability from linearity."
 
+**One number, two readings — the reading the SSM literature never performed.** The S4/HiPPO/Mamba line
+engineers the spectrum toward the unit circle *on purpose*: λ→1 means memory horizon `1/(1−ρ)` → long-range
+mixing (their benchmarks reward it; selectivity makes λ content-dependent — hold ≈1 to carry, drop to
+forget). Read *backward*, the identical number is the **screening length of a perturbation**: an edit's
+influence survives exactly as far as memory does — **long memory ≡ far-reaching edits; remembering is the
+inability to locally forget a change.** The maintenance reading was never performed for a structural reason:
+the operation it prices doesn't exist in SSM-land (the state is a fused all-or-nothing scan — there is no
+mid-context edit to maintain), so nobody had cause to ask how far an edit reaches. The question becomes
+operational only with a per-position state you can re-solve locally — the sparse-attention equilibrium.
+Paper line: *"the SSM literature tunes ρ→1 to remember; the same limit is what makes an edit impossible to
+forget — memory horizon and edit-reach are one quantity read in two directions, and maintenance is the
+direction that has never been priced."* This duality is also exactly the C3 tension (mixing vs containment)
+as a Pareto curve, with σ_min as its general-form price.
+
 **The honest cost (`*`).** Our maintenance is not O(1) like Mamba's — we re-solve the equilibrium in the
 σ_min-certified ξ-ball. Defensible claims only: vs **Mamba**, same maintainable class but we can *select*
 (cost = solve iterations, not O(1)); vs the **dense transformer**, we can select *and* the edit is
