@@ -1,12 +1,16 @@
-"""C3 — the mixing<->locality tradeoff. The window w is a single dial with opposite effects on two costs:
-  - MIXING COST: to relay a binding across a fixed gap, one solve step propagates ~w positions, so the
-    equilibrium needs ~gap/w iterations -> solve iterations FALL as w grows.
-  - EDIT REACH (recompute-ball size): each hop of the edit-response covers ~w positions, so the screening
-    length in POSITIONS, xi_pos = xi_hops * w, GROWS with w (a wider window = a wider blast radius).
-So small w = cheap edits (tight ball) but slow solves; large w = fast solves but wide edits (dense limit =
-every edit global). Expect an inverse Pareto: solve-iters ~ 1/w, xi_pos ~ w, product ~ const.
+"""C3 (v2, reframed) — does the mixing<->locality tradeoff DISSOLVE at equilibrium?
 
-Reuses the C2 measurement machinery (Newton-polished tight solves, filler-edit hop-binned xi).
+v1 finding: solve-iters fall ~1/w (mixing cost, confirmed), but edit-reach in POSITIONS was ~flat (~3.6),
+NOT rising with w as a naive Pareto predicts. Reframe: for a finite UNROLL, reach is capped at w*K, so w
+trades mixing vs locality. At EQUILIBRIUM (C1) reach decouples from window*depth -> reach is set by sigma_min
+(conditioning), not by w. So w is a SOLVE-SPEED dial, not a reach dial; the tradeoff dissolves. This run
+tests that cleanly: fit xi in POSITIONS (v1's hop-binning is too coarse when xi < w -> w=20 gave nan), sweep
+4 windows, and check whether xi_positions stays ~flat while solve-iters fall.
+
+Prediction (reframe): solve_iters FALL with w; xi_positions ~CONSTANT across w (locality is sigma_min's job,
+not the window's). recall must stay high (w=5 may under-train the gap-16 relay -> flagged, its xi is on a
+half-formed cell).
+
 Run:  D:\\deq-venv\\Scripts\\python.exe -u -m experiments.c3_mixing_locality
 """
 import time
@@ -16,18 +20,31 @@ import torch
 from torchdeq import get_deq
 
 import experiments.sliding_window_reach as sw
-import experiments.c2_edit_locality as c2      # imports with tf32 OFF (measurement-grade)
+import experiments.c2_edit_locality as c2      # imports with tf32 OFF (measurement-grade); reuse its solves
 
-W_SWEEP = [5, 10, 20]
-STAGES = [0, 8, 16]                              # curriculum; gap 16 relays for all w (16/5~3, 16/20~1)
+W_SWEEP = [5, 8, 12, 20]
+STAGES = [0, 8, 16]
 STEPS = 300
 TEST_GAP = 16
 sw.H, sw.dh = 4, sw.d // 4
 
 
+def fit_xi_positions(dists, dz, noise):
+    """Per-POSITION screening length (v1's hop-binning is too coarse when xi < w). log dz vs position-distance
+    is a line with slope -1/xi; floor at the measured solver noise (pre-edit dz) x3."""
+    dists, dz = np.asarray(dists), np.asarray(dz)
+    ds = np.unique(dists)
+    mean_dz = np.array([dz[dists == d].mean() for d in ds])
+    floor = max(1e-8, 1e-5 * mean_dz.max(), 3.0 * noise)
+    use = mean_dz > floor
+    if use.sum() < 3:
+        return np.nan
+    slope, _ = np.polyfit(ds[use], np.log(mean_dz[use]), 1)
+    return np.inf if slope >= 0 else -1.0 / slope     # in POSITIONS
+
+
 def inference_solve_iters(m, seqs, tol=1e-4):
-    """MIXING cost: mean Anderson f-evals to converge at the INFERENCE tol (1e-4), not the tight
-    measurement tol. Fresh solver so the count reflects what a deployment would pay per forward pass."""
+    """MIXING cost: mean Anderson f-evals to converge at the inference tol (what a forward pass pays)."""
     deq = get_deq(f_solver="anderson", f_max_iter=200, f_tol=tol)
     counts = []
     for toks in seqs:
@@ -43,30 +60,28 @@ def inference_solve_iters(m, seqs, tol=1e-4):
     return float(np.mean(counts))
 
 
-def measure_xi_hops(m, toks, gen, n_edits=16):
-    """LOCALITY: filler-edit screening length in HOPS (reuses C2's tight-solve + hop-binned fit)."""
+def measure_xi_positions(m, seqs, gen, n_edits=6):
+    """LOCALITY: filler-edit screening length in POSITIONS, pooled over several base sequences."""
     D, Z, noises = [], [], []
-    for _ in range(n_edits):
-        out = c2.edit_response_profile(m, toks, gen, "filler")
-        if out is None:
-            continue
-        d_, z_, iw, ic, ok, weqc, noise = out
-        if ok:
-            D.append(d_); Z.append(z_); noises.append(noise)
+    for toks in seqs:
+        for _ in range(n_edits):
+            out = c2.edit_response_profile(m, toks, gen, "filler")
+            if out is None:
+                continue
+            d_, z_, iw, ic, ok, weqc, noise = out
+            if ok:
+                D.append(d_); Z.append(z_); noises.append(noise)
     if not D:
         return np.nan
-    xi_hops, _ = c2.fit_xi(np.concatenate(D), np.concatenate(Z), noise=float(np.max(noises)))
-    return xi_hops
+    return fit_xi_positions(np.concatenate(D), np.concatenate(Z), float(np.max(noises)))
 
 
 def main():
-    print(f"device={sw.DEV}  C3 mixing<->locality: sweep window w, curriculum {STAGES}, measure at gap "
-          f"{TEST_GAP}\n", flush=True)
-    print(f"{'w':>3} {'recall':>7} {'solve_iters':>11} {'xi_hops':>8} {'xi_positions':>12} "
-          f"{'iters*xi_pos':>12}", flush=True)
-    rows = []
+    print(f"device={sw.DEV}  C3 v2: window sweep, xi fit in POSITIONS; does the tradeoff dissolve at "
+          f"equilibrium?\n", flush=True)
+    print(f"{'w':>3} {'recall':>7} {'solve_iters':>11} {'xi_positions':>12}   note", flush=True)
     for W in W_SWEEP:
-        sw.W = W                                       # the dial; c2 reads sw.W too (band mask + /W)
+        sw.W = W
         torch.manual_seed(0)
         m = sw.SeqDEQ("softmax", "deq").to(sw.DEV)
         t0 = time.time()
@@ -76,23 +91,20 @@ def main():
         m.eval()
         ge = torch.Generator().manual_seed(123)
         acc = sw.recall(m, TEST_GAP, ge)
-        # tight solver for the C2 xi machinery; separate 1e-4 solver for the mixing-cost count
         m.deq = get_deq(f_solver="anderson", f_max_iter=150, f_tol=1e-6,
                         ift=True, b_solver="anderson", b_max_iter=40)
         tgen = torch.Generator().manual_seed(7)
         seqs = [sw.gen_mqar(1, TEST_GAP, tgen)[0] for _ in range(4)]
         iters = inference_solve_iters(m, seqs)
-        xi_hops = measure_xi_hops(m, seqs[0], tgen)
-        xi_pos = xi_hops * W if np.isfinite(xi_hops) else np.nan
-        prod = iters * xi_pos if np.isfinite(xi_pos) else np.nan
-        rows.append((W, acc, iters, xi_hops, xi_pos, prod))
-        print(f"{W:>3} {acc:>7.3f} {iters:>11.1f} {xi_hops:>8.2f} {xi_pos:>12.2f} {prod:>12.1f}  "
-              f"({time.time()-t0:.0f}s)", flush=True)
+        xi_pos = measure_xi_positions(m, seqs, tgen)
+        note = "under-trained (xi suspect)" if acc < 0.8 else ("xi < window (very local)" if xi_pos < W else "")
+        print(f"{W:>3} {acc:>7.3f} {iters:>11.1f} {xi_pos:>12.2f}   {note}  ({time.time()-t0:.0f}s)",
+              flush=True)
 
-    print("\nREAD: solve_iters should FALL and xi_positions should RISE as w grows (the Pareto). If"
-          "\niters*xi_pos is roughly flat, the dial trades one cost for the other at ~constant product -"
-          "\nthe mixing<->locality tension made quantitative on our own cell. (recall must stay high, else"
-          "\nthe row is a broken model, not a tradeoff point.)", flush=True)
+    print("\nREAD (reframe): if solve_iters FALL with w while xi_positions stays ~flat, the mixing<->locality"
+          "\ntradeoff DISSOLVES at equilibrium -- w is a solve-speed dial, edit-reach is set by sigma_min"
+          "\n(conditioning), not the window. That is C1's reach-decoupling seen from the maintenance side."
+          "\nOnly rows with recall>0.8 are clean operating points.", flush=True)
 
 
 if __name__ == "__main__":

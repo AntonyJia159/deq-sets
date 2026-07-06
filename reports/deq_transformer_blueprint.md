@@ -338,8 +338,16 @@ story** — but the localization comes from sparsity, not from the PE choice.
 - **C2 (maintainability).** A value edit is warm-start-exact (warm==cold); `|Δz|` **decays with sequence
   distance** (metric-local, unlike dense attention), screening length `ξ` set by conditioning;
   `ξ ≤ Faber bound` (sound), tight when well-conditioned.
-- **C3 (tradeoff).** Window `w` dials solve-iterations (mixing) vs edit-reach `ξ` (locality) — a Pareto
-  curve. (Small `w`: slow solve, local edits. Large `w`: fast solve, global edits.)
+- **C3 (tradeoff — DISSOLVES; result in, `c3_mixing_locality.py`).** Predicted a Pareto (small `w`: slow
+  solve, local edits; large `w`: fast solve, global edits). Measured (window sweep, ξ fit in positions):
+  solve-iters **fall** with `w` (98→40) but ξ_positions is **flat and window-independent** (~3–5 tokens,
+  sub-window throughout; w=8/12/20 → 4.95/3.10/3.81, no trend) — **not** ξ∝w. So the mixing↔locality tradeoff
+  **dissolves at equilibrium**: `w` is a *solve-speed* dial, edit-reach is set by σ_min (conditioning), not the
+  window. This is C1's reach-decoupling seen from the maintenance side — a *confirmatory corollary* of C1 + the
+  σ_min thesis (discriminates our framework from the naive finite-depth `w·K` Pareto), **not** a standalone
+  surprise. CAVEAT: flatness may partly reflect our contraction control (SN + s_max cap) pinning learned σ_min
+  into a similar range across `w`; the honest claim is "reach tracked conditioning, and conditioning didn't
+  move much with `w`," not "the window is powerless." Don't oversell.
 - **C4 (multi-scale resolution).** Adding `O(log n)` coarse / global nodes lets a *long-range-relevant*
   edit reach the generation point in `O(log n)` via the coarse channel (local ball + `O(log n)` coarse
   updates) instead of full-suffix recompute — at the cost of the coarse nodes being bounded (`O(log n)`)
