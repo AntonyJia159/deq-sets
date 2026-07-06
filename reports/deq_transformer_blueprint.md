@@ -146,6 +146,32 @@ of the resolvent, the DEQ is the `L→∞` limit, and our reach **upper-bounds a
 too (conservative, sound). Practical insight transfers to any transformer via attention-reachability
 (combinatorial support) + σ_min (quantitative decay). DEQ = the clean setting where reach is a theorem.
 
+### Why DEQ is load-bearing, not incidental — the resolvent exists only at equilibrium (sharpened)
+The certificate `σ_min(I−J)` and the resolvent `(I−J)⁻¹` are *the linearization of a fixed-point equation* —
+they exist **only** because you perturbed `z=f(z)`. A feedforward net has no `z=f(z)`, hence no `(I−J)` to
+invert; it has only the **truncation** `Σ_{k≤L} Jᵏ`. The decisive case is **ρ>1** (which peaked, recall-capable
+attention drives): there the Neumann truncation *diverges* — the feedforward/unroll picture doesn't just
+approximate poorly, it **breaks** — yet `(I−J)⁻¹` still exists (σ_min>0) and the edit is still local. So in
+exactly the regime that makes the model expressive, the maintenance object is **well-defined only at
+equilibrium and computable only by solving (Anderson/Broyden), not by any finite unroll**. This is the sharp
+answer to "why not a deep feedforward transformer, or Mamba?":
+
+| model | the object | what it is |
+|---|---|---|
+| feedforward transformer | `Σ_{k≤L} Jᵏ` | truncation — no inverse; **diverges at ρ>1** |
+| Mamba / causal | `(I−N)⁻¹`, `N` nilpotent | *one-shot* resolvent = the forward scan → product-Lyapunov |
+| **bidirectional DEQ (ours)** | `(I−J)⁻¹`, `J` two-sided | **genuine iterative resolvent** → σ_min/Faber |
+
+**Mamba is not an equilibrium — it is a *degenerate (nilpotent) one*.** Its scan `h_t=A_th_{t-1}+B_tx_t` is
+`(I−N)⁻¹h` with `N` strictly-lower (nilpotent), so the "solve" terminates in one forward sweep — no iteration,
+no contraction condition. That is the causal special case, not a bidirectional equilibrium. Editing means
+re-settling in **both** directions (a change hits readers below *and* callers above), which needs the genuine
+two-sided resolvent; the feedforward truncation and Mamba's one-directional nilpotent version are its two
+*shadows* that cannot. (Even the causal resolvent hides a per-token self-consistency solve inside each
+`(I−D_i)⁻¹` — a token's own equilibrium — that a fixed-depth causal net never performs.) One-line thesis:
+**the maintenance certificate is a property of the fixed-point resolvent; genuine two-sided editing requires
+the full equilibrium, and in the ρ>1 regime nothing else even yields a finite object.**
+
 ### Gradient mode: phantom is a *truncation*, not a failure — and it mirrors the reach cliff
 The stability probe found phantom (1-step) gradient caps MQAR recall at ~0.45 while exact IFT hits 1.00.
 This is **not** "phantom can't train peaked transformers" — phantom (Geng et al. 2021) and the original

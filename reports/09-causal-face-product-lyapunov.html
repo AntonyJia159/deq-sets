@@ -143,7 +143,21 @@ carried a "two regimes, two attention directions" split (decode $=$ causal windo
 bidirectional window) on architectural grounds. The certificate split lands on exactly that line. The math
 caught up to a distinction the experiments forced weeks earlier. And note where our <em>use case</em> lives:
 maintenance/editing is the bidirectional face &mdash; so DMS keeps its throne precisely where we need it, and
-"$\rho>1$ fine, $\sigma_{\min}$ governs" remains the genuine story <em>there</em>.
+"$\rho>1$ fine, $\sigma_{\min}$ governs" remains the genuine story <em>there</em>.</p>
+<div class="callout key">
+  <strong>Why the equilibrium is load-bearing, not incidental.</strong> $(I-J)^{-1}$ and $\sigma_{\min}(I-J)$
+  are the linearization of $z=f(z)$ &mdash; they <em>exist only</em> because there is a fixed point to perturb.
+  A feedforward net has no $(I-J)$ to invert, only the truncation $\sum_{k\le L}J^k$; and in the
+  <strong>$\rho>1$ regime that peaked recall drives, that truncation <em>diverges</em></strong> while
+  $(I-J)^{-1}$ still exists ($\sigma_{\min}>0$) and the edit stays local. So exactly where the model becomes
+  expressive, the maintenance object is well-defined <em>only at equilibrium</em> and computable <em>only by
+  solving</em> (Anderson/Broyden), not by any finite unroll. Mamba is not a counterexample: its scan is
+  $(I-N)^{-1}h$ with $N$ nilpotent &mdash; a <em>one-shot / degenerate</em> equilibrium (solved in one forward
+  sweep), the causal special case, not a two-sided one. Feedforward (truncation) and Mamba (nilpotent) are the
+  two <em>shadows</em> of the resolvent; genuine two-sided editing &mdash; re-settling both below and above an
+  edit &mdash; requires the full equilibrium.
+</div>
+<p>
 </p>
 
 <h2>4. The product&ndash;Lyapunov certificate (causal face)</h2>
