@@ -1,5 +1,34 @@
 # DEQ-Transformer edit-locality — experiment blueprint & honest scoping
 
+## Working title & abstract (2026-07-03 draft)
+**Title (lead):** *Conditioning, Not Contraction: Certifying Local Edits in Deep Equilibrium Transformers.*
+Alts: *Editing Needs an Equilibrium: A Conditioning Certificate for Local In-Context Maintenance* /
+*Characterizing Edit-Locality in Deep Equilibrium Transformers* (TMLR-neutral).
+
+**Abstract (draft).** Mid-context edits are the operation modern sequence models handle worst: a dense
+transformer must invalidate its entire suffix cache, and linear-state models (Mamba/SSMs) are worse still,
+admitting only all-or-nothing reuse of their fused state. We ask when an edit's influence is provably
+*local* — confined to a bounded neighborhood, so the remainder is reused exactly — and show the governing
+quantity is the **conditioning** of the fixed-point map, σ_min(I−J), not its contraction rate ρ. This
+certificate is intrinsically an **equilibrium** object: (I−J)⁻¹ is the linearization of z=f(z), with no
+feedforward analogue — and in the peaked, recall-capable ρ>1 regime, the feedforward Neumann truncation
+Σ Jᵏ *diverges* while the resolvent still exists and edits stay local. The maintenance operation is
+correspondingly equilibrium-only: a **warm-start local re-solve** from the previous fixed point, exact under
+a σ_min uniqueness condition and reach-adaptive in cost. The certificate splits by attention direction into
+two classical regimes — a **causal** face governed by a product–Lyapunov (transfer-operator) rate, of which
+Mamba's per-step gating is the exact *degenerate* special case, and a **bidirectional** face governed by
+Faber/Demko–Moss–Smith resolvent decay — unifying the maintenance mechanisms of graph propagation, SSMs, and
+equilibrium transformers under one invariant, and **detaching editability from the linearity incumbents
+require to obtain it**. On associative-recall probes, sliding-window equilibria relay recall beyond any
+matched finite unroll; edit-response decays with distance within the σ_min certificate across a conditioning
+sweep, staying local even at ρ>1; and warm-start re-solve is exact and adaptive. We present this as a
+*characterization* — the equilibrium is where edit-reach is a theorem and upper-bounds any finite transformer
+— with in-context editing (code, RAG, agent state) as the motivating application.
+*(Gap: the bidirectional-face experiments the abstract headlines are pending; done = C1 reach, causal-face
+C2, full theory + lit review.)*
+
+---
+
 Design doc for the sequence direction (Geng meeting 2026-07-02). Substrate is validated: on a first
 probe (`seq_recall_probe.py`) a softmax-attention DEQ solves MQAR associative recall (acc 1.00) that a
 linear-attention / SSM cell cannot (0.25), and its edits are warm-start-exact — but **edit-locality is
