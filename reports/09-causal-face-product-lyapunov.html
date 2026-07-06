@@ -130,7 +130,7 @@ response, which <em>is</em> DMS territory. This is the classical initial-value /
       <td>banded block <em>lower-triangular</em></td>
       <td class="good">product&ndash;Lyapunov<br>(transfer-operator norms)</td>
       <td>dynamical systems<br><span class="muted">exp. dichotomy</span></td>
-      <td><strong>Mamba</strong> $\prod_t|\lambda_t|$</td></tr>
+      <td>linear recurrence $\prod_t|\lambda_t|$</td></tr>
   <tr><td>bidirectional / edit<br><span class="muted">(boundary-value)</span></td>
       <td>banded, two-sided (near-normal)</td>
       <td class="good">$\sigma_{\min}$ / Faber-on-FOV<br>(resolvent conditioning)</td>
@@ -188,7 +188,7 @@ Three fillings of the same banded-triangular shape, all certificates computed ex
 </p>
 <table>
   <tr><th>case</th><th>$\rho(J)$ says</th><th>truth (resolvent)</th><th>$\kappa$-Chebyshev</th><th>FOV-Faber</th><th>product&ndash;Lyapunov</th></tr>
-  <tr><td><strong>Mamba</strong> (bidiagonal, $D{=}0$)</td>
+  <tr><td>diagonal recurrence (bidiagonal, $D{=}0$)</td>
       <td>0 (all-zero diag)</td>
       <td>$R_{4,0}=\prod a_i$ <em>exactly</em></td><td>&mdash;</td><td>ok</td>
       <td class="good">identity, not bound</td></tr>
@@ -212,42 +212,45 @@ Three fillings of the same banded-triangular shape, all certificates computed ex
   a sound <em>upper</em> bound, whose slack we validate against the exact resolvent.
 </div>
 
-<h2>5. Mamba is the linear corner &mdash; the DEQ properties, visible in a shipped model</h2>
+<h2>5. The linear corner is a linear recurrence &mdash; not a particular model</h2>
 <p>
-Mamba is not a baseline we race; it is the <em>exact scalar special case</em> of the causal certificate, and
-therefore the cleanest concrete anchor for every quantity in this note. Its selective SSM
-$h_t=\bar A_t h_{t-1}+\bar B_t x_t$ has a state-sequence Jacobian that is block lower-<em>bi</em>diagonal
-with <em>diagonal</em> coupling blocks $\bar A_t$ and no self-coupling. So:
+The clean linear special case of the causal certificate is <em>any</em> linear recurrence
+$h_t=A_t h_{t-1}+B_t x_t$ &mdash; a linear time-varying system. We deliberately anchor here, on the generic
+object, rather than on any one architecture's parameterization of it: the product-decay fact needs
+<em>none</em> of the theoretical apparatus a specific model (continuous-time discretization, HiPPO
+initialization, selection-as-time-varying-$\Delta$, hardware-aware scans) is usually dressed in. Those
+lineages are orthogonal to edit-locality; importing them would blur the story, not sharpen it. Two facts,
+stated at the level they actually live:
 </p>
 <ul>
-  <li><strong>The product form is an identity, not a bound.</strong> Influence of time $j$ on time $i$ is
-  <em>exactly</em> $\bar A_i\cdots\bar A_{j+1}=\prod_t\lambda_t$ &mdash; one path, verified numerically above.
-  Our causal certificate is this with dense blocks and multiple paths.</li>
-  <li><strong>Selectivity is a Lyapunov schedule.</strong> The input-dependent gate sets $\lambda_t\!\approx\!1$
-  to carry, $\lambda_t\!\ll\!1$ to forget &mdash; per-channel, per-step control of the influence product. One
-  near-zero gate severs the chain: Mamba's memory management is the product-form certificate, actively
-  steered.</li>
-  <li><strong>Memory horizon <em>is</em> edit reach.</strong> The literature tunes $\lambda\!\to\!1$ (horizon
-  $1/(1-\rho)$) to <em>remember</em>; read backward the identical number is the screening length of a
-  perturbation. Long memory $\equiv$ far-reaching edits. SSM theory <em>does</em> note the forward half &mdash;
-  the memory kernel controls the response amplitude to input perturbations (Cirone et al 2024) &mdash; but the
-  <em>maintenance</em> reading (a mid-context edit and the local re-solve it triggers) is unpriced, for a
-  structural reason: an SSM's fused state has no mid-context edit operation to price.</li>
-  <li><strong>It is a linear equilibrium.</strong> S4/static is the constant-coefficient case
-  $\lambda_t\equiv\lambda$: a linear fixed point whose resolvent decay is the $1/(1-\lambda)$ we have been
-  calling the $\rho$ story. The DEQ properties (fixed point, resolvent, screening length) are already present
-  in it &mdash; latent, because linearity collapses the general $\sigma_{\min}$ down to $1-\rho$.</li>
+  <li><strong>Influence is a product of transition matrices &mdash; the &ldquo;long-term Jacobian&rdquo; of
+  dynamical-systems theory.</strong> For a linear recurrence the influence of step $j$ on step $i$ is
+  <em>exactly</em> $A_i\cdots A_{j+1}$; for a <em>diagonal</em> recurrence this is $\prod_t\lambda_t$, one
+  path (the $R_{4,0}=\prod a_i$ identity verified in &sect;4a). Our causal certificate is this same product,
+  with dense $d\times d$ blocks and multiple interfering paths &mdash; where it becomes a sound upper bound
+  rather than an identity. The decay rate is the <strong>Lyapunov exponent</strong> (geometric mean of the
+  transition norms), the classical rate of a linear time-varying system (Vogt et al 2022).</li>
+  <li><strong>The rate that sets memory is the rate that sets edit-reach.</strong> In any linear recurrence,
+  driving the transition spectrum toward $1$ lengthens the memory horizon $\sim 1/(1-\rho)$; read backward,
+  the identical number is the screening length of a perturbation &mdash; long memory $\equiv$ far-reaching
+  edits. The state-space literature notes the <em>forward</em> half (the memory kernel controls
+  input-perturbation response amplitude; Cirone et al 2024); the <em>maintenance</em> reading &mdash; a
+  mid-context edit and the local re-solve it triggers &mdash; is unpriced, for a structural reason: a fused
+  recurrent state has no mid-context edit operation to price.</li>
 </ul>
 <div class="callout">
-  <strong>How to cite it (positioning).</strong> Mamba appears as a recurring <em>linear anchor</em> &mdash;
-  a worked example that grounds each abstract object (product certificate, the $\rho{\to}1$ duality, the
-  detach-from-linearity thesis) in a shipped model &mdash; not as a section and not as a benchmark rival. The
-  generalization ladder is exact at every rung: <em>scalar</em> (Mamba channels) $\to$ <em>diagonal blocks</em>
-  (Mamba layer) $\to$ <em>dense $d\times d$ blocks, width $w$, multi-path</em> (ours). Our carry can be a
-  low-dimensional <em>subspace</em> precisely because our blocks mix features, which Mamba's diagonal blocks
-  cannot. (A re-blocking argument &mdash; group $w$ positions &mdash; makes any causal band <em>block bidiagonal</em>
-  at window granularity, so at the coarse level our certificate is <em>literally</em> Mamba-shaped, wide blocks
-  in place of scalars. "One hop $=$ one window" is then a theorem, not a unit convention.)</li>
+  <strong>How to position it.</strong> The linear recurrence appears as the <em>linear corner</em> of the
+  certificate family &mdash; the degenerate rung where the resolvent is a single-path product &mdash; not as a
+  recurring hero example and not as a benchmark rival. Contemporary linear-state models (SSMs / linear
+  attention) enter this note only in the <em>motivation</em>, for one baggage-free fact: their fused state
+  admits all-or-nothing reuse, so a mid-context edit is <em>worse</em> for them than for a transformer &mdash;
+  which is why the edit regime is open. The generalization ladder we do claim is structural, not
+  model-specific: <em>scalar</em> (a diagonal recurrence) $\to$ <em>diagonal blocks</em> $\to$ <em>dense
+  $d\times d$ blocks, width $w$, multi-path</em> (ours). Our carry can be a low-dimensional <em>subspace</em>
+  precisely because our blocks mix features, which a diagonal recurrence cannot. (Re-blocking $w$ positions
+  makes any causal band block-bidiagonal at window granularity, so at the coarse level the certificate is a
+  single-path product of wide blocks &mdash; &ldquo;one hop $=$ one window&rdquo; is then a theorem, not a unit
+  convention.)
 </div>
 
 <h2>6. Experiments: the causal face measured</h2>

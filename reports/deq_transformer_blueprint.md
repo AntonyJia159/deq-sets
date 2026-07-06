@@ -15,8 +15,9 @@ feedforward analogue — and in the peaked, recall-capable ρ>1 regime, the feed
 Σ Jᵏ *diverges* while the resolvent still exists and edits stay local. The maintenance operation is
 correspondingly equilibrium-only: a **warm-start local re-solve** from the previous fixed point, exact under
 a σ_min uniqueness condition and reach-adaptive in cost. The certificate splits by attention direction into
-two classical regimes — a **causal** face governed by a product–Lyapunov (transfer-operator) rate, of which
-Mamba's per-step gating is the exact *degenerate* special case, and a **bidirectional** face governed by
+two classical regimes — a **causal** face governed by a product–Lyapunov (transfer-operator) rate whose linear
+special case is the transition-matrix product of a linear recurrence (the object underlying linear-state models
+such as SSMs), and a **bidirectional** face governed by
 Faber/Demko–Moss–Smith resolvent decay — unifying the maintenance mechanisms of graph propagation, SSMs, and
 equilibrium transformers under one invariant, and **detaching editability from the linearity incumbents
 require to obtain it**. On associative-recall probes, sliding-window equilibria relay recall beyond any
@@ -73,24 +74,25 @@ story. So σ_min(I−J) is the maintainability mechanism for **any** map, and Ma
 case. We didn't invent a new maintenance; we generalized the linear one to cover the selection-capable
 regime — *that* is "detach maintainability from linearity."
 
-**One number, two readings — the reading the SSM literature never performed.** The S4/HiPPO/Mamba line
-engineers the spectrum toward the unit circle *on purpose*: λ→1 means memory horizon `1/(1−ρ)` → long-range
-mixing (their benchmarks reward it; selectivity makes λ content-dependent — hold ≈1 to carry, drop to
-forget). Read *backward*, the identical number is the **screening length of a perturbation**: an edit's
-influence survives exactly as far as memory does — **long memory ≡ far-reaching edits; remembering is the
-inability to locally forget a change.** The maintenance reading was never performed for a structural reason:
-the operation it prices doesn't exist in SSM-land (the state is a fused all-or-nothing scan — there is no
-mid-context edit to maintain), so nobody had cause to ask how far an edit reaches. The question becomes
-operational only with a per-position state you can re-solve locally — the sparse-attention equilibrium.
-Paper line: *"the SSM literature tunes ρ→1 to remember; the same limit is what makes an edit impossible to
-forget — memory horizon and edit-reach are one quantity read in two directions, and maintenance is the
-direction that has never been priced."* This duality is also exactly the C3 tension (mixing vs containment)
-as a Pareto curve, with σ_min as its general-form price.
+**One number, two readings.** In *any* linear recurrence, driving the transition spectrum toward the unit
+circle (λ→1) lengthens the memory horizon `1/(1−ρ)`. Read *backward*, the identical number is the
+**screening length of a perturbation**: an edit's influence survives exactly as far as memory does —
+**long memory ≡ far-reaching edits; remembering is the inability to locally forget a change.** The
+state-space literature notes the *forward* half (the memory kernel controls input-perturbation response
+amplitude; Cirone et al 2024); the *maintenance* half is unpriced, for a structural reason: a fused
+recurrent state has no mid-context edit operation to price — you need a per-position state you can re-solve
+locally, the sparse-attention equilibrium. Paper line: *"the rate that sets a linear recurrence's memory
+horizon is the rate that sets its edit-reach — one quantity, two directions; maintenance is the direction
+never priced."* This duality is the σ_min screening length in the linear special case. (Keep this framing at
+the level of a generic linear recurrence — do NOT invoke the discretization / selection-as-Δ / HiPPO lineage
+of any specific model; that apparatus is orthogonal to edit-locality and only blurs the story.)
 
-**The honest cost (`*`).** Our maintenance is not O(1) like Mamba's — we re-solve the equilibrium in the
-σ_min-certified ξ-ball. Defensible claims only: vs **Mamba**, same maintainable class but we can *select*
-(cost = solve iterations, not O(1)); vs the **dense transformer**, we can select *and* the edit is
-σ_min-local (bounded ξ-ball) instead of a full-suffix recompute. Never "cheaper locality than Mamba."
+**The honest cost (`*`).** Our maintenance is not O(1) like a linear recurrence's — we re-solve the
+equilibrium in the σ_min-certified ξ-ball. Defensible claims only: vs a **linear-state model (SSM)**, same
+maintainable class but we can *select* (cost = solve iterations, not O(1); and their fused state is
+all-or-nothing, so a mid-context edit is worse for them); vs the **dense transformer**, we can select *and*
+the edit is σ_min-local (bounded ξ-ball) instead of a full-suffix recompute. Never "cheaper locality than an
+SSM."
 
 ### The unification we contribute — one face is linear (ρ), the other is nonlinear (σ_min)
 The right diagram is NOT "graph propagation ≈ sequence propagation" — that linear equivalence is being
