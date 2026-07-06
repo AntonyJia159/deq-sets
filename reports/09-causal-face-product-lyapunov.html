@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set-DEQ Notes #9 — Two Faces of the Certificate: Causality, the Product–Lyapunov Form, and Mamba as the Linear Corner</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$', '$']], displayMath: [['$$', '$$']] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --ink:#1a1a1a; --muted:#666; --rule:#e2e2e2; --accent:#2b6cb0; --good:#1a7f4b; --bad:#b02a2a; --warn:#b07a1a; --bg:#fafafa; --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 48px 24px 96px; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 32px; }
+  .kicker { font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
+  h1 { font-size: 1.7rem; line-height:1.25; margin:.1em 0 .35em; }
+  .byline { color:var(--muted); font-size:.92rem; }
+  h2 { font-size:1.2rem; margin:2.2em 0 .6em; padding-bottom:.25em; border-bottom:1px solid var(--rule); }
+  h3 { font-size:1.02rem; margin:1.6em 0 .4em; }
+  p { margin:.7em 0; }
+  code { background:#f0f0f3; padding:.08em .35em; border-radius:4px; font-size:.9em;
+         font-family: "SF Mono", Consolas, "Liberation Mono", monospace; }
+  table { width:100%; border-collapse:collapse; margin:1.1em 0; font-size:.88rem; background:var(--card); }
+  th, td { padding:7px 9px; text-align:center; border-bottom:1px solid var(--rule); }
+  th { background:#f3f5f8; font-weight:600; }
+  td:first-child, th:first-child { text-align:left; }
+  .good { color:var(--good); font-weight:600; }
+  .bad  { color:var(--bad);  font-weight:600; }
+  .warn { color:var(--warn); font-weight:600; }
+  .callout { background:#eef4fb; border:1px solid #cfe0f3; border-radius:8px; padding:14px 18px; margin:1.2em 0; }
+  .callout.warn { background:#fdf3ee; border-color:#f3d8c8; }
+  .callout.null { background:#f1f3f5; border-color:#dcdfe3; }
+  .callout.key { background:#eaf6ee; border-color:#bfe3cb; }
+  .muted { color:var(--muted); }
+  ul, ol { margin:.5em 0; padding-left:1.3em; }
+  li { margin:.35em 0; }
+  footer { margin-top:48px; padding-top:18px; border-top:1px solid var(--rule); color:var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="kicker">Set-DEQ Notes · #9 · sequence pivot · theory restructure + causal-face experiments</p>
+  <h1>Two Faces of the Certificate: Causality Splits the Edit-Locality Theory, and Mamba is the Linear Corner</h1>
+  <p class="byline">Zhibai Jia · 3 July 2026 · the σ<sub>min</sub> story meets the causal Jacobian &mdash; one certificate becomes two, each reducing to a known linear model</p>
+</header>
+
+<div class="callout">
+  <strong>What this note is.</strong> Notes #7&ndash;#8 established, on graphs, that edit-locality is governed
+  by $\sigma_{\min}(I-J)$ rather than contraction. This note transplants that to <em>sequences</em>
+  (a sliding-window softmax DEQ &mdash; an equilibrium transformer), and reports what broke and what
+  survived when the theory met the one structural fact of the sequence setting: <strong>a causal Jacobian
+  is block lower-triangular.</strong> That single fact splits the certificate into two faces, one of which
+  is <em>not</em> Demko&ndash;Moss&ndash;Smith at all &mdash; and hands us Mamba as an exact special case.
+</div>
+
+<div class="callout key">
+  <strong>Result, in one paragraph.</strong> The phenomenon (edit-response decays with distance; a screening
+  length exists; warm-start local re-solve maintains it) and the invariant ($\sigma_{\min}$) survive the
+  transplant unchanged. What restructures is the <em>rate formula</em>: it splits by regime into an
+  <strong>initial-value face</strong> (causal / decode: the resolvent is a forward substitution &mdash; a
+  linearized time-varying RNN &mdash; certified by a <strong>product&ndash;Lyapunov</strong> form, of which
+  <strong>Mamba is the exact scalar special case</strong>) and a <strong>boundary-value face</strong>
+  (bidirectional / edit: a screened elliptic response, certified by $\sigma_{\min}$/Faber &mdash; DMS's home
+  turf). Experiments on the causal face confirm containment (edits decay, the envelope holds on the fair
+  edit class) and turn up a real discovery: a causal relay must <em>carry every binding forward</em>, so
+  even task-irrelevant edits propagate &mdash; the KV-cache "carry everything" behaviour emerging <em>from</em>
+  the equilibrium rather than imposed on it.
+</div>
+
+<h2>1. Substrate: an equilibrium transformer on controlled-gap recall</h2>
+<p>
+The testbed is MQAR (multi-query associative recall): a sequence of key&ndash;value pairs, then filler, then
+queries that each re-name a key and must emit its bound value. The model is a sliding-window (width $w{=}10$)
+multi-head softmax attention cell run to equilibrium, $z=f(z)$, trained with implicit differentiation
+(TorchDEQ, Anderson forward + exact IFT). Two facts from the reach experiment (Note-scope C1) set up
+everything here: (i) the equilibrium relays recall <em>beyond any matched finite unroll</em> &mdash; clean
+separation at gap 24, where a 4-step unroll that <em>has</em> the mechanism (it solves gaps 0&ndash;16) still
+cliffs while the equilibrium holds (0.97 vs 0.36); and (ii) training pushes the cell across a range of
+conditioning, giving a curriculum of checkpoints spanning $\sigma_{\min}(I-J)$ from $0.18$ down to $0.03$
+&mdash; the sweep the edit-locality law needs.
+</p>
+
+<h2>2. The one structural fact: a causal Jacobian is block lower-triangular</h2>
+<p>
+Differentiate the cell at its fixed point. The Jacobian $J$ is an $L\times L$ grid of $d\times d$ blocks,
+$J_{ij}=\partial f_i/\partial z_j$, and causality plus the window force
+$$ J_{ij}=0 \quad\text{for } j>i \ (\text{causal}) \ \text{ or } \ j<i-w \ (\text{window}), $$
+so $J$ is <strong>banded, block lower-triangular</strong>. Three consequences, in increasing severity:
+</p>
+<ul>
+  <li><strong>Eigenvalues go blind.</strong> A triangular matrix's spectrum is the union of its
+  <em>diagonal</em> blocks' spectra. So $\rho(J)$ sees only the per-token self-coupling
+  $\partial f_i/\partial z_i$ and is <em>completely blind to the relay</em> &mdash; the sub-diagonal blocks
+  that carry information forward. (This is why $\rho$ jumped between 0.72, 1.19, 8.4 across nominally-equal
+  training runs while behaviour stayed stable: for triangular matrices, eigenvalues are fragile and
+  uninformative.)</li>
+  <li><strong>$\sigma_{\min}$ and eigenvalues decouple maximally.</strong> Triangular matrices are the
+  textbook case where $\sigma_{\min}(I-J)$ bears no relation to $\min_i|1-\lambda_i|$. Our "$\sigma_{\min}$
+  governs, not $\rho$" claim is therefore <em>structurally guaranteed</em> in the causal setting, not an
+  empirical surprise.</li>
+  <li><strong>The old $\xi(\kappa)$ formula was a category error here.</strong> The Note-#8 conversion
+  $\xi = -1/\ln\frac{\sqrt\kappa-1}{\sqrt\kappa+1}$ is the Demko&ndash;Moss&ndash;Smith / Chebyshev rate,
+  proved for <em>symmetric positive-definite</em> banded matrices. The causal $J$ is the opposite extreme
+  &mdash; maximally non-normal &mdash; so that formula was never justified for it. (It was defensible on the
+  <em>graphs</em>, whose undirected topology makes $J$ nearer-normal; that near-normality is now a flagged
+  check, not an assumption.)</li>
+</ul>
+<div class="callout warn">
+  <strong>Honest correction to the framework.</strong> The certificate <em>quantity</em> ($\sigma_{\min}$,
+  and its roles: invertibility, gain $1/\sigma_{\min}$, error amplification) was right all along and needs
+  no symmetry. What was wrong was <em>one step</em>: converting conditioning into a spatial decay rate via
+  the SPD Chebyshev formula. That step is what splits below into two regime-specific replacements.
+</div>
+
+<h2>3. Two faces &mdash; the initial-value / boundary-value split</h2>
+<p>
+The fix is not a patch; it has a shape. The causal resolvent is solved by <em>forward substitution</em>,
+$z_i=(I-D_i)^{-1}\big(h_i+\sum_{j<i}\text{couplings}\cdot z_j\big)$ &mdash; i.e. <strong>the resolvent
+<em>is</em> a linearized time-varying RNN run forward</strong>, and its decay theory is RNN stability
+theory (Lyapunov exponents), not approximation theory. The bidirectional case remains a screened elliptic
+response, which <em>is</em> DMS territory. This is the classical initial-value / boundary-value dichotomy:
+</p>
+<table>
+  <tr><th>regime</th><th>Jacobian</th><th>certificate</th><th>proof family</th><th>linear special case</th></tr>
+  <tr><td>causal / decode<br><span class="muted">(initial-value)</span></td>
+      <td>banded block <em>lower-triangular</em></td>
+      <td class="good">product&ndash;Lyapunov<br>(transfer-operator norms)</td>
+      <td>dynamical systems<br><span class="muted">exp. dichotomy</span></td>
+      <td><strong>Mamba</strong> $\prod_t|\lambda_t|$</td></tr>
+  <tr><td>bidirectional / edit<br><span class="muted">(boundary-value)</span></td>
+      <td>banded, two-sided (near-normal)</td>
+      <td class="good">$\sigma_{\min}$ / Faber-on-FOV<br>(resolvent conditioning)</td>
+      <td>approximation theory<br><span class="muted">DMS, Benzi&ndash;Golub</span></td>
+      <td>graph resolvent, $1-\rho$</td></tr>
+</table>
+<p>
+The alignment that makes this feel earned rather than bolted-on: the sequence direction <em>already</em>
+carried a "two regimes, two attention directions" split (decode $=$ causal window; edit/maintenance $=$
+bidirectional window) on architectural grounds. The certificate split lands on exactly that line. The math
+caught up to a distinction the experiments forced weeks earlier. And note where our <em>use case</em> lives:
+maintenance/editing is the bidirectional face &mdash; so DMS keeps its throne precisely where we need it, and
+"$\rho>1$ fine, $\sigma_{\min}$ governs" remains the genuine story <em>there</em>.
+</p>
+
+<h2>4. The product&ndash;Lyapunov certificate (causal face)</h2>
+<p>
+Split $J=D+N$ (block-diagonal self-coupling vs strictly-lower coupling band). Then
+$$ (I-J)^{-1}=\sum_{k=0}^{L-1}\big[(I-D)^{-1}N\big]^k\,(I-D)^{-1}, $$
+and because $N$ is <em>strictly</em> lower-triangular, $(I-D)^{-1}N$ is <strong>nilpotent</strong> &mdash;
+the sum <em>terminates</em>. This is an exact identity requiring no convergence condition: it holds even at
+the $\rho(J)=8.4$ checkpoint where the naive Neumann series $\sum J^k$ diverges. The influence of an edit at
+$j$ on position $i$ is then a <em>finite</em> sum of ordered products of the coupling blocks along
+forward paths, with dwells folded into the $(I-D_i)^{-1}$ factors. The resulting screening rate is
+$$ g \;=\; \max_i \big\|(I-D_i)^{-1}[\,W_i\cdots A_i\,]\big\| \;\le\; \frac{\max_i\|[\,W_i\cdots A_i\,]\|}{1-\max_i\|D_i\|}, $$
+&mdash; <em>coupling per hop</em> $\times$ <em>token-internal re-amplification</em> $1/(1-\|D\|)$. The per-token
+$\|(I-D_i)^{-1}\|=1/\sigma_{\min}(I-D_i)$: <strong>the global certificate factorizes into per-token
+$\sigma_{\min}$ times coupling norms</strong> &mdash; the same invariant, one block at a time. Cost is
+$O(L\,w\,d^2)$: <em>linear in sequence length</em>, no inverse, no eigensolve &mdash; the only one of the
+three certificates that scales, with $\sigma_{\min}$/FOV as the $O((Ld)^3)$ toy-scale validation layer.
+</p>
+<h3>4a. Toy validation (a 5&times;5 in the causal-banded shape)</h3>
+<p>
+Three fillings of the same banded-triangular shape, all certificates computed exactly:
+</p>
+<table>
+  <tr><th>case</th><th>$\rho(J)$ says</th><th>truth (resolvent)</th><th>$\kappa$-Chebyshev</th><th>FOV-Faber</th><th>product&ndash;Lyapunov</th></tr>
+  <tr><td><strong>Mamba</strong> (bidiagonal, $D{=}0$)</td>
+      <td>0 (all-zero diag)</td>
+      <td>$R_{4,0}=\prod a_i$ <em>exactly</em></td><td>&mdash;</td><td>ok</td>
+      <td class="good">identity, not bound</td></tr>
+  <tr><td>mild ($\delta{=}.3$, $a{\approx}.5$)</td>
+      <td>0.30</td><td>decays $\sim\!0.9$/step</td><td>ok</td><td>usable</td>
+      <td class="good">$g{=}1.0$ (sound, loose)</td></tr>
+  <tr><td>"$\rho$ lies" ($\delta{=}.3$, $a{=}2$)</td>
+      <td class="bad">0.30 &rarr; "stable"</td>
+      <td class="bad">grows $95\times$ at dist 4</td>
+      <td class="bad">$r{=}.888$ &rarr; wrong sign</td>
+      <td class="warn">$0\in W$ &rarr; vacuous (fails safe)</td>
+      <td class="good">$g{=}2.857$ exact</td></tr>
+</table>
+<div class="callout key">
+  <strong>The diagnostic case is "$\rho$ lies".</strong> Diagonal $0.3$, coupling $2.0$: every eigenvalue is
+  $0.3$ so $\rho$ reports "contained", while the resolvent's off-diagonals <em>grow</em> $95\times$ over four
+  hops. The old $\kappa$-Chebyshev rate predicts <em>decay</em> (wrong sign, confidently); Faber-on-FOV
+  abstains honestly ($0$ lies inside the field of values); only the product form is right, and it is
+  <em>exact</em> ($g=\alpha/(1-\delta)=2/0.7=2.857$, matched to four digits). Exactness is a property of the
+  scalar single-path chain; with dense $d\times d$ blocks and $w$ interfering paths the product form becomes
+  a sound <em>upper</em> bound, whose slack we validate against the exact resolvent.
+</div>
+
+<h2>5. Mamba is the linear corner &mdash; the DEQ properties, visible in a shipped model</h2>
+<p>
+Mamba is not a baseline we race; it is the <em>exact scalar special case</em> of the causal certificate, and
+therefore the cleanest concrete anchor for every quantity in this note. Its selective SSM
+$h_t=\bar A_t h_{t-1}+\bar B_t x_t$ has a state-sequence Jacobian that is block lower-<em>bi</em>diagonal
+with <em>diagonal</em> coupling blocks $\bar A_t$ and no self-coupling. So:
+</p>
+<ul>
+  <li><strong>The product form is an identity, not a bound.</strong> Influence of time $j$ on time $i$ is
+  <em>exactly</em> $\bar A_i\cdots\bar A_{j+1}=\prod_t\lambda_t$ &mdash; one path, verified numerically above.
+  Our causal certificate is this with dense blocks and multiple paths.</li>
+  <li><strong>Selectivity is a Lyapunov schedule.</strong> The input-dependent gate sets $\lambda_t\!\approx\!1$
+  to carry, $\lambda_t\!\ll\!1$ to forget &mdash; per-channel, per-step control of the influence product. One
+  near-zero gate severs the chain: Mamba's memory management is the product-form certificate, actively
+  steered.</li>
+  <li><strong>Memory horizon <em>is</em> edit reach.</strong> The literature tunes $\lambda\!\to\!1$ (horizon
+  $1/(1-\rho)$) to <em>remember</em>; read backward the identical number is the screening length of a
+  perturbation. Long memory $\equiv$ far-reaching edits. Mamba performs the forward reading; the maintenance
+  reading was never taken, for a structural reason &mdash; an SSM's fused state has no mid-context edit
+  operation to price.</li>
+  <li><strong>It is a linear equilibrium.</strong> S4/static is the constant-coefficient case
+  $\lambda_t\equiv\lambda$: a linear fixed point whose resolvent decay is the $1/(1-\lambda)$ we have been
+  calling the $\rho$ story. The DEQ properties (fixed point, resolvent, screening length) are already present
+  in it &mdash; latent, because linearity collapses the general $\sigma_{\min}$ down to $1-\rho$.</li>
+</ul>
+<div class="callout">
+  <strong>How to cite it (positioning).</strong> Mamba appears as a recurring <em>linear anchor</em> &mdash;
+  a worked example that grounds each abstract object (product certificate, the $\rho{\to}1$ duality, the
+  detach-from-linearity thesis) in a shipped model &mdash; not as a section and not as a benchmark rival. The
+  generalization ladder is exact at every rung: <em>scalar</em> (Mamba channels) $\to$ <em>diagonal blocks</em>
+  (Mamba layer) $\to$ <em>dense $d\times d$ blocks, width $w$, multi-path</em> (ours). Our carry can be a
+  low-dimensional <em>subspace</em> precisely because our blocks mix features, which Mamba's diagonal blocks
+  cannot. (A re-blocking argument &mdash; group $w$ positions &mdash; makes any causal band <em>block bidiagonal</em>
+  at window granularity, so at the coarse level our certificate is <em>literally</em> Mamba-shaped, wide blocks
+  in place of scalars. "One hop $=$ one window" is then a theorem, not a unit convention.)</li>
+</div>
+
+<h2>6. Experiments: the causal face measured</h2>
+<p>
+We measure edit-locality directly: solve a sequence, substitute one token, re-solve from the old equilibrium
+(the maintenance operation), and read the response $|\Delta z_i|$ vs distance. The measurement took four
+revisions to get right, and each correction was the object being more structured than the hypothesis.
+</p>
+<h3>6a. Edits have task-relevance classes &mdash; and a causal relay must carry every binding</h3>
+<p>
+The first naive single-exponential fits "violated" the envelope. The cause was not the model: a
+<strong>task-relevant</strong> edit (a queried value) <em>must</em> reach its dependent query &mdash; that is
+recall working, a transport ridge, not a locality failure. Splitting edits by relevance revealed a genuine
+discovery. A causal relay cannot know which keys will be queried later, so it <strong>transports every
+binding forward</strong>; thus even a task-<em>irrelevant</em> value edit rides the carry. Three tiers,
+monotone at every checkpoint:
+</p>
+<table>
+  <tr><th>edit class</th><th>what it demands</th><th>observed reach</th><th>role</th></tr>
+  <tr><td><strong>filler</strong> (no binding)</td><td>nothing &mdash; pure decay</td>
+      <td class="good">$\xi\approx0.4$&ndash;$1.0$ hop</td><td>the fair envelope witness</td></tr>
+  <tr><td><strong>irrelevant value</strong> (key never queried)</td><td>state carry (must-carry)</td>
+      <td class="warn">$\xi\approx0.8$&ndash;$1.8$, far/near $\to0.07$</td><td>transport, not violation</td></tr>
+  <tr><td><strong>relevant value</strong> (queried)</td><td>reach the dependent query</td>
+      <td>far/near $0.09$&ndash;$0.14$ at gap $\ge16$</td><td>the recompute set (recall working)</td></tr>
+</table>
+<p class="muted">
+"far/near" $=$ mean response beyond two windows over the near-field peak. The must-carry finding is the
+KV-cache "carry everything forward" behaviour emerging <em>from</em> the equilibrium &mdash; and it is exactly
+why a single scalar $\xi$ is the wrong summary for anything but filler edits.
+</p>
+<h3>6b. Containment holds, hop-binned, on the fair class</h3>
+<p>
+On filler edits, binned at hop ($=$ window) granularity &mdash; the resolution the re-blocking argument says
+is the right one &mdash; the measured reach sits inside the (loose, wrong-face) Faber envelope everywhere it
+is measurable, and <em>grows as $\sigma_{\min}$ shrinks</em> (the conditioning-governs-reach trend, on the
+witness class):
+</p>
+<table>
+  <tr><th>checkpoint</th><th>recall</th><th>$\rho(J)$</th><th>$\sigma_{\min}$</th><th>filler $\xi$ (hops)</th><th>envelope</th></tr>
+  <tr><td>curr16</td><td>0.991</td><td>0.68</td><td>0.083</td><td>0.38</td><td class="good">$\le4.93$ ok</td></tr>
+  <tr><td>curr24</td><td>0.988</td><td>0.72</td><td>0.095</td><td>0.64</td><td class="good">$\le4.74$ ok</td></tr>
+  <tr><td>curr40</td><td>0.830</td><td class="warn">8.37</td><td>0.026</td><td>0.97</td><td class="good">$\le16.2$ ok</td></tr>
+</table>
+<p>
+(curr00/08 sequences span only 1&ndash;2 windows &mdash; too short for a per-hop fit; their far-field is
+identically zero, i.e. contained.) <strong>Scope flag:</strong> these are the <em>causal</em> checkpoints, so
+the rigorous certificate here is the product form of &sect;4, not Faber; the Faber column is a loose sanity
+envelope from the wrong face. The proper per-face validation &mdash; product form vs the exact resolvent on
+these $J$; Faber on a <em>bidirectional</em> retrain &mdash; is the immediate next step, not yet done.
+</p>
+<h3>6c. $\sigma_{\min}$ has a third face: error amplification</h3>
+<p>
+Anderson stalled at residual $\sim\!10^{-4}$ regardless of budget on these peaked cells, and two nominally
+"converged" states sat up to $10^{-2}$ apart. This is not multistability; it is
+$\|z_{\text{err}}\|\le \text{resid}/\sigma_{\min}$ &mdash; the <em>same</em> conditioning that sets reach and
+solve cost also amplifies solver error. Confirmed directly: a 2&ndash;3 step Newton polish
+$z\!\mathrel{+}=(I-J)^{-1}(f(z)-z)$ (fp32 evaluation, fp64 solve) tightens the residual $10^{-4}\!\to\!10^{-8}$,
+and the warm-vs-cold discrepancy collapses right along with it. So $\sigma_{\min}$ now appears <em>four</em>
+ways &mdash; reach, solve cost, error amplification, and the per-token factorization of &sect;4.
+</p>
+<h3>6d. Warm-start is exact under uniqueness, branch-tracking otherwise</h3>
+<p>
+With tight residuals, warm and cold re-solves agree to $10^{-7}$ wherever the fixed point is unique
+(curr00&ndash;24: per-sequence cold-vs-cold divergence $\sim\!10^{-7}$). Two distinct multistability signals
+appear: curr40 is <em>sequence-dependent</em> (2 of 4 base sequences admit multiple equilibria; the
+half-trained $\rho=8.4$ cell), while curr16 shows an <em>edit-induced</em> split (unique before the edit,
+branched after). Where uniqueness fails, warm-start is not "approximately exact" &mdash; it is
+<strong>branch-tracking</strong>: it follows the equilibrium continuous with the pre-edit state, which is
+arguably the <em>correct</em> maintenance semantics (a cold recompute may jump branches). The
+$\sigma_{\min}$ uniqueness certificate is exactly the condition under which "cheap" and "correct" coincide
+&mdash; and it connects the maintenance story to beneficial solution-diversity (a separately-flagged direction).
+</p>
+
+<h2>7. What survived, what restructured, what is owed</h2>
+<div class="callout key">
+  <strong>The restructure, weighed.</strong> Three layers: the <em>phenomenon</em> (decay, screening length,
+  warm-start maintenance) is untouched; the <em>invariant</em> $\sigma_{\min}$ is untouched and strengthened
+  (now four appearances); only the <em>rate formula</em> is rebuilt &mdash; into two faces that each reduce
+  <em>exactly</em> to a known linear model (Chebyshev $\leftrightarrow$ graph resolvent; product
+  $\leftrightarrow$ Mamba). The "generalize the linear incumbents" thesis now holds on <em>both</em> faces,
+  provably, rather than via one stretched formula. This is a stronger theory section, not damage control.
+</div>
+<ul>
+  <li><strong>The bidirectional face &mdash; our actual use case &mdash; is not yet measured.</strong> Editing is
+  the boundary-value regime, where Faber/$\sigma_{\min}$ is proper; but we measured the causal checkpoints
+  because they existed. A bidirectional-band curriculum retrain is the headline experiment still owed.</li>
+  <li><strong>The product certificate is not yet computed on real $J$.</strong> Only the $5\times5$ toy and
+  the exact resolvent exist; the block-form $g$ (and the sharper geometric-mean-along-path rate) must be run
+  on the trained Jacobians and scored against the exact resolvent to measure its slack.</li>
+  <li><strong>A literature debt in a second field.</strong> The causal face is exponential-dichotomy / Lyapunov
+  theory; whether sparse-attention or RNN-Jacobian locality has already been read through that lens (the
+  Mamba-as-product observation feels findable) is unchecked.</li>
+  <li><strong>FOV can be vacuous.</strong> For strongly non-normal $J$ the field of values can contain $0$
+  while $J$ is invertible &mdash; the Faber bound then abstains. This is a feature (fails safe) but must be
+  stated, and it is <em>why</em> the causal regime needs the product form instead.</li>
+  <li><strong>curr40 is half-trained</strong> ($\rho=8.4$, recall $0.83$); its multistability and loose
+  residuals are consistent with an unconverged cell, and it is used only as the extreme conditioning point,
+  not as a clean equilibrium.</li>
+</ul>
+
+<footer>
+  Set-DEQ Notes #9 · experiments: <code>sliding_window_reach.py</code>, <code>curriculum_checkpoints.py</code>,
+  <code>c2_edit_locality.py</code> (v1&ndash;v5), <code>stability_probe.py</code> · toy: <code>lyapunov_toy.py</code> ·
+  builds on #7&ndash;#8 (the graph $\sigma_{\min}$ theory) and the DEQ-transformer blueprint. Honesty notes:
+  corrects the Note-#8 $\kappa$-Chebyshev formula to a causal-regime category error; reports the causal face
+  only, with the bidirectional (use-case) face explicitly still owed.
+</footer>
+</div>
+</body>
+</html>
