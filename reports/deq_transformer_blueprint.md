@@ -207,6 +207,21 @@ local perturbation to `h0`; Anderson/Broyden from `z*` converges in `O(ξ)` iter
 lifts *inside* the ξ-ball — outside it `f(z*)≈z*`, so those coordinates arrive already-converged and cost
 nothing. That is the concrete "downstream tokens are not recomputed from scratch."
 
+**Warm start's claim-status (characterization vs proposal — keep this line bright).** Warm-start is the one
+*operational* channel that is genuinely equilibrium-exclusive: a feedforward net has no "resume" — after an
+edit the affected positions pay all `L` layers again, a **fixed** cost regardless of how small the edit's
+effect is, and its recompute set is an `L`-layer light cone. The equilibrium object instead has (1)
+**adaptive cost** — iterations ∝ how far the solution moved (∝ ξ), not ∝ depth; (2) **exactness** —
+path-independence, warm==cold to ~1e-7 (measured), where feedforward partial-recompute heuristics are lossy;
+(3) **depth-independent reach** — the ball is ξ (conditioning), not `L`. HOW we report it decides which
+paper we're writing: we measure **solver iterations vs edit distance + the warm/cold iteration ratio**
+(architecture-internal property measurement → characterization); we never report wall-clock against
+optimized serving stacks (→ systems proposal, owing benchmarks we don't run). Paper sentence: *"the object
+we characterize additionally possesses an exact, reach-adaptive maintenance channel unavailable to any
+finite feedforward network; whether this makes equilibrium LMs practical at scale is a systems question we
+do not answer."* Counterweights stay attached: warm-start needs the O(n·d) equilibrium state stored (≈ a KV
+cache — no memory win), and per-token decode overhead remains; the channel is for **edits**, not generation.
+
 **Support-graph incremental re-solve (promoted from "later" to a named component).** The support of the
 attention matrix (nonzero-weight indices) *is* a sparse dependency graph. Re-solving only over the region
 reachable from the edit along that graph, freezing the rest, is **self-adjusting computation** (Acar) applied
