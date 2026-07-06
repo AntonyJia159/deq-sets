@@ -156,7 +156,13 @@ the $\rho(J)=8.4$ checkpoint where the naive Neumann series $\sum J^k$ diverges.
 $j$ on position $i$ is then a <em>finite</em> sum of ordered products of the coupling blocks along
 forward paths, with dwells folded into the $(I-D_i)^{-1}$ factors. The resulting screening rate is
 $$ g \;=\; \max_i \big\|(I-D_i)^{-1}[\,W_i\cdots A_i\,]\big\| \;\le\; \frac{\max_i\|[\,W_i\cdots A_i\,]\|}{1-\max_i\|D_i\|}, $$
-&mdash; <em>coupling per hop</em> $\times$ <em>token-internal re-amplification</em> $1/(1-\|D\|)$. The per-token
+&mdash; <em>coupling per hop</em> $\times$ <em>token-internal re-amplification</em> $1/(1-\|D\|)$. The
+<em>mathematics</em> here is not new: influence as a product of per-step Jacobian blocks, with the decay rate
+a Lyapunov exponent (geometric mean of coupling norms), is classical RNN dynamical-systems theory (Vogt et al,
+<em>On Lyapunov Exponents for RNNs</em>, 2022; the singular values of the long-term Jacobian govern
+propagation). What is new is the <em>use</em>: applying it as an <strong>edit-locality certificate</strong>
+(not a gradient-propagation diagnostic) on an <em>equilibrium attention</em> cell, and tying it to
+$\sigma_{\min}$ via the per-token factorization below. The per-token
 $\|(I-D_i)^{-1}\|=1/\sigma_{\min}(I-D_i)$: <strong>the global certificate factorizes into per-token
 $\sigma_{\min}$ times coupling norms</strong> &mdash; the same invariant, one block at a time. Cost is
 $O(L\,w\,d^2)$: <em>linear in sequence length</em>, no inverse, no eigensolve &mdash; the only one of the
@@ -209,9 +215,10 @@ with <em>diagonal</em> coupling blocks $\bar A_t$ and no self-coupling. So:
   steered.</li>
   <li><strong>Memory horizon <em>is</em> edit reach.</strong> The literature tunes $\lambda\!\to\!1$ (horizon
   $1/(1-\rho)$) to <em>remember</em>; read backward the identical number is the screening length of a
-  perturbation. Long memory $\equiv$ far-reaching edits. Mamba performs the forward reading; the maintenance
-  reading was never taken, for a structural reason &mdash; an SSM's fused state has no mid-context edit
-  operation to price.</li>
+  perturbation. Long memory $\equiv$ far-reaching edits. SSM theory <em>does</em> note the forward half &mdash;
+  the memory kernel controls the response amplitude to input perturbations (Cirone et al 2024) &mdash; but the
+  <em>maintenance</em> reading (a mid-context edit and the local re-solve it triggers) is unpriced, for a
+  structural reason: an SSM's fused state has no mid-context edit operation to price.</li>
   <li><strong>It is a linear equilibrium.</strong> S4/static is the constant-coefficient case
   $\lambda_t\equiv\lambda$: a linear fixed point whose resolvent decay is the $1/(1-\lambda)$ we have been
   calling the $\rho$ story. The DEQ properties (fixed point, resolvent, screening length) are already present
@@ -317,9 +324,14 @@ $\sigma_{\min}$ uniqueness certificate is exactly the condition under which "che
   <li><strong>The product certificate is not yet computed on real $J$.</strong> Only the $5\times5$ toy and
   the exact resolvent exist; the block-form $g$ (and the sharper geometric-mean-along-path rate) must be run
   on the trained Jacobians and scored against the exact resolvent to measure its slack.</li>
-  <li><strong>A literature debt in a second field.</strong> The causal face is exponential-dichotomy / Lyapunov
-  theory; whether sparse-attention or RNN-Jacobian locality has already been read through that lens (the
-  Mamba-as-product observation feels findable) is unchecked.</li>
+  <li><strong>Literature debt &mdash; now discharged (see <code>sequence_certificate_literature.md</code>).</strong>
+  Both proof families are mature, citable theory: the causal face is classical RNN-Lyapunov / Jacobian-product
+  decay (Vogt et al 2022), the bidirectional face is Benzi&ndash;Golub FOV/Faber decay for non-normal banded
+  inverses. We stand on them and cite; the unoccupied sliver is the <em>use</em> &mdash; a spatial edit-reach
+  certificate on a nonlinear equilibrium attention model, the IVP/BVP regime split, and the warm-start
+  maintenance operation. One correction the review forced: SSM theory already notes the <em>forward</em>
+  perturbation-response half of the memory&harr;reach duality (Cirone et al 2024), so only the
+  <em>maintenance</em> reading is unpriced.</li>
   <li><strong>FOV can be vacuous.</strong> For strongly non-normal $J$ the field of values can contain $0$
   while $J$ is invertible &mdash; the Faber bound then abstains. This is a feature (fails safe) but must be
   stated, and it is <em>why</em> the causal regime needs the product form instead.</li>
