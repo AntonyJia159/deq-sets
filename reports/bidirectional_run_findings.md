@@ -265,12 +265,13 @@ The central honesty (§5 / blueprint) says causal edits aren't *local*. It does 
   resid/σ_min` holds at every point of a warm re-solve → any *partial* recompute carries a certified error bar;
   stop when `resid/σ_min < tol` and the result is provably close. The "third face" of σ_min, now stated as the
   causal face's a-posteriori guarantee.
-- **Tier 3 — emergent metering (MEASURED, epistemic label: property of the trained model, not a guarantee).**
-  Warm-start iterations track `‖z*_new − z*_old‖` with *no* pre-classification: filler ~4 evals → unqueried
-  ~11–18 → queried ~22≈cold. Feedforward recompute is **input-sensitive** (always L×suffix, however trivial);
-  the equilibrium channel is **output-sensitive** (charges for the change that actually happened). This sits
-  *inside* the tier-2 bound, so the composite is sound: "cost adapts to realized change (measured), any early
-  stop is certified (proved)."
+- **Tier 3 — emergent metering (MEASURED; REVISED by C2m — see §10 result block): a BIDIRECTIONAL property.**
+  Warm-start iterations track `‖z*_new − z*_old‖` cleanly on the near-normal bidirectional face (Spearman
+  ~0.9, output-sensitive billing as a law) but only weakly on the causal face (mode-alignment dominates:
+  carry-aligned movement = slow modes = disproportionate cost; absent at near-singular). The coarse 3-class
+  ordering (filler ~4 → unqueried ~11–18 → queried ~22≈cold) still holds causally, but as a *step*, not a law.
+  Feedforward/cold recompute is **input-sensitive** (flat toll, confirmed). Tier 3 sits inside the tier-2
+  bound, so the composite stays sound — but on the causal face the reliable instruments are tiers 1–2 only.
 
 **Deferred-billing / lazy-activation reading (ZJ, the resolution of "why edit if nothing reached the
 cursor?").** Most edits are a **quiet build-up of relationships, stored locally, awaiting a future trigger
@@ -296,7 +297,29 @@ dz@reader-position observable is confounded — retargeting a query changes the 
 direct state change, not transport) — so reader-independence of *write-cost* is the clean signal.
 **What survives:** tier-3 metering (cost ∝ realized ‖Δz‖ — contained edits cheaper than transporting ones)
 holds qualitatively; the "two faces = eager vs lazy evaluation strategies" framing is **demoted** to "lazy is
-permitted but not incentivized; these trained models are all eager." **Bonus finding:** the query-visible
+permitted but not incentivized; these trained models are all eager."
+
+**C2m RESULT (`c2m_metering.py`, curr+bidir 16/24/40; real edits + synthetic carry/transverse perturbations;
+cold solves = the flat toll; ‖R·δh‖ = pre-solve forecast) — metering is REAL but FACE-DEPENDENT, inverting the
+load-bearing assignment:**
+- **Bidirectional face gets the clean law:** Spearman(n_warm, ‖Δz‖) = **0.90/0.92/0.89**, slopes 4.3–14.5
+  evals/decade, partial corr(n, ‖δh‖ | ‖Δz‖) ≈ 0 (−0.10/+0.18 at bidir24/40) — cost meters output magnitude,
+  input norm adds nothing. Output-sensitive billing, as a law.
+- **Causal face: weak and mode-confounded** (0.67/0.65 with strongly *negative* partials −0.49/−0.66 —
+  for matched movement, small-input/large-output = carry-aligned = slow modes = MORE iterations), and
+  **absent at near-singular** (curr40: Spearman 0.09). Cost there is set by *which modes* moved, not how much.
+- **Mechanism = ν, a third time:** near-normal J (bidir) has uniform per-mode convergence rates → magnitude
+  metering; maximally non-normal causal J has wildly varying mode rates (per-hop ‖T_k‖ up to 25) → raw ‖Δz‖
+  under-determines cost. The faces differ in proof family, trainability, and now **billing legibility**.
+- **CLAW-BACK LADDER REVISION (honest):** tier-3 emergent metering is a **bidirectional** property, not the
+  causal consolation prize I claimed. The causal face's reliable instruments are tier-1 (directional
+  classification, C2d) and tier-2 (a-posteriori bound) only.
+- **The universal winner:** the pre-solve forecast ‖R·δh‖ → ‖Δz‖ at Spearman **0.96–1.00 on both faces at all
+  conditioning** — the single most robust relationship in the campaign (linear response, validated a third
+  way). Flat toll confirmed everywhere (cold ≈ constant 15–58 evals, Spearman ≈ 0).
+- Caveats: 18–36% of points at the few-eval floor (metering is coarse at the small end); slope-vs-σ_min
+  prediction inconclusive (don't claim); curr40 rows inherit that checkpoint's multistability.
+  Records: `checkpoints/c2m_records.npz` (the n_warm-vs-‖Δz‖ scatter with cold flat line = paper figure). **Bonus finding:** the query-visible
 substrate is itself a **visibility↔trainability tension** (recall 0.94→0.63 at gap 40 vs readonly — making
 readers attendable, to enable selectivity, degrades long-relay trainability).
 

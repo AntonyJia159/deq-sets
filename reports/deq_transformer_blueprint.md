@@ -389,9 +389,11 @@ optional booster, not needed. See findings digest §11.
   transfer product) → transverse part gets a certified short-ξ⊥ bound, carry part is a rank-r long-range update;
   the vacuous scalar ball refines to *ξ⊥-ball + rank-r carry*, and low-carry edits get an a-priori containment
   verdict. (2) **Tier 2 — a-posteriori** (done): `‖z−z*‖ ≤ resid/σ_min` certifies *any* partial recompute
-  (stop at `resid/σ_min<tol`). (3) **Tier 3 — emergent metering** (measured, model-property not guarantee):
-  warm-start is **output-sensitive** (iters ∝ realized `‖Δz*‖`) vs feedforward **input-sensitive** (always
-  L×suffix); sits inside the tier-2 bound so the composite is sound. **Deferred-billing reading (ZJ):** most
+  (stop at `resid/σ_min<tol`). (3) **Tier 3 — emergent metering** (measured; **REVISED by
+  C2m**: a *bidirectional* property — clean output-sensitive law there (Spearman ~0.9), weak/mode-confounded
+  causally, absent near-singular; causal face's reliable instruments are tiers 1–2 only; the coarse 3-class
+  cost ordering still holds causally as a step, not a law); feedforward/cold = input-sensitive flat toll
+  (confirmed); tier 3 sits inside the tier-2 bound so the composite stays sound. **Deferred-billing reading (ZJ):** most
   edits are a quiet build-up of relationships stored locally, awaiting a future trigger; metering bills you
   **when the reader arrives and excites the carry**, not at write time — the write→trigger iter-gradient
   (single-digit→moderate→heavy) is the desired billing curve, emergent. Harness hook (one paragraph): δh known
@@ -511,6 +513,16 @@ optional booster, not needed. See findings digest §11.
   eager vs lazy evaluation" framing is **demoted** to "lazy is permitted but not incentivized — these trained
   models are all eager." Bonus finding: bidirqv substrate = a **visibility↔trainability tension** (recall
   0.94→0.63 at gap 40 vs readonly).
+- **C2m (emergent metering — MEASURED, `c2m_metering.py`; the law is FACE-DEPENDENT, inverting the
+  load-bearing assignment).** Real edits + synthetic carry/transverse perturbations; cold solves = flat toll;
+  ‖R·δh‖ = pre-solve forecast. **Bidirectional face gets the clean output-metering law** (Spearman(n_warm,‖Δz‖)
+  0.90/0.92/0.89, partial corr w/ input norm ≈ 0); **causal face weak and mode-confounded** (0.67/0.65 with
+  negative partials — carry-aligned movement = slow modes = disproportionate cost; **absent** at near-singular
+  curr40, 0.09). Mechanism = ν a third time: uniform mode rates (near-normal) → magnitude metering; wild mode
+  rates (non-normal, per-hop norms to 25) → magnitude under-determines cost. **Faces differ in proof family,
+  trainability, and billing legibility.** Universal winner: the forecast ‖R·δh‖→‖Δz‖ at Spearman 0.96–1.00 on
+  both faces at all conditioning. Flat toll confirmed (cold ≈ constant, Spearman ≈ 0). Caveats: 18–36% floor
+  points (coarse at the small end); slope-vs-σ_min inconclusive. Figure: `checkpoints/c2m_records.npz`.
 - **C4 (multi-scale resolution).** Adding `O(log n)` coarse / global nodes lets a *long-range-relevant*
   edit reach the generation point in `O(log n)` via the coarse channel (local ball + `O(log n)` coarse
   updates) instead of full-suffix recompute — at the cost of the coarse nodes being bounded (`O(log n)`)
