@@ -345,11 +345,13 @@ on both sides" is **not** a wide recompute but exactly the σ_min-screened ξ-ba
 pass with zero recompute) — the certificate *prices* it rather than an uncontrolled cost — provided PE is
 relative; under absolute PE the shadow really is global. **CORRECTION (measured, `posw_ablation.py`):** the
 substrate is **not** relative-PE despite the rel-bias — `h0 = emb + posw[:L]` still adds a *learned absolute* PE,
-and it is **load-bearing for the cross-window relay**: zeroing `posw` holds recall at gap 0 (1.000) but collapses
-it at every gap>0 (→0.4–0.5), and `‖posw‖` *grows* with gap (2.84→11.15) — the model recruits absolute position
-harder as the relay lengthens. So insert/delete needs a **posw-disabled retrain first** (→ v2 spine, not a
-weekend); the retrain doubles as the answer to "can a pure-relative-PE banded DEQ relay at all?" See findings
-digest §11.
+and zeroing it collapses recall at gap>0 (→0.4–0.5) with `‖posw‖` *growing* with gap (2.84→11.15). **RESOLVED
+by the pure-relative retrain (`curriculum_bidir_noposw.py`, bidirnp00–40):** trained *without* posw from the
+start, the relay works — recall 1.000/0.987/0.912/0.937/0.819 at gaps 0–40 (vs 0.997–0.938 with posw). So
+absolute PE is a **crutch, not a wall** (the ablation measured the trained-with-posw model's learned reliance,
+not a class necessity). Insert/delete unblocked on the bidirnp substrate; anchor-token contingency recorded in
+findings digest §11 (BVP boundary value / Haviv causal-implicit-anchor / attention-sink / NCA-seed) as an
+optional booster, not needed. See findings digest §11.
 
 ---
 
@@ -493,10 +495,11 @@ digest §11.
   updates) instead of full-suffix recompute — at the cost of the coarse nodes being bounded (`O(log n)`)
   locality-breaking hubs. This is the concrete answer to "how does the signal reach the end without a
   whole recomputation."
-- **C-insert (insert/delete — v2 spine, NOT this paper).** Aligned-frame reduction: an insert/delete under
-  relative PE + banded attention = a width-`w` multi-site substitution at the cut (theory, §11). Blocked on a
-  **posw-disabled bidir retrain** (posw is load-bearing for the relay — measured, `posw_ablation.py`), which
-  also answers "can a pure-relative-PE banded DEQ relay across windows at all?"
+- **C-insert (insert/delete — v2 spine, NOT this paper; now UNBLOCKED).** Aligned-frame reduction: an
+  insert/delete under relative PE + banded attention = a width-`w` multi-site substitution at the cut (theory,
+  §11). The viability premise is **verified**: the pure-relative substrate exists and relays (bidirnp00–40,
+  recall 0.82–1.00). Remaining: insert-type `apply_edit` + alignment bookkeeping, measured vs the
+  "band at the cut" prediction.
 
 ---
 

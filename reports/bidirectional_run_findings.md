@@ -321,23 +321,53 @@ measure the absolute-PE artifact, not the screened shadow. There's also a genuin
 *can a pure-relative-PE banded DEQ do the cross-window relay at all, or does the relay lean on an absolute
 coordinate?* (The growing ‖posw‖ hints the latter — worth knowing, don't over-interpret from one probe.)
 
-**Verdict / plan for insert/delete (→ v2 spine, not this paper):** state the aligned-frame reduction as theory
-+ flag the absolute-PE limitation honestly. Measuring it needs: **(i)** retrain the bidir curriculum with posw
-disabled (pure rel-bias) and confirm the relay survives — this is *also* the answer to the research question
-above; **(ii)** insert-type `apply_edit` with alignment bookkeeping, measured in the aligned frame vs the
-"band at the cut" prediction. The directional certificate (§10) + interference experiment are the better
-marginal spend for *this* paper; insert/delete is the natural v2 spine.
+**RESOLVED — pure-relative RELAYS (`curriculum_bidir_noposw.py`, bidirnp00–40).** Recall
+1.000/0.987/0.912/0.937/0.819 at gaps 0–40 (vs 1.000/0.997/0.987/0.995/0.938 with posw) — **no collapse
+anywhere**, so the ablation collapse was about the trained-with-posw model's *learned reliance*, not a necessity
+of the model class. Absolute PE is a **crutch, not a load-bearing wall**: it buys a few recall points and a
+smoother gap-16 stage (the pure-relative run briefly pushed ρ to 1.35 with loose resid 3.7e-2 there before
+recovering — treat the bidirnp16 spectrum row with suspicion), but the relay runs on relative position alone.
+**Insert/delete is unblocked in principle**; remaining work for a v2 measurement: insert-type `apply_edit` with
+alignment bookkeeping, measured in the aligned frame vs the "band at the cut" prediction, on the bidirnp
+checkpoints. (Optionally re-run C2-bidir on bidirnp for full substrate consistency.)
+
+**Anchor-token contingency (recorded, NOT needed — keep in the drawer as an optional booster for the weak
+gap-40 stage).** If pure-relative had failed (or to close the recall gap), a designated anchor token is the
+minimal absolute scaffold, pleasing on four axes: (i) **BVP reading** — the bidirectional face is a
+boundary-value problem and a translation-invariant band lacks boundary data; an anchor *is* the boundary value,
+letting the equilibrium propagate a derived coordinate outward; (ii) it's how the **causal face gets position
+free** (Haviv et al.: causal LMs learn position with no PE — the causal asymmetry is an implicit anchor at the
+start); (iii) it's the **attention-sink/BOS** object real models invent spontaneously (= our C4 hub); (iv)
+**Growing-NCA grows from a seed cell** for the same symmetry-breaking reason (four-lands echo). An anchor at
+position 0 still supports the aligned-frame insert story for mid-context edits (inserts don't cross it), though
+the suffix's distance-to-anchor shift arrives through the relay and is itself σ_min-screened — think through
+before using.
+
+**Scope caveats on the window-curriculum finding (state these ourselves before a reviewer does).**
+(a) **What the curriculum actually encodes is thinner than it looks:** we did *not* encode "binding" — w=2 just
+restricted connectivity and the binding hop emerged as the only loss-reducing path. The generic recipe is *grow
+the context-context band, keep readout global*: small windows make the global-mixing shortcut **unavailable**
+rather than merely unfavored, while local subcircuits stay learnable. Plausibly generic — for the same reason
+the simplicity-bias literature says networks learn low-order structure first. (b) **Its honest boundary:** it
+helps exactly when the task's enabling dynamics *decomposes locally* (small-window subcircuits exist and remain
+useful as the band grows). A task whose minimal circuit is irreducibly global would be *starved* by a window
+curriculum, and for a complex task you can't know in advance which case you're in — a genuine flexibility
+constraint of the bidirectional method; name it plainly. (c) **The MLM-objective hypothesis (deflates the
+blocker's generality — include it):** BERT-scale encoders train fine, and the reason may be the *objective*,
+not scale. MLM supervises every masked position with a local cloze target — dense local gradients — whereas
+MQAR supervises only sparse far-off queries at the tail. The blocker may be "sparse-readout objective ×
+bidirectional mask," not the mask alone. Reader-set unification: **MLM works because it plants readers
+everywhere** — every masked token is a local reader, so by the reader-set principle every position becomes a
+supervised local-readout site; MLM *is* the curriculum, in effect. Scoped claim for the paper: blocker +
+curriculum fix established for *minimal attention-only equilibrium cells with sparse readout*; the
+MLM-objective hypothesis and the local-decomposability limit are the two open edges.
 
 ---
 
 ## 12. Remaining (non-spine) debts before drafting
 
-1. **Pure-relative-PE retrain (`curriculum_bidir_noposw.py`, RUNNING) — REPRIORITIZED to the top (ZJ):** the
-   application narrative is insert/delete-heavy, and the aligned-frame story requires shift invariance; if a
-   pure-relative banded DEQ *cannot* relay, the insert story collapses for this model class — this is a
-   **viability check on the application narrative**, not a v2 nicety. Either outcome is a finding: trains →
-   posw-reliance was training convenience, insert unblocked; fails → the relay leans on an absolute coordinate
-   (genuine, reportable, forces a different position mechanism e.g. RoPE-style rotation).
+1. ~~Pure-relative-PE retrain~~ **DONE — pure-relative RELAYS** (bidirnp00–40: 1.000/0.987/0.912/0.937/0.819;
+   §11). Application narrative viable; posw was a crutch not a wall; insert/delete unblocked in principle.
 2. Full reads of the 4 must-read refs: Vogt 2006.14123, Cirone 2402.19047, Benzi–Golub decay, 2411.04400.
 3. **Directional certificate (§10 tier 1, claim C2d)** = product-form on real J blocks (carry-subspace SVD +
    per-edit projection) vs the L1 exact-resolvent oracle, validated on the curr 3-tier far/near table.
@@ -346,4 +376,6 @@ marginal spend for *this* paper; insert/delete is the natural v2 spine.
 5. **Edit-interference experiment (§11, claim C2i)** — paired-edit response vs sum-of-singles vs separation;
    maps the linear-regime validity boundary. Cheap, same C2 machinery.
 6. C4 multiscale — optional/stretch.
-7. **Insert/delete (§11) → v2 spine:** unblocked (or redefined) by item 1.
+7. **Insert/delete (§11) → v2 spine, now UNBLOCKED:** insert-type `apply_edit` + alignment bookkeeping on the
+   bidirnp checkpoints, vs the "band at the cut" prediction. Optional: re-run C2-bidir on bidirnp for substrate
+   consistency; anchor token in the drawer if gap-40 recall (0.819) needs a boost.
