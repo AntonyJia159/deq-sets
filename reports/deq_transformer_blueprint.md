@@ -404,10 +404,14 @@ optional booster, not needed. See findings digest §11.
   *not* a long-memory autoregressor. That is the bidirectional niche we identified: code editing (re-predict
   near the cursor — PIE's setting), agent scratchpad revision, RAG chunk swaps re-read locally — no single
   cursor everything must flow to, relevance spatially bounded, and (crucially) the readers/queries are
-  **present in the context at solve time** so the relay can be query-aware and selectively forget (must-carry
-  *dissolves*, measured in C2-bidir). REMAINING CAVEAT even here (reader-set principle): for the edit-now /
-  query-later workload the future readers are unknown → a must-carry-like burden returns; our C2-bidir measured
-  selectivity only because the queries sat in the solved context. So the *cleanest* claimable regime is
+  **present AND ATTENDABLE in the context at solve time** so the relay can be query-aware and selectively
+  forget. CORRECTION (2026-07-07): present is not enough — our trained bidir substrate keeps queries READONLY
+  (context can't attend to them), so its relay *cannot* be query-aware and its measured must-carry ≈ causal
+  (far/near 0.061 vs 0.068); the reader-set principle predicted this (invisible readers force carry). Whether a
+  QUERY-VISIBLE substrate trains (readonly off + window curriculum, untested combination) and actually drops
+  irrelevant-edit transport = the bidirqv retrain + C2t. REMAINING CAVEAT regardless: for the edit-now /
+  query-later workload the future readers are unknown → a must-carry-like burden returns even with visibility.
+  So the *cleanest* claimable regime is
   bidirectional local-readout where the relevant readers are already in context. The *characterization*
   (recompute exactly the certified ξ-ball) still transfers to standard transformers; the DEQ is the clean
   setting where it is provable.
@@ -432,9 +436,12 @@ optional booster, not needed. See findings digest §11.
     filler everywhere measurable (ξ 0.29/0.41/0.51 hops vs Faber 4.6/6.8/6.3; ~10× conservative); ξ grows
     as σ_min falls; response genuinely **two-sided** (left-mass up to 0.44 vs 0 causal); ν(J) confirms the
     per-face split (ν_bidir 0.21–0.31 vs ν_causal 0.32–0.71 — near-normal vs strongly non-normal, most
-    extreme at gap 40: 0.21 vs 0.71); **must-carry dissolves bidirectionally** (irrelevant-edit ξ 0.7–1.6,
-    far/near ≤0.061 — the relay is *query-aware* because it can see the questions: architecture governs
-    transport); **maintenance channel quantified**: warm 4 vs cold 14–22 evals on filler (3.5–5.5×), warm≈cold
+    extreme at gap 40: 0.21 vs 0.71); ~~must-carry dissolves~~ **CORRECTED: must-carry PERSISTS on this
+    substrate** (irrelevant far/near 0.061 vs causal 0.068 — nearly identical; READONLY_Q makes queries
+    invisible to the context, so query-awareness is architecturally impossible here and the reader-set
+    principle predicts exactly this; the old "dissolves" contrast used a stale v2-era causal ξ≈27. True
+    query-awareness needs the QUERY-VISIBLE substrate → bidirqv retrain + C2t); **maintenance channel
+    quantified**: warm 4 vs cold 14–22 evals on filler (3.5–5.5×), warm≈cold
     on relevant edits (cost ∝ how far the solution moves). At σ_min=0.016 one seq near-multistable → filler
     gated "not measurable: approaching the uniqueness boundary" (honest degradation, same as causal face).
   - **The reader-set principle (the correct general statement of must-carry — supersedes "causal carries,

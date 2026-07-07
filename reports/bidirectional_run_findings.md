@@ -112,7 +112,7 @@ training finds both hops easily; bidirectional training fell into the hop-2-only
 | **Conditioning governs reach** | filler ξ grows monotonically as σ_min falls | confirms σ_min thesis, bidir side |
 | **Genuinely two-sided** | left-mass up to 0.44 (causal: 0 by construction) | the two-sided decay plot (`c2_bidir_profiles.npz`) |
 | **ν justifies the per-face split** | ν_bidir 0.21–0.31 vs ν_causal 0.32–0.71 (gap40: 0.21 vs 0.71) | say "near-normal, within Faber's domain" — **not** "normal" |
-| **Must-carry dissolves** | irrelevant-edit ξ 0.7–1.6 (causal up to 27), far/near ≤0.061 | query-aware relay = architecture governs transport |
+| ~~Must-carry dissolves~~ **CORRECTED: must-carry PERSISTS** | irrelevant far/near 0.061 (bidir40) vs 0.068 (curr40) — nearly identical; the old contrast used a stale v2-era causal ξ≈27 vs final v5 ξ 0.75–1.82 | READONLY_Q makes readers invisible to the context → no query-awareness is *possible*; reader-set principle predicted this |
 | **Maintenance channel** | warm 4 vs cold 14–22 evals on filler (3.5–5.5×); warm≈cold on relevant | cost ∝ solution movement |
 | **Honest edge** | at σ_min=0.016 one seq near-multistable → filler gated "not measurable" | degrades honestly, same as causal face |
 
@@ -128,11 +128,18 @@ of validity, exactly where the two-faces theory wants it. (Causal needed ρ up t
 - **Queried-value:** transport to the cursor is **information-theoretically necessary in both faces** (if the
   answer changes it must arrive). Measured ridge far/near ~0.09–0.10 both faces. Nothing forgets these, ever.
 - **Filler:** never carried, either face (the fair envelope witness).
-- **Unqueried-value:** the tier where faces diverge — **impossibility vs. observed capability, not two
+- **Unqueried-value:** the tier where faces *can* diverge — **impossibility vs. permitted capability, not two
   guarantees.** Causally, carry is *forced* (the relay can't condition on future queries → must keep every
   binding; availability argument, architecture-level, theorem-flavored). Bidirectionally, selective forgetting
-  is *permitted* and our trained model *exercises* it — **emergent, not certified** (a carry-everything bidir
-  model scores identically on recall; nothing in the loss demands selectivity).
+  is *permitted only if the readers are attendable*. **CORRECTION (2026-07-07, caught while designing C2t):**
+  our trained bidir substrate has READONLY_Q — context tokens cannot attend to queries — so its context
+  equilibrium is *independent of what the queries ask* and **cannot** be query-aware; and indeed its measured
+  irrelevant-edit transport ≈ causal (far/near 0.061 vs 0.068 at the matched endpoint; the earlier "dissolves"
+  contrast mistakenly compared against a stale v2-era causal ξ≈27 instead of final v5 ξ 0.75–1.82). This is the
+  reader-set principle *working*: invisible readers force carry, in any architecture. Whether a QUERY-VISIBLE
+  bidirectional substrate (readonly off + window curriculum — untested combination; round-4's readonly-off runs
+  predate the curriculum) trains, and whether its irrelevant-edit transport then actually drops, is exactly what
+  the bidirqv retrain + C2t measure.
 
 **The deep statement:** *selectivity is possible exactly w.r.t. readers **present in the context at solve
 time**; unknown/future readers force carry in any architecture.* Causal attention = the special case where all
@@ -391,7 +398,30 @@ MLM-objective hypothesis and the local-decomposability limit are the two open ed
 
 ---
 
-## 12. Remaining (non-spine) debts before drafting
+## 12. Scale path — everything survives losing the dense Jacobian (ZJ's practicality question)
+
+The dense J / exact resolvent is the toy-scale **oracle we validate estimators against**, not the method.
+Every quantity has a matrix-free analog built from three standard primitives — **JVP/VJP** (autodiff gives
+`J·v` and `vᵀ·J` at one forward/backward each), **Krylov solvers** (GMRES/CG on those products), and
+**randomized low-rank sketching** (Halko-style):
+- **Edit responses, warm-start, multistability probes:** never needed J — forward solves only. Scale-free.
+- **σ_min, κ, ρ:** inverse/power iteration with JVP/VJP + a Krylov solve; tens of J-products.
+- **Resolvent columns / F_p:** `F_p·v` = one matrix-free solve of `(I−J)x = e_p⊗v` (GMRES). The carry basis
+  via randomized range-finding: ~r+5 solves per region, **amortized at cache-build** — and V4's r≈8 is exactly
+  what makes sketching cheap.
+- **Causal product form:** T_k actions are *window-local* solves (never materialize T_k); norms by power
+  iteration; carry propagation = pushing an r-column sketch through the T-product (k window-solves on r vectors).
+- **Newton polish → Jacobian-free Newton–Krylov** (standard).
+- **ν (normality):** Hutchinson trace estimation on JVP∘VJP compositions — estimable, variance-limited (the
+  one genuinely noisy item).
+Honest cost: every Krylov solve inherits the κ of (I−J) — near-singular conditioning means many iterations
+(the same critical slowing that loosens the certificate; preconditioning = open). So the scale story is
+"replace the oracle with standard matrix-free estimators, at iteration counts set by the very conditioning
+we measure" — a limitation *quantified by our own invariant*, which is the right kind of limitation.
+
+---
+
+## 13. Remaining (non-spine) debts before drafting
 
 1. ~~Pure-relative-PE retrain~~ **DONE — pure-relative RELAYS** (bidirnp00–40: 1.000/0.987/0.912/0.937/0.819;
    §11). Application narrative viable; posw was a crutch not a wall; insert/delete unblocked in principle.

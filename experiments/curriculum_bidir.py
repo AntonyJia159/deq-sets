@@ -73,7 +73,7 @@ def main():
         path = os.path.join(CKPT_DIR, f"{PREFIX}{g:02d}.pt")
         torch.save({"state_dict": m.state_dict(), "stage_gap": g, "recall": acc,
                     "rho": r, "sigma_min": smin, "resid": rs, "H": sw.H, "W": sw.W,
-                    "bidir": True, "rel_bias": True, "readonly_q": True, "query_full": False,
+                    "bidir": True, "rel_bias": True, "readonly_q": sw.READONLY_Q, "query_full": False,
                     "no_posw": sw.NO_POSW}, path)
         print(f"  [B] gap {g:>2}: recall={acc:.3f}  rho={r:.3f}  smin={smin:.3f}  resid={rs:.1e}  "
               f"-> {path}  ({time.time()-t0:.0f}s)", flush=True)
