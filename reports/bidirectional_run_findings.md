@@ -284,6 +284,33 @@ pre-pays at write, retarget cheap. **Punchline: causal = eager evaluation, bidir
 evaluation — the two faces implement the two classic evaluation strategies, measured as an iteration ledger.**
 Also the direct measurement of the reader-set principle.
 
+**C2d RESULTS (2026-07-07, `c2d_directional.py` on curr16/24/40 — the directional certificate, MEASURED).**
+Oracle = exact resolvent; far-reach map F_p = R[far rows, block col p]; pred_far = ‖F_p·δh‖ computed
+**pre-solve**. Five validations:
+- **V1 linearity:** log-log corr(pred, meas) per-position profiles: **0.984 / 0.981 / 0.927** mean (min 0.91 /
+  0.83 / 0.33) — first-order reasoning survives finite token substitutions; degrades only at σ_min=0.028
+  (curr40, where multistability lives).
+- **V2 a-priori taxonomy:** monotone at every ckpt and *quantitatively* close — curr24: filler 4.3e-3 (meas
+  3.1e-3), irrelevant 3.39 (3.42), relevant 8.5 (10.8). **Three orders of magnitude of class separation
+  predicted from δh alone, before any solving.**
+- **V3 soundness:** meas/pred median 0.86–1.03; first-order violations (meas>2×pred) 0/11, 2/26, 2/26 —
+  the violators are *relevant* edits at near-singular conditioning (max ratio ~7×: nonlinear amplification of
+  carry-exciting edits). **FALSE CONTAINMENTS: 0 everywhere** (all predicted-contained edits truly contained) —
+  the safety-critical direction is clean.
+- **V4 low-rank carry:** effective rank **7.1 / 7.7 / 8.3 of d=64**, stable across conditioning — the carry is
+  ~rank-8 (≈2× the task's 4 bindings). The "rank-r update, not full-suffix recompute" claim is real.
+- **V5 product form (discharges the old debt):** the coarse w-window T-product reconstructs the exact resolvent
+  block at **relerr ~1.5e-15** at all three ckpts — the re-blocking theorem operationalized on real trained
+  Jacobians. The **scalar** norm-product bound's slack vs the directional product: 7.5× at 2 hops, and at
+  curr40 **25× → 395× → 764×** over hops 2–4, with per-hop ‖T_k‖ up to 25.4 — every per-hop *norm* exceeds 1
+  (scalar bound predicts growth = vacuous) while the directional product decays. **Direction is not a
+  refinement; at trained conditioning it is the entire content of the certificate.**
+**Honest scope:** the directional object is a *predictor and classifier* (flawless as a classifier: taxonomy +
+zero false containments), **not a certified upper bound** for carry-exciting edits at near-singular
+conditioning (2–7× underprediction there). For a bound, either attach the measured nonlinearity margin or use
+the singular-value split (σ₁‖P_carry δh‖ + σ_{r+1}‖P⊥δh‖); the *containment* verdict — the decision that saves
+work — had zero failures.
+
 **Certificate verdict + caveats.** Worth building at **one-subsection scale** (completes the causal ladder;
 same computation as the product-form debt; one validation run). Harness hook worth **one paragraph**: δh known
 pre-solve + carry basis precomputed at cache-build → O(r·d) test *before* paying (small carry projection → patch
@@ -369,8 +396,8 @@ MLM-objective hypothesis and the local-decomposability limit are the two open ed
 1. ~~Pure-relative-PE retrain~~ **DONE — pure-relative RELAYS** (bidirnp00–40: 1.000/0.987/0.912/0.937/0.819;
    §11). Application narrative viable; posw was a crutch not a wall; insert/delete unblocked in principle.
 2. Full reads of the 4 must-read refs: Vogt 2006.14123, Cirone 2402.19047, Benzi–Golub decay, 2411.04400.
-3. **Directional certificate (§10 tier 1, claim C2d)** = product-form on real J blocks (carry-subspace SVD +
-   per-edit projection) vs the L1 exact-resolvent oracle, validated on the curr 3-tier far/near table.
+3. ~~Directional certificate (C2d)~~ **DONE — validated (§10):** a-priori taxonomy quantitative, zero false
+   containments, carry rank ~8/64, product-form identity at machine precision, scalar slack up to 764×.
 4. **Deferred-billing / trigger experiment (§10, claim C2t)** — the lazy-vs-eager iteration ledger; one new
    edit mode (`retarget`), existing machinery; runs on existing bidir + curr checkpoints.
 5. **Edit-interference experiment (§11, claim C2i)** — paired-edit response vs sum-of-singles vs separation;

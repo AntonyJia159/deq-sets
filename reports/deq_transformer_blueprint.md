@@ -467,10 +467,17 @@ optional booster, not needed. See findings digest §11.
   surprise. CAVEAT: flatness may partly reflect our contraction control (SN + s_max cap) pinning learned σ_min
   into a similar range across `w`; the honest claim is "reach tracked conditioning, and conditioning didn't
   move much with `w`," not "the window is powerless." Don't oversell.
-- **C2d (directional certificate — the causal claw-back, recommended next experiment; = the product-form
-  debt).** Precompute the low-rank carry subspace (SVD of the per-hop transfer product on real J blocks);
-  project each edit's δh; certify *ξ⊥-ball + rank-r carry* per edit; validate the a-priori per-edit verdict
-  against the measured curr 3-tier far/near table. Cheap, completes the causal ladder (§10 of findings digest).
+- **C2d (directional certificate — MEASURED, `c2d_directional.py`; result in, discharges the product-form
+  debt).** Far-reach map F_p from the exact-resolvent oracle; pred_far = ‖F_p·δh‖ **pre-solve**. Validated on
+  curr16/24/40: **V1** linear-response profiles match measured nonlinear responses (log-log corr 0.98/0.98/0.93);
+  **V2** the 3-tier taxonomy is predicted *a-priori* from δh alone, quantitatively (3 orders of magnitude class
+  separation); **V3** zero false containments everywhere (the work-saving verdict is safe); as a *quantitative
+  bound* it under-predicts carry-exciting edits ~2–7× at near-singular conditioning → classifier + predictor,
+  not certified upper bound there; **V4** carry rank ~**8 of 64**, stable across conditioning — rank-r update,
+  not full-suffix; **V5** coarse w-window T-product **reconstructs the exact resolvent block at 1.5e-15**
+  (re-blocking theorem operationalized) while the scalar norm-product bound's slack explodes **7.5×→764×** over
+  hops (per-hop norms all >1 = scalar vacuous, directional decays): **at trained conditioning, direction is the
+  entire content of the causal certificate.** Completes the claw-back ladder (findings digest §10).
 - **C2i (edit-interference — maps the linear-regime validity boundary).** Response to *paired* edits vs the sum
   of single-edit responses, as a function of separation. Where they diverge = where nonlinear attention
   re-routing breaks first-order superposition = the validity boundary of the whole directional-certificate
