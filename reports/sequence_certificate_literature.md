@@ -5,7 +5,7 @@ the bidirectional σ_min/Faber certificate, and their use for *edit-locality of 
 already published? Verdict up front: **both proof families are mature, off-the-shelf theory we cite (good —
 rigor rests on solid ground); the unoccupied sliver is applying them as a *spatial edit-reach certificate* on
 a *nonlinear equilibrium* attention model, plus the two-regime split and the maintenance/warm-start reading.**
-Caveat: based on targeted web search (snippets), not full reads; the 4 starred refs need full reads before paper.
+Caveat: originally based on targeted web search (snippets). **2026-07-07: all 4 starred refs now read in full — corrections folded in below (see "Full-read corrections").**
 
 ---
 
@@ -104,3 +104,38 @@ decay lenses onto the equilibrium-transformer maintenance object — legitimate 
 **Must-read-in-full before any paper text:** ★ Vogt 2006.14123, ★ Cirone 2402.19047, ★ Benzi–Golub decay
 bounds, ★ 2411.04400 (banded-inverse decay for control = the causal/IVP precedent). 2606.02680 (locality≠
 reachability) remains the closest *reachability* precedent (Report #8-era note).
+
+---
+
+## Full-read corrections (2026-07-07)
+
+All four read in full. Two snippet-era framings were wrong or over-claimed; two decay papers reweighted.
+
+- **Vogt 2006.14123 — narrow further; it is NOT a bound source.** In its own words it "positions LEs as an
+  interpretive lens," an empirical training-stability readout — not a theorem paper. The Lyapunov exponent is a
+  **trajectory average** (asymptotic log-growth of ∏Jₜ over a long orbit); our σ_min(I−J) is a **static, finite,
+  single-map** object. Take exactly two things: (i) the forward-info ⟺ backward-gradient **duality** (anchors the
+  BPTT bridge), (ii) the precedent that the **product-of-Jacobians spectrum** is the right object for the
+  non-normal/causal direction. Do NOT imply Vogt supplies any bound we use. One-sentence anchor.
+- **Cirone 2402.19047 — even more limited than flagged; fixes a mis-attribution above.** Cirone is a
+  **signatures / rough-path expressivity** result (hidden state = low-dim projection of the input signature).
+  It is **not** about conditioning, memory horizon, or response-amplitude. The "state-transition spectrum
+  controls both memory horizon AND perturbation-response" overlap in Front 2 (lines ~39–45) does **not** come
+  from Cirone — it belongs to the memory-compression/decay line (2410.03158, Mamba-decay analyses). What we take
+  from Cirone: only *"rigorous modern SSM theory exists and centers input-controlled linear recurrences"* — an
+  anchor for the SSM leg of the unification, nothing about the duality.
+- **Benzi–Golub — confirmed as the SYMMETRIC ROOT only.** Exact: banded Hermitian A, |[f(A)]ᵢⱼ| decays exp in
+  |i−j|; for the inverse, Demko–Moss–Smith base **q=(√κ−1)/(√κ+1)**, bandwidth m divides the exponent
+  (q^{|i−j|/m}). But it requires **Hermitian (normal)** A. Our J is only *near*-normal (ν>0), so the
+  load-bearing cite for our actual regime is the **FOV/Faber generalization** (Benzi–Razouk / Benzi–Boito:
+  Chebyshev-on-interval → Faber-on-field-of-values). Benzi–Golub = clean baseline; Faber/FOV = what we invoke.
+  The Hermitian→near-normal citation boundary IS the two-faces split (ν the discriminator).
+- **2411.04400 (Shin–Tan–Anitescu) — UPGRADE from bridge-cite to σ_min-native backbone.** Stated in **singular
+  values** directly (not a translated proxy); covers the **Moore–Penrose pseudoinverse** and **rank-deficient**
+  case; prefactors depend on **conditioning, not dimension**. This is the rigorous handle Benzi–Golub can't
+  give: at the **carry-subspace / near-singular edge** (σ_min→0), the pseudoinverse **restricted to the
+  transverse complement still decays exponentially** — exactly the object C2m's ‖R·δh‖ forecast and the
+  carry/transverse SVD split rely on. So it is the backbone of the claw-back ladder + carry decomposition, not a
+  footnote. Provenance gift: it is an **LQ-control** perturbation bound for a banded saddle/KKT system → reframes
+  our edit-locality as "sensitivity of a banded fixed-point/optimal-control solution to a local perturbation,"
+  an object mature control theory already bounds. Good outer-framing sentence.
