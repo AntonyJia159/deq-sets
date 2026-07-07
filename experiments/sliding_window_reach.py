@@ -65,9 +65,14 @@ def _sn(Wm):
     return Wm / s
 
 
+BIDIR = False                            # module flag: True -> two-sided band [i-W, i+W] (edit regime; C2-bidir)
+
+
 def band_causal_mask(L, device):
     i = torch.arange(L, device=device)[:, None]
     j = torch.arange(L, device=device)[None, :]
+    if BIDIR:
+        return (i - j).abs() <= W                        # bidirectional band (Faber/BVP face)
     return (j <= i) & (i - j <= W)                       # (L,L) True = allowed (causal + within window)
 
 
