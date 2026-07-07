@@ -335,9 +335,25 @@ story** — but the localization comes from sparsity, not from the PE choice.
 
 - **C1 (reach).** A sliding-window softmax DEQ solves **cross-window** recall (gap `G ≫ w`) via
   equilibrium propagation, *beyond* a matched `K`-step unroll of the same cell (reach capped at `K·w`).
-- **C2 (maintainability).** A value edit is warm-start-exact (warm==cold); `|Δz|` **decays with sequence
-  distance** (metric-local, unlike dense attention), screening length `ξ` set by conditioning;
+- **C2 (maintainability — BOTH FACES MEASURED).** A value edit is warm-start-exact (warm==cold); `|Δz|` **decays
+  with sequence distance** (metric-local, unlike dense attention), screening length `ξ` set by conditioning;
   `ξ ≤ Faber bound` (sound), tight when well-conditioned.
+  - *Causal face* (`c2_edit_locality.py`, curr ckpts): envelope holds on filler edits (hop-binned, 5–16×
+    conservative); 3-tier taxonomy monotone; **must-carry** discovered (a causal relay can't see future
+    queries → transports all bindings); warm-start exact where unique, branch-tracking where not.
+  - *Bidirectional face* (`c2_bidir.py`, bidir ckpts — **the proper Faber regime**, result in): substrate
+    trained via **window curriculum** (w=2→4→10 forms the binding hop that full-width bidirectional masks
+    suppress — every cold config stuck at the one-layer ceiling 0.38; see probe logs) then gap curriculum
+    with re-banded queries; recall 1.0/0.997/0.987/0.995/0.938 at gaps 0–40 with **ρ<1 throughout**
+    (0.43→0.87; causal needed ρ up to 8.4) and σ_min spanning 0.246→0.016. Measured: **envelope OK** on
+    filler everywhere measurable (ξ 0.29/0.41/0.51 hops vs Faber 4.6/6.8/6.3; ~10× conservative); ξ grows
+    as σ_min falls; response genuinely **two-sided** (left-mass up to 0.44 vs 0 causal); ν(J) confirms the
+    per-face split (ν_bidir 0.21–0.31 vs ν_causal 0.32–0.71 — near-normal vs strongly non-normal, most
+    extreme at gap 40: 0.21 vs 0.71); **must-carry dissolves bidirectionally** (irrelevant-edit ξ 0.7–1.6,
+    far/near ≤0.061 — the relay is *query-aware* because it can see the questions: architecture governs
+    transport); **maintenance channel quantified**: warm 4 vs cold 14–22 evals on filler (3.5–5.5×), warm≈cold
+    on relevant edits (cost ∝ how far the solution moves). At σ_min=0.016 one seq near-multistable → filler
+    gated "not measurable: approaching the uniqueness boundary" (honest degradation, same as causal face).
 - **C3 (tradeoff — DISSOLVES; result in, `c3_mixing_locality.py`).** Predicted a Pareto (small `w`: slow
   solve, local edits; large `w`: fast solve, global edits). Measured (window sweep, ξ fit in positions):
   solve-iters **fall** with `w` (98→40) but ξ_positions is **flat and window-independent** (~3–5 tokens,
