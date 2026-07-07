@@ -102,23 +102,53 @@ training finds both hops easily; bidirectional training fell into the hop-2-only
 
 ---
 
-## 4. C2-bidirectional results — the Faber face, measured
+## 4. C2-bidirectional results — the σ_min/conditioning face, measured
 
-`c2_bidir.py` on `bidir00–40`. This is the theoretically *proper* face for the κ→ξ Faber formula.
+`c2_bidir.py` on `bidir00–40`. The face where **conditioning governs reach** — but NOT (per §4b) the face
+where the sharp Faber-on-FOV *rate* is certifiable; that abstains here. The certified reach bound is the
+normality-free κ-route (Route A).
 
 | Finding | Evidence | Status |
 |---|---|---|
-| **Envelope holds** on filler | ξ 0.29/0.41/0.51 hops vs Faber 4.6/6.8/6.3 (~10× conservative, sound) | the certificate claim, on the proper face |
+| **Envelope holds** on filler | ξ 0.29/0.41/0.51 hops vs proxy 4.6/6.8/6.3 (~10× conservative); certified via Route A (§4b), measured ~100× inside | the certificate claim — now a theorem, not just the proxy |
 | **Conditioning governs reach** | filler ξ grows monotonically as σ_min falls | confirms σ_min thesis, bidir side |
 | **Genuinely two-sided** | left-mass up to 0.44 (causal: 0 by construction) | the two-sided decay plot (`c2_bidir_profiles.npz`) |
-| **ν justifies the per-face split** | ν_bidir 0.21–0.31 vs ν_causal 0.32–0.71 (gap40: 0.21 vs 0.71) | say "near-normal, within Faber's domain" — **not** "normal" |
+| **ν _orders_ the faces** (does NOT license Faber on either) | ν_bidir 0.21–0.31 vs ν_causal 0.32–0.71 (gap40: 0.21 vs 0.71) | bidir is less non-normal, **but** 0∈W(I−J) on both (§4b) → say "less non-normal", never "within Faber's domain" |
 | ~~Must-carry dissolves~~ **CORRECTED: must-carry PERSISTS** | irrelevant far/near 0.061 (bidir40) vs 0.068 (curr40) — nearly identical; the old contrast used a stale v2-era causal ξ≈27 vs final v5 ξ 0.75–1.82 | READONLY_Q makes readers invisible to the context → no query-awareness is *possible*; reader-set principle predicted this |
 | **Maintenance channel** | warm 4 vs cold 14–22 evals on filler (3.5–5.5×); warm≈cold on relevant | cost ∝ solution movement |
 | **Honest edge** | at σ_min=0.016 one seq near-multistable → filler gated "not measurable" | degrades honestly, same as causal face |
 
 **The substrate has a bonus property:** ρ stays **< 1 throughout** (0.43→0.87) while σ_min spans 15× — the
-bidirectional relay meets in the middle (half the effective depth), so it lives natively in the Faber/κ domain
-of validity, exactly where the two-faces theory wants it. (Causal needed ρ up to 8.4 for comparable reach.)
+bidirectional relay meets in the middle (half the effective depth), so it lives natively in the **κ/σ_min
+domain** of validity. (Causal needed ρ up to 8.4 for comparable reach.) *But note §4b:* ρ<1 does **not** put it
+in the *Faber-FOV* domain — the numerical range is huge (w(J)≈3, w/ρ≈4×) despite the small spectral radius.
+
+### 4b. Certified reach bounds — the envelope is a theorem, but only the crude one survives (2026-07-08)
+
+`faber_xi(κ)` = proxy: the √κ Chebyshev rate is a theorem only for **Hermitian** banded M; our (I−J) is
+near-normal-ISH (ν≈0.3), not Hermitian — as computed it was a *heuristic*, and ν small does not repair it.
+Two genuine bounds added to `c2_bidir.py` (`route_a_xi`, `route_b_xi`), run on the real Jacobians:
+
+| ckpt | κ | ν | Route A (certified, hops) | Route B (sharp FOV) | proxy √κ | measured filler ξ |
+|---|---|---|---|---|---|---|
+| bidir08 | 84.7 | 0.30 | **42.4** | abstains (∞) | 4.6 | 0.29 |
+| bidir16 | 186 | 0.30 | **93.2** | abstains (∞) | 6.8 | 0.41 |
+| bidir24 | 159 | 0.31 | **79.4** | abstains (∞) | 6.3 | 0.51 |
+| bidir40 | 445 | 0.21 | **222** | abstains (∞) | 10.5 | <noise |
+
+- **Route A (certified, normality-free)** — DMS via the normal equations (M⁻¹=M\*(MM\*)⁻¹; MM\* Hermitian PD,
+  cond κ²). Finite, loose; measured reach ~100× inside. **"Envelope holds" is now a theorem** via the crude
+  κ-route. Ordering: **certified-A ≫ proxy ≫ measured** (proxy = good *predictor*, not a bound).
+- **Route B (sharp Faber-on-FOV + Crouzeix 1+√2)** — **abstains on BOTH faces.** +1∈W(J) everywhere:
+  verified ρ(J)≈0.74 but Re W(J)≈3.1, ‖J‖≈5–6.5, numerical radius w/ρ≈4×. The trained equilibrium transformer
+  has a **huge field of values despite ρ<1**, so the singularity is swallowed and the sharp rate is defeated
+  by non-normality even at ν≈0.3. **This killed a prediction (Route-B splits the faces) — a 4th clever
+  prediction dying on measurement; the crude conditioning object survives** (pattern of §10/§11).
+- **Corrects Note #9 / earlier framing:** "Faber is proper on the bidirectional face" is over-stated. What is
+  proper there: *σ_min/conditioning governs reach* (Route A certifies). The Faber-FOV *rate* is not
+  certifiable in this model class (0∈W(I−J)). Referee-proofing: we checked 0∉W(I−J); it fails; we fall back to
+  the sound κ bound. A tighter certified rate would need a region sharper than W(J) (pseudospectral ε-tuning)
+  — open, not needed for soundness. Log: `checkpoints/c2_bidir_certified_log.txt`.
 
 ---
 

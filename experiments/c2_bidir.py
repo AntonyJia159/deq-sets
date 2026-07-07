@@ -94,19 +94,80 @@ def counted_solve(m, ff, z0):
     return z, (rec["k"] if rec["k"] is not None else rec["n"])
 
 
+# ------------------------------------------------------------------ certified reach bounds (the upgrade)
+# faber_xi(kappa) (imported) is the PROXY: q=(sqrt(kappa)-1)/(sqrt(kappa)+1) is the Demko-Moss-Smith /
+# Chebyshev rate, a THEOREM only for Hermitian (normal) banded M. Our (I-J) is near-normal (nu~0.25), not
+# normal, so as-computed it is a sophisticated heuristic, NOT a certified bound. The two functions below give
+# genuine theorems for our non-normal M, so the envelope claim rests on a bound rather than the proxy:
+
+def route_a_xi(kappa):
+    """ROUTE A -- CERTIFIED, normality-free (DMS via the normal equations). For ANY invertible banded
+    M=I-J: M^{-1}=M*(MM*)^{-1}; MM* is Hermitian PD with condition kappa^2, so the symmetric DMS rate
+    applies with sqrt(kappa^2)=kappa in place of sqrt(kappa). Looser than the proxy (kappa>sqrt(kappa)
+    => base closer to 1 => LARGER xi = weaker but SOUND upper bound on reach) with NO normality
+    assumption. Same hop unit as faber_xi. The measured decay length must sit under this, always."""
+    q = (kappa - 1.0) / (kappa + 1.0)
+    return np.inf if q >= 1.0 else -1.0 / np.log(q)
+
+
+def field_of_values(J, n_angles=32):
+    """Boundary of the numerical range W(J) via the Hermitian-part support sweep: in direction theta the
+    supporting line of W(J) touches at the top eigenvector of the Hermitian part of e^{-i theta} J, and the
+    boundary point is that vector's Rayleigh quotient x*Jx. Returns complex boundary points (one per angle)."""
+    Jc = J.to(torch.complex128)
+    pts = []
+    for k in range(n_angles):
+        R = complex(np.exp(-1j * 2.0 * np.pi * k / n_angles))
+        Hh = 0.5 * (R * Jc + np.conj(R) * Jc.conj().T)      # Hermitian part of the rotated matrix
+        _, v = torch.linalg.eigh(Hh)                        # ascending; last col = support direction
+        vmax = v[:, -1]
+        pts.append(complex((vmax.conj() @ (Jc @ vmax)).item()))
+    return np.array(pts)
+
+
+def route_b_xi(J, n_angles=32):
+    """ROUTE B -- SHARP, near-normal (Faber-on-field-of-values, disk region + Crouzeix constant). The
+    resolvent (I-J)^{-1}=g(J), g(x)=1/(1-x), is analytic except at x=1. If +1 lies OUTSIDE W(J)
+    (equivalently 0 outside W(I-J)), the enclosing disk (c,r) of W(J) gives a Faber decay base
+    q=r/|1-c| and reach -1/ln q; the Crouzeix-Palencia constant 1+sqrt(2) scales the amplitude prefactor
+    only, not the rate. If +1 lies IN W(J) the bound abstains (xi=inf) -- the 'FOV contains the singularity
+    while J is still invertible (sigma_min>0)' failure mode, here made concrete and measured.
+    Returns dict(xi, sing_in_fov, disk_margin). sing_in_fov = exact convex-range test; disk_margin uses the
+    (conservative) enclosing disk, so disk_margin<=0 with sing_in_fov=False means a tighter region would
+    still certify -- the disk is the loose witness."""
+    pts = field_of_values(J, n_angles)
+    thetas = 2.0 * np.pi * np.arange(n_angles) / n_angles
+    support = np.real(np.exp(-1j * thetas) * pts)           # support function of W(J) at each angle
+    sing_in_fov = bool(np.all(np.real(np.exp(-1j * thetas) * 1.0) <= support + 1e-9))
+    c = pts.mean(); r = float(np.abs(pts - c).max())        # enclosing disk (a valid Faber region Omega)
+    margin = abs(1.0 - c) - r
+    if sing_in_fov or margin <= 0:
+        xi = np.inf
+    else:
+        q = r / abs(1.0 - c)
+        xi = np.inf if q >= 1.0 else -1.0 / np.log(q)
+    return dict(xi=xi, sing_in_fov=sing_in_fov, disk_margin=float(margin))
+
+
 def kappa_nu_of(m, toks):
-    """kappa_2(I-J), rho, sigma_min AND the normality departure nu = ||JJ^T-J^TJ||_F/||J||_F^2
-    at the tight fixed point. nu ~ 0 justifies the Faber-on-[sigma interval] reading; nu O(1)
-    (causal/triangular J is maximally non-normal) is where the formula was a category error."""
+    """kappa_2(I-J), rho, sigma_min, normality departure nu = ||JJ^T-J^TJ||_F/||J||_F^2, AND the certified
+    reach ladder: Route A (normality-free DMS, always sound) >= measured, with Route B (sharp FOV-Faber)
+    and the proxy as tighter estimates + the FOV-contains-singularity diagnostic. Returns a dict.
+    nu ~ 0 justifies the near-normal reading; nu O(1) (causal/triangular J) is where the proxy was a
+    category error and where Route B is expected to abstain (singularity inside the wide FOV)."""
     ff, _ = make_ff(m, toks)
     z, _ = counted_solve(m, ff, torch.zeros(toks.shape[0], toks.shape[1], sw.d, device=sw.DEV))
     zf = z.reshape(-1).detach()
     ffl = lambda zv: ff(zv.view(z.shape)).reshape(-1)
     J = torch.func.jacrev(ffl)(zf)
     sv = torch.linalg.svdvals(torch.eye(zf.numel(), device=J.device) - J)
+    kappa = (sv.max() / sv.min()).item()
     rho = torch.linalg.eigvals(J).abs().max().item()
     nu = (torch.linalg.matrix_norm(J @ J.T - J.T @ J) / (torch.linalg.matrix_norm(J) ** 2 + 1e-12)).item()
-    return (sv.max() / sv.min()).item(), rho, sv.min().item(), nu
+    b = route_b_xi(J)
+    return dict(kappa=kappa, rho=rho, smin=sv.min().item(), nu=nu,
+                xi_proxy=faber_xi(kappa), xi_A=route_a_xi(kappa),
+                xi_B=b["xi"], sing_in_fov=b["sing_in_fov"], disk_margin=b["disk_margin"])
 
 
 def repeat_solve_noise(m, toks):
@@ -159,14 +220,18 @@ def main():
         m, ck = load_ckpt(path)
         gen = torch.Generator().manual_seed(7)
         seqs = [sw.gen_mqar(1, ck["stage_gap"], gen)[0] for _ in range(N_SEQS)]
-        kappa, rho, smin, nu = kappa_nu_of(m, seqs[0])
+        st = kappa_nu_of(m, seqs[0])
+        kappa, rho, smin, nu = st["kappa"], st["rho"], st["smin"], st["nu"]
 
-        # causal-face contrast at the same gap, if the causal checkpoint exists (one number per face)
-        nu_causal = None
+        # causal-face contrast at the same gap, if the causal checkpoint exists (one number per face) --
+        # also captures the causal Route-B, which is EXPECTED to abstain (singularity inside the wide,
+        # strongly non-normal FOV): the two-faces split, now visible as "B certifies bidir, abstains causal".
+        nu_causal, stc = None, None
         cpath = os.path.join(CKPT_DIR, f"curr{ck['stage_gap']:02d}.pt")
         if os.path.exists(cpath):
             mc, _ = load_ckpt(cpath)                 # sets causal flags
-            _, _, _, nu_causal = kappa_nu_of(mc, seqs[0])
+            stc = kappa_nu_of(mc, seqs[0])
+            nu_causal = stc["nu"]
             del mc
             sw.BIDIR, sw.READONLY_Q, sw.QUERY_FULL = True, ck.get("readonly_q", False), ck.get("query_full", False)
 
@@ -177,11 +242,17 @@ def main():
             prof, div, ra, rb = repeat_solve_noise(m, sq)
             multistable = div > 100 * max(ra, rb, 1e-9)
             noise_profs.append(prof); uniq.append(not multistable); divs.append(div)
-        print(f"[{os.path.basename(path)}] recall={ck['recall']:.3f} rho={rho:.3f} smin={smin:.3f} "
-              f"kappa={kappa:.1f} xi_faber={faber_xi(kappa):.2f} hops | nu_bidir={nu:.3f}"
-              + (f" vs nu_causal={nu_causal:.3f}" if nu_causal is not None else "")
-              + " | repeat-solve divs: " + "  ".join(f"{dv:.1e}{'' if u else '(MULTI)'}"
-                                                     for dv, u in zip(divs, uniq)), flush=True)
+        fmt = lambda x: "inf" if not np.isfinite(x) else f"{x:.2f}"
+        print(f"[{os.path.basename(path)}] recall={ck['recall']:.3f} rho={rho:.3f} smin={smin:.3f} kappa={kappa:.1f}\n"
+              f"    REACH ladder (hops): certified-A(DMS/normal-eq)={fmt(st['xi_A'])}  >=  "
+              f"sharp-B(FOV-Faber)={fmt(st['xi_B'])}  ~  proxy(sqrt-kappa)={fmt(st['xi_proxy'])}  "
+              f"[measured xi below must sit under certified-A]\n"
+              f"    FOV: +1 in W(J)? {st['sing_in_fov']}  disk-margin={st['disk_margin']:+.3f}  |  nu_bidir={nu:.3f}"
+              + (f"\n    CAUSAL contrast: nu={nu_causal:.3f}  +1 in W(J)? {stc['sing_in_fov']}  "
+                 f"=> Route-B abstains: xi_B={fmt(stc['xi_B'])} (the FOV-contains-singularity failure mode, measured)"
+                 if stc is not None else "")
+              + "\n    repeat-solve divs: " + "  ".join(f"{dv:.1e}{'' if u else '(MULTI)'}"
+                                                        for dv, u in zip(divs, uniq)), flush=True)
 
         modes = ["irrelevant", "filler", "relevant"] if ck["stage_gap"] > 0 else ["irrelevant", "relevant"]
         for mode in modes:

@@ -435,15 +435,23 @@ optional booster, not needed. See findings digest §11.
   - *Causal face* (`c2_edit_locality.py`, curr ckpts): envelope holds on filler edits (hop-binned, 5–16×
     conservative); 3-tier taxonomy monotone; **must-carry** discovered (a causal relay can't see future
     queries → transports all bindings); warm-start exact where unique, branch-tracking where not.
-  - *Bidirectional face* (`c2_bidir.py`, bidir ckpts — **the proper Faber regime**, result in): substrate
+  - *Bidirectional face* (`c2_bidir.py`, bidir ckpts — **the σ_min/conditioning face**; NOT the Faber-FOV
+    regime, see certified-bounds note below): substrate
     trained via **window curriculum** (w=2→4→10 forms the binding hop that full-width bidirectional masks
     suppress — every cold config stuck at the one-layer ceiling 0.38; see probe logs) then gap curriculum
     with re-banded queries; recall 1.0/0.997/0.987/0.995/0.938 at gaps 0–40 with **ρ<1 throughout**
     (0.43→0.87; causal needed ρ up to 8.4) and σ_min spanning 0.246→0.016. Measured: **envelope OK** on
-    filler everywhere measurable (ξ 0.29/0.41/0.51 hops vs Faber 4.6/6.8/6.3; ~10× conservative); ξ grows
-    as σ_min falls; response genuinely **two-sided** (left-mass up to 0.44 vs 0 causal); ν(J) confirms the
-    per-face split (ν_bidir 0.21–0.31 vs ν_causal 0.32–0.71 — near-normal vs strongly non-normal, most
-    extreme at gap 40: 0.21 vs 0.71); ~~must-carry dissolves~~ **CORRECTED: must-carry PERSISTS on this
+    filler everywhere measurable (ξ 0.29/0.41/0.51 hops vs proxy 4.6/6.8/6.3; ~10× conservative; **now
+    certified** via Route A below, measured ~100× inside); ξ grows
+    as σ_min falls; response genuinely **two-sided** (left-mass up to 0.44 vs 0 causal); ν(J) **orders** the
+    faces but does NOT license Faber on either (ν_bidir 0.21–0.31 vs ν_causal 0.32–0.71 — less vs strongly
+    non-normal, most extreme at gap 40: 0.21 vs 0.71; **0∈W(I−J) on BOTH**);
+    **CERTIFIED BOUNDS (2026-07-08):** proxy √κ is a *heuristic* (Hermitian theorem misapplied). Route A
+    (normality-free DMS via normal equations) *certifies*: 42–222 hops, measured ~100× inside → envelope is a
+    theorem. Route B (sharp Faber-on-FOV+Crouzeix) **abstains on both faces** — +1∈W(J) everywhere (ρ≈0.74 but
+    Re W(J)≈3.1, w/ρ≈4×): huge numerical range despite ρ<1, sharp rate defeated by non-normality. This
+    **corrects "proper Faber regime" → "σ_min governs; Faber-FOV rate not certifiable here"**, and is a **4th
+    clever prediction (Route-B splits faces) dying on measurement** while the crude κ object survives. ~~must-carry dissolves~~ **CORRECTED: must-carry PERSISTS on this
     substrate** (irrelevant far/near 0.061 vs causal 0.068 — nearly identical; READONLY_Q makes queries
     invisible to the context, so query-awareness is architecturally impossible here and the reader-set
     principle predicts exactly this; the old "dissolves" contrast used a stale v2-era causal ξ≈27. True

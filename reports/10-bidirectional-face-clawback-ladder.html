@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set-DEQ Notes #10 — The Bidirectional Face, the Claw-Back Ladder, and the Shape of the Paper</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$', '$']], displayMath: [['$$', '$$']] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --ink:#1a1a1a; --muted:#666; --rule:#e2e2e2; --accent:#2b6cb0; --good:#1a7f4b; --bad:#b02a2a; --warn:#b07a1a; --bg:#fafafa; --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 48px 24px 96px; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 32px; }
+  .kicker { font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
+  h1 { font-size: 1.7rem; line-height:1.25; margin:.1em 0 .35em; }
+  .byline { color:var(--muted); font-size:.92rem; }
+  h2 { font-size:1.2rem; margin:2.2em 0 .6em; padding-bottom:.25em; border-bottom:1px solid var(--rule); }
+  h3 { font-size:1.02rem; margin:1.6em 0 .4em; }
+  p { margin:.7em 0; }
+  code { background:#f0f0f3; padding:.08em .35em; border-radius:4px; font-size:.9em;
+         font-family: "SF Mono", Consolas, "Liberation Mono", monospace; }
+  table { width:100%; border-collapse:collapse; margin:1.1em 0; font-size:.88rem; background:var(--card); }
+  th, td { padding:7px 9px; text-align:center; border-bottom:1px solid var(--rule); }
+  th { background:#f3f5f8; font-weight:600; }
+  td:first-child, th:first-child { text-align:left; }
+  .good { color:var(--good); font-weight:600; }
+  .bad  { color:var(--bad);  font-weight:600; }
+  .warn { color:var(--warn); font-weight:600; }
+  .callout { background:#eef4fb; border:1px solid #cfe0f3; border-radius:8px; padding:14px 18px; margin:1.2em 0; }
+  .callout.warn { background:#fdf3ee; border-color:#f3d8c8; }
+  .callout.null { background:#f1f3f5; border-color:#dcdfe3; }
+  .callout.key { background:#eaf6ee; border-color:#bfe3cb; }
+  .muted { color:var(--muted); }
+  ul, ol { margin:.5em 0; padding-left:1.3em; }
+  li { margin:.35em 0; }
+  .arc { counter-reset: arcstep; list-style:none; padding-left:0; }
+  .arc > li { position:relative; padding:10px 0 10px 44px; border-bottom:1px solid var(--rule); }
+  .arc > li::before { counter-increment: arcstep; content: counter(arcstep);
+     position:absolute; left:0; top:10px; width:28px; height:28px; border-radius:50%;
+     background:var(--ink); color:#fff; font-weight:700; font-size:.85rem; text-align:center; line-height:28px; }
+  footer { margin-top:48px; padding-top:18px; border-top:1px solid var(--rule); color:var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="kicker">Set-DEQ Notes · #10 · sequence direction · the use-case face + the certificate ladder + a paper spine</p>
+  <h1>The Bidirectional Face, the Claw-Back Ladder, and the Shape of the Paper</h1>
+  <p class="byline">Zhibai Jia · 7 July 2026 · the debt from #9 paid &mdash; the bidirectional certificate measured, the causal certificate rebuilt as a ladder, three clever predictions buried, and one invariant that keeps winning</p>
+</header>
+
+<div class="callout">
+  <strong>What this note is.</strong> Note&nbsp;#9 measured the <em>causal</em> face because those checkpoints
+  existed, and left two debts: the <em>bidirectional</em> face &mdash; our actual use case, where
+  $\sigma_{\min}$/Faber is the proper certificate &mdash; and the certificates themselves, run on real
+  Jacobians rather than a $5\times5$ toy. This note pays both, adds the three claw-back experiments that
+  probe how much can be salvaged on the causal face, and reports the honest pattern the whole arc settled
+  into. It closes with a loose sketch of the paper's logical spine, <em>if</em> we write it.
+</div>
+
+<div class="callout key">
+  <strong>Result, in one paragraph.</strong> On the bidirectional band &mdash; near-normal $J$, measured
+  $\nu$ inside Faber's domain &mdash; the screened-response certificate holds: edits decay two-sidedly, the
+  measured reach sits an order of magnitude inside the envelope, and reach grows as $\sigma_{\min}$ falls.
+  The certificate that headlines the paper is therefore <em>measured on its proper face</em>. But the
+  envelope as we first computed it was a <strong>sophisticated heuristic, not a theorem</strong> (the
+  Chebyshev rate applied to a non-normal matrix); a normality-free certified bound replaces it (measured reach
+  sits $\sim\!100\times$ inside), so the claim now rests on a theorem &mdash; while the sharp field-of-values
+  bound turns out to <em>abstain on both faces</em> ($0\in W(I{-}J)$ universally: a huge numerical range
+  despite $\rho<1$), a fourth clever prediction dying on measurement. On the causal face the scalar
+  certificate is vacuous, and we build a <strong>three-tier
+  claw-back ladder</strong> (a-priori directional / a-posteriori residual / emergent metering) whose rungs
+  degrade gracefully. And the arc's real lesson: <strong>three clever emergent-mechanism predictions died on
+  contact with measurement</strong> (lazy evaluation, must-carry dissolution, a universal metering law)
+  <strong>while the conditioning object kept over-predicting</strong> &mdash; which is the thesis the data
+  chose for us.
+</div>
+
+<h2>1. The bidirectional face, measured &mdash; the debt from #9, paid</h2>
+<p>
+We retrained the equilibrium transformer with a <em>two-sided</em> window (each token attends to
+$[i-w,\,i+w]$) via a window curriculum, giving checkpoints <code>bidir00&ndash;40</code> spanning
+$\sigma_{\min}(I-J)$ over $\sim\!15\times$. This is the face where the $\kappa\!\to\!\xi$ decay formula is
+the <em>proper</em> certificate: $J$ is banded and, crucially, <strong>near-normal</strong> &mdash; and we
+measure the departure rather than assume it.
+</p>
+<table>
+  <tr><th>finding</th><th>evidence</th><th>reading</th></tr>
+  <tr><td><strong>Envelope holds</strong> (filler)</td>
+      <td class="good">$\xi$ 0.29 / 0.41 / 0.51 hops vs envelope 4.6 / 6.8 / 6.3 ($\sim\!10\times$ conservative)</td>
+      <td>the certificate claim, on its proper face</td></tr>
+  <tr><td><strong>Conditioning governs reach</strong></td>
+      <td>filler $\xi$ grows monotonically as $\sigma_{\min}$ falls</td>
+      <td>confirms the $\sigma_{\min}$ thesis, bidirectional side</td></tr>
+  <tr><td><strong>Genuinely two-sided</strong></td>
+      <td>left-mass up to 0.44 (causal: 0 by construction)</td>
+      <td>a screened <em>elliptic</em> response, not a forward relay</td></tr>
+  <tr><td><strong>$\nu$ <em>orders</em> the faces</strong></td>
+      <td>$\nu_{\text{bidir}}$ 0.21&ndash;0.31 vs $\nu_{\text{causal}}$ 0.32&ndash;0.71 (gap40: 0.21 vs 0.71)</td>
+      <td>bidir is less non-normal &mdash; but <strong>not</strong> inside Faber's domain (&sect;2: $0\in W(I{-}J)$ on <em>both</em>)</td></tr>
+  <tr><td><strong>Warm-start maintenance</strong></td>
+      <td>warm 4 vs cold 14&ndash;22 evals on filler ($3.5$&ndash;$5.5\times$)</td>
+      <td>cost $\propto$ solution movement</td></tr>
+</table>
+<div class="callout">
+  <strong>A structural bonus.</strong> On this face $\rho(J)$ stays <strong>below 1 throughout</strong>
+  ($0.43\!\to\!0.87$) while $\sigma_{\min}$ spans $15\times$: the bidirectional relay &ldquo;meets in the
+  middle&rdquo; (half the effective depth), so it lives <em>natively</em> in the $\kappa$-domain of validity
+  where the two-faces theory wants it &mdash; unlike the causal cells, which needed $\rho$ up to $8.4$ for
+  comparable reach.
+</div>
+
+<h2>2. The envelope was a heuristic. Now it is a theorem &mdash; but only the crude one survives.</h2>
+<p>
+A correction that matters for a rigor-forward venue. The reach formula
+$\xi=-1/\ln\frac{\sqrt\kappa-1}{\sqrt\kappa+1}$ is the Demko&ndash;Moss&ndash;Smith / Chebyshev rate, a
+<em>theorem for Hermitian</em> banded matrices. Our $(I-J)$ is near-normal ($\nu\approx0.3$), <em>not</em>
+Hermitian &mdash; and we even fed <em>singular-value</em> $\kappa$ into an <em>eigenvalue-interval</em>
+formula. As computed it is a sophisticated heuristic, and $\nu$ being smallish does <em>not</em> repair that.
+So we added two genuine bounds (<code>c2_bidir.py</code>, <code>route_a_xi</code> / <code>route_b_xi</code>)
+and ran them on the real Jacobians &mdash; which killed a prediction of our own and left a cleaner story:
+</p>
+<table>
+  <tr><th>ckpt</th><th>$\kappa$</th><th>$\nu$</th>
+      <th>Route A (certified)</th><th>Route B (sharp)</th><th>proxy $\sqrt\kappa$</th><th>measured filler $\xi$</th></tr>
+  <tr><td>bidir08</td><td>84.7</td><td>0.30</td><td class="good">42.4</td><td class="bad">abstains ($\infty$)</td><td>4.6</td><td class="good">0.29</td></tr>
+  <tr><td>bidir16</td><td>186</td><td>0.30</td><td class="good">93.2</td><td class="bad">abstains ($\infty$)</td><td>6.8</td><td class="good">0.41</td></tr>
+  <tr><td>bidir24</td><td>159</td><td>0.31</td><td class="good">79.4</td><td class="bad">abstains ($\infty$)</td><td>6.3</td><td class="good">0.51</td></tr>
+  <tr><td>bidir40</td><td>445</td><td>0.21</td><td class="good">222</td><td class="bad">abstains ($\infty$)</td><td>10.5</td><td class="good">&lt; noise</td></tr>
+</table>
+<p>Two findings, one good and one a self-inflicted null:</p>
+<ul>
+  <li><strong>Route A certifies (the win).</strong> The normality-free bound is finite and loose (42&ndash;222
+  hops), and the measured reach sits $\sim\!100\times$ inside it. So &ldquo;the envelope holds&rdquo; is now a
+  <em>theorem</em> &mdash; via the crude $\kappa$-route, no normality assumed. The ordering is
+  <strong>certified-A $\gg$ proxy $\gg$ measured</strong>, with the proxy an excellent (uncertified)
+  <em>predictor</em> of the true reach and Route&nbsp;A the sound-but-loose bound over it.</li>
+  <li><strong>Route B abstains on <em>both</em> faces (the null).</strong> I predicted the sharp FOV bound
+  would certify the bidirectional face and refuse only the causal one. Wrong: $+1\in W(J)$
+  <em>everywhere</em> &mdash; even at $\nu\approx0.3$. Verified directly: $\rho(J)\approx0.74$ but the
+  numerical range reaches $\mathrm{Re}\,W(J)\approx3.1$ ($\lVert J\rVert\approx5$&ndash;$6.5$, numerical
+  radius $w(J)/\rho(J)\approx4\times$). The trained equilibrium transformer has a <em>huge</em> field of
+  values despite a small spectral radius, so the singularity at $+1$ is swallowed and the sharp certificate
+  is defeated by non-normality on both faces.</li>
+</ul>
+<div class="callout warn">
+  <strong>The failure mode is not a causal-only edge case &mdash; and it corrects Note&nbsp;#9.</strong>
+  Route&nbsp;B abstains exactly when $0\in W(I-J)$, which holds <em>while $J$ is invertible</em>
+  ($\sigma_{\min}>0$) &mdash; and here it holds universally. So Note&nbsp;#9's &ldquo;Faber is the proper
+  certificate on the bidirectional face&rdquo; was over-stated. What is proper there is that
+  <em>$\sigma_{\min}$/conditioning governs reach</em> (measured; certified via Route&nbsp;A); the specific
+  Faber-on-FOV <em>rate</em> is not certifiable in this model class. A referee's first question &mdash;
+  &ldquo;did you check $0\notin W(I-J)$?&rdquo; &mdash; now has an honest answer: we did, it fails, we fall
+  back to the sound $\kappa$ bound. $\nu\approx0.3$ is &ldquo;near-normal&rdquo; only in the relative
+  Frobenius sense; it is nowhere near enough to pull $W$ off the singularity. This is a <em>fourth</em> clever
+  prediction dying on measurement (&sect;4) &mdash; and again the crude conditioning object is what survives.
+</div>
+
+<h2>3. The causal face is vacuous &mdash; so we build a ladder</h2>
+<p>
+On the causal face the scalar $\xi$-ball is <em>vacuous</em>: $\sigma_{\min}$ reports the <strong>carry
+direction</strong> and charges every edit as if its whole perturbation lay there. Every per-hop transfer
+norm exceeds $1$ (up to $25\times$), so the scalar product bound predicts <em>growth</em> while the
+directional product decays. The response is a ladder of three certificates of decreasing guarantee strength,
+each matched to what survives:
+</p>
+<table>
+  <tr><th>tier</th><th>bound</th><th>guarantee</th><th>causal</th><th>bidirectional</th></tr>
+  <tr><td><strong>1 &mdash; directional</strong><br><span class="muted">a priori (C2d)</span></td>
+      <td>project $\delta h$ onto carry subspace; transverse gets short screened $\xi_\perp$, carry is a
+          rank-$r$ update</td>
+      <td class="good">certified</td>
+      <td class="good"><strong>load-bearing</strong> &mdash; the whole content</td>
+      <td>nice-to-have (scalar already works)</td></tr>
+  <tr><td><strong>2 &mdash; a posteriori</strong><br><span class="muted">$\;$residual (done)</span></td>
+      <td>$\lVert z-z^{*}\rVert \le \text{resid}/\sigma_{\min}$ at every warm-solve step</td>
+      <td class="good">certified</td>
+      <td class="good">unconditional backstop</td>
+      <td class="good">unconditional backstop</td></tr>
+  <tr><td><strong>3 &mdash; metering</strong><br><span class="muted">emergent (C2m)</span></td>
+      <td>warm-start iterations track $\lVert z^{*}_{\text{new}}-z^{*}_{\text{old}}\rVert$</td>
+      <td class="warn">measured, not a bound</td>
+      <td class="warn">coarse 3-class step</td>
+      <td class="good">clean law (Spearman $\sim0.9$)</td></tr>
+</table>
+<p>
+The interface with causality is the entire point: the a-priori spatial certificate <em>behaves oppositely on
+the two faces</em>, dictated by $J$'s geometry. Non-normality collapses the scalar bound $\Rightarrow$
+Tier&nbsp;1 recovers locality <em>directionally</em>, Tier&nbsp;2 is the unconditional residual backstop, and
+Tier&nbsp;3 prices what it can. The bidirectional face barely needs the ladder; the causal face is <em>made
+of</em> it.
+</p>
+<div class="callout">
+  <strong>Tier 1 validated (C2d).</strong> Re-blocking the causal band at window granularity makes it
+  block-bidiagonal (&ldquo;one hop = one window&rdquo; as a theorem, not a convention). The directional
+  product decays even as the scalar norm-product bound's slack explodes $7.5\times\!\to\!764\times$ over
+  hops 2&ndash;4 (every per-hop norm $>1$). <strong>At trained conditioning, direction is not a refinement
+  &mdash; it is the entire content of the causal certificate.</strong> The rank-deficient / carry-subspace
+  math is underwritten by the singular-value pseudoinverse-decay theorem (Shin&ndash;Tan&ndash;Anitescu
+  2411.04400), which is also what makes Route&nbsp;B's transverse-complement decay rigorous &mdash; the two
+  claw-backs are the same theorem on the two faces.
+</div>
+
+<h2>4. Three clever predictions died. One dumb object kept winning.</h2>
+<p>
+This is the part worth being honest about, because it reshaped the paper's center of gravity. Across the arc
+we kept proposing <em>emergent mechanisms</em> &mdash; the solver learning to be clever &mdash; and they kept
+failing, while the plain <em>conditioning</em> object kept predicting more than we asked of it.
+</p>
+<div class="callout null">
+  <strong>Death 1 &mdash; lazy evaluation (C2t, NEGATIVE).</strong> Prediction: a bidirectional relay would
+  defer the cost of an edit whose reader hasn't arrived. It doesn't. Write-cost of editing an unqueried value
+  is <em>reader-independent</em> on all three substrates (causal $7.6\!\approx\!7.8$, read-only
+  $12.9\!\approx\!13.0$, query-visible $15.3\!\approx\!15.7$ iters). Must-carry is empirically robust, and
+  selective forgetting did <em>not</em> emerge even where architecturally permitted &mdash; nothing in the
+  recall loss rewards it. (Path-independence held to $10^{-7}$: a clean warm-start-exactness sub-result fell
+  out of the null.)
+</div>
+<div class="callout null">
+  <strong>Death 2 &mdash; must-carry dissolution.</strong> We predicted a query-aware bidirectional relay
+  would drop the carry of task-irrelevant bindings. It doesn't: irrelevant-edit far/near is $0.061$
+  (bidir40) vs $0.068$ (curr40) &mdash; essentially identical. The reader-set principle explains why (below):
+  invisible readers force carry in <em>any</em> architecture. The earlier &ldquo;dissolves&rdquo; contrast
+  was an artefact of comparing against a stale $\xi\!\approx\!27$ baseline.
+</div>
+<div class="callout null">
+  <strong>Death 3 &mdash; a universal metering law (C2m, PARTIAL).</strong> We predicted a face-agnostic
+  &ldquo;cost meters output movement&rdquo; law. It is clean only on the <em>bidirectional</em> face
+  (Spearman 0.90/0.92/0.89, input norm adds nothing). On the causal face it is weak and mode-confounded
+  (0.67/0.65 with <em>negative</em> partials $-0.49/-0.66$: carry-aligned movement rides slow modes, so equal
+  movement costs unequal iterations) and absent at near-singularity (0.09). Metering is a bidirectional
+  property; the causal face gets only a coarse step. This <em>inverted</em> the ladder's tier-3 assignment.
+</div>
+<div class="callout key">
+  <strong>The survivor.</strong> The pre-solve forecast $\lVert R\,\delta h\rVert$ (with $R=(I-J)^{-1}$)
+  predicts realized $\lVert\Delta z\rVert$ at <strong>Spearman 0.96&ndash;1.00 on both faces at every
+  conditioning</strong>. Every death was a mechanism we hoped the network had learned; the one thing that
+  worked everywhere was reading it off the resolvent. $\sigma_{\min}$, $\nu$, and $R$ &mdash; the conditioning
+  of the linearized fixed point &mdash; are the objects that carry the paper. The clever stories are, at best,
+  measured mechanism <em>inside</em> a sound conditioning envelope.
+</div>
+
+<h2>5. The honest boundary: edit-locality is dual to forgetting</h2>
+<p>
+The one thing a certificate-of-locality paper must not hide: on the causal face, <strong>an edit being local
+is the same event as the model having forgotten</strong>. The screening length $\xi$ that bounds edit-reach
+<em>is</em> the memory horizon. A causal language model doing its job &mdash; carrying a fact to a distant
+cursor &mdash; therefore has <em>non-local</em> edits by necessity, and &ldquo;cheap local maintenance&rdquo;
+is available exactly when the edit didn't matter downstream. The scalar $\xi$-ball on the causal face is
+<em>sound but vacuous</em> for any edit that a reader will consume.
+</p>
+<p>
+The <strong>reader-set principle</strong> states the general law: selectivity is possible exactly with
+respect to readers <em>attendable at solve time</em>; unknown/future readers force carry in any architecture.
+Causal attention is the special case where all readers are structurally future. So the genuine win is not
+&ldquo;cheap causal maintenance&rdquo; &mdash; it is the <strong>bidirectional local-readout niche</strong>:
+encoder-style edits where the readers sit <em>in</em> the solved context (certified partial KV-cache
+invalidation, incremental re-embedding), which is precisely where the Faber face and its now-certified
+envelope apply. We should scope the paper to that niche and say so plainly.
+</p>
+
+<h2>6. The shape of the paper (a loose sketch, if we write it)</h2>
+<p>
+The arc has stopped moving, so the spine is visible. Provisional title: <em>Conditioning, Not Contraction:
+Certifying Local Edits in Deep Equilibrium Transformers.</em> Six beats:
+</p>
+<ol class="arc">
+  <li><strong>One invariant.</strong> The maintainability of an equilibrium transformer's fixed point under a
+  mid-context edit is governed by $\sigma_{\min}(I-J)$ &mdash; the conditioning of the linearized map &mdash;
+  <em>not</em> by contraction $\rho$. $\rho$ is neither necessary nor sufficient (local at $\rho=8.4$; the
+  graph resolvent's $1-\rho$ and the linear/SSM corner are special cases).</li>
+
+  <li><strong>The operation only exists at equilibrium.</strong> The maintenance move &mdash; edit, then
+  warm-start local re-solve &mdash; needs $(I-J)^{-1}$, which exists only because there is a fixed point to
+  perturb. Feedforward truncation diverges in the expressive $\rho>1$ regime; a fused SSM state has no
+  mid-context edit operation. Equilibrium is load-bearing, not incidental.</li>
+
+  <li><strong>One structural fact splits the certificate into two faces.</strong> Jacobian geometry, with
+  $\nu$ (departure from normality) as the measured discriminator that <em>orders</em> the faces: bidirectional
+  / less-non-normal $\Rightarrow$ a screened elliptic response whose reach is certified by the normality-free
+  $\sigma_{\min}$/$\kappa$ bound (the sharp Faber-on-FOV rate is defeated by the model's large numerical range,
+  $0\in W(I{-}J)$ &mdash; §2); causal / strongly-non-normal $\Rightarrow$ a forward relay certified by a
+  product&ndash;Lyapunov form, with the scalar version vacuous.</li>
+
+  <li><strong>A certificate ladder, rigor stated per rung.</strong> A-priori directional (Tier&nbsp;1) /
+  a-posteriori residual (Tier&nbsp;2, unconditional) / emergent metering (Tier&nbsp;3, measured, not
+  claimed). The causal claw-back and the bidirectional carry decomposition are one theorem
+  (pseudoinverse-on-the-transverse-complement) deployed on both faces.</li>
+
+  <li><strong>An honest scope.</strong> Edit-locality is dual to forgetting; causal maintenance is
+  self-defeating for the edits that matter. The contribution lives in the bidirectional local-readout niche
+  (certified partial cache invalidation), and the reader-set principle says exactly why. We state this as a
+  boundary, not bury it.</li>
+
+  <li><strong>The thesis the data chose.</strong> Conditioning predicts reach, cost, and error across both
+  faces (the resolvent forecast, Spearman $\ge0.96$); the clever emergent-mechanism hypotheses did not
+  survive measurement. The paper is about the invariant, not the stories &mdash; a translation placing the
+  numerical-analysis and RNN-dynamics decay lenses onto the equilibrium-transformer maintenance object, with
+  the mechanisms reported as measured behaviour inside a certified envelope.</li>
+</ol>
+<div class="callout">
+  <strong>Positioning, in one line.</strong> Not new decay mathematics (Vogt / Cirone are narrow anchors;
+  Benzi&ndash;Golub and Shin&ndash;Tan&ndash;Anitescu are the load-bearing backbones we cite) &mdash; the
+  unoccupied sliver is reading the resolvent as a <em>spatial edit-reach certificate on a nonlinear
+  equilibrium attention model</em>, the IVP/BVP regime split, and the warm-start maintenance operation with a
+  $\sigma_{\min}$ uniqueness boundary. Venue: TMLR (rigor-forward fit).
+</div>
+
+<h2>7. What is owed before drafting</h2>
+<ul>
+  <li><strong>Certified-bound numbers &mdash; done (§2).</strong> Route&nbsp;A certifies (42&ndash;222 hops,
+  measured $\sim\!100\times$ inside); Route&nbsp;B abstains universally ($0\in W(I{-}J)$). A tighter certified
+  <em>rate</em> would need a region sharper than the field of values (e.g. pseudospectral $\varepsilon$-tuning)
+  &mdash; open, but not needed for soundness.</li>
+  <li><strong>C2i &mdash; edit interference.</strong> Paired edits vs sum-of-singles vs separation: the
+  linear-regime boundary (superposition until attention patterns re-form). Owed, not yet run.</li>
+  <li><strong>Insert/delete.</strong> The aligned-frame reduction (a width-$w$ substitution at the cut) on
+  the pure-relative <code>bidirnp</code> substrate. Owed, not yet run.</li>
+  <li><strong>Reading, not running.</strong> The four backbone papers are read (see
+  <code>sequence_certificate_literature.md</code>, full-read corrections); the remaining work before text is
+  the draft itself.</li>
+  <li><strong>Slated, not this paper.</strong> The $\nu$ semi-causal dial (C2$\nu$: asymmetric band, to
+  disentangle &ldquo;$\nu$ governs&rdquo; from &ldquo;causality is special&rdquo;), the saturated-attention
+  linearity mechanism behind the forecast's accuracy, and conditioned-collage training. Multistability is
+  explicitly out of scope.</li>
+</ul>
+
+<footer>
+  Set-DEQ Notes #10 · experiments: <code>c2_bidir.py</code> (Faber face + certified Route-A/B),
+  <code>c2d_directional.py</code>, <code>c2t_deferred.py</code>, <code>c2m_metering.py</code>,
+  <code>curriculum_bidir*.py</code> · builds on #9 (the two-faces split) and the DEQ-transformer blueprint.
+  Honesty notes: demotes the $\sqrt\kappa$ envelope from certificate to heuristic and replaces it with a
+  certified bound; reports three negative/partial results straight (C2t, must-carry, C2m); scopes the
+  contribution to the bidirectional readout niche. The paper spine in §6 is a provisional sketch, not a
+  commitment.
+</footer>
+</div>
+</body>
+</html>
