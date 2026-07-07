@@ -80,6 +80,10 @@ READONLY_Q = False                       # module flag (BIDIR only): context tok
                                          # leak their identity into every context state, poisoning the
                                          # content-matching recall needs; causal masks got this protection
                                          # for free (nothing before the queries could see them).
+QUERY_FULL = False                       # module flag (BIDIR only): query rows attend to the FULL context
+                                         # regardless of band — probes read the whole document; the banded
+                                         # object whose edit-locality we certify is the CONTEXT-CONTEXT
+                                         # block, and queries are readout appendages hanging off it.
 
 
 def band_causal_mask(L, device):
@@ -89,6 +93,8 @@ def band_causal_mask(L, device):
         m = (i - j).abs() <= W                           # bidirectional band (Faber/BVP face)
         if READONLY_Q:
             m = m & ((j < L - NQ) | (j == i))            # queries attendable by nobody (self excepted)
+        if QUERY_FULL:
+            m = m | ((i >= L - NQ) & ((j < L - NQ) | (j == i)))   # query rows see all context
         return m
     return (j <= i) & (i - j <= W)                       # (L,L) True = allowed (causal + within window)
 
@@ -128,7 +134,8 @@ class SeqDEQ(nn.Module):
         if hasattr(self, "relb"):                            # (H,L,L) additive bias broadcast over batch
             L = mask.shape[0]
             i = torch.arange(L, device=mask.device)
-            delta = (i[None, :] - i[:, None]).clamp(-W, W) + W
+            Wt = (self.relb.shape[1] - 1) // 2               # table half-width (fixed at construction;
+            delta = (i[None, :] - i[:, None]).clamp(-Wt, Wt) + Wt   # runtime W may be smaller in a w-curriculum)
             return base + self.relb[:, delta]
         return base
 

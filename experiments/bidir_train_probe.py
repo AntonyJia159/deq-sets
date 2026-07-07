@@ -33,10 +33,49 @@ GAP = 0
 # bidirectionally every context state absorbs them -> content matching poisoned. Causal masks protected
 # the context for free. ROUND 4 = READ-ONLY QUERIES (sw.READONLY_Q): context keeps its bidirectional
 # band, queries read out without injecting. Factorial: unroll4 (fast discriminator) + deq (the target).
+# ROUND 4 VERDICT: read-only queries ALSO stuck (~0.35 through step 400) — query leakage insufficient.
+# ROUND 5 VERDICT: UNTIED 2/4-layer stacks stuck too (0.375/0.396) — weight-tying dead. THE TELL: every
+# bidir config lands at ~0.38 = the ONE-LAYER CEILING (C1's unroll2-causal = 1 effective layer = 0.38).
+# The two-hop bind-then-retrieve circuit never FORMS bidirectionally: at w=10, a value token averages 21
+# neighbors -> binding signal at ~1/21 SNR, while the query->values direct-readout basin (value-SET
+# guessing, 0.38-optimal) is gradient-reachable from init. Optimization path, not expressivity.
+# ROUND 6 — WINDOW CURRICULUM: train at w=2 (binding forced by connectivity: a value's band is just its
+# key + the next key; rel-bias picks left) with QUERY_FULL rows (probes read the whole doc, so retrieval
+# needs no relay), then widen the context band to w=10. Config 1 sanity-checks the mechanism (w=2 fixed
+# should escape 0.38 decisively); config 2 is the substrate candidate.
 CONFIGS = [
-    ("roq-unroll4-relb", dict(lr=3e-3, s_max=0.9, steps=700, mode="unroll", K=4, rel_bias=True, roq=True)),
-    ("roq-deq-relb", dict(lr=3e-3, s_max=0.9, steps=700, rel_bias=True, roq=True)),
+    ("w2-qfull-deq", dict(lr=3e-3, s_max=0.9, rel_bias=True, roq=True, qfull=True,
+                          wsched=[(2, 700)])),
+    ("wcurr-qfull-deq", dict(lr=3e-3, s_max=0.9, rel_bias=True, roq=True, qfull=True,
+                             wsched=[(2, 400), (4, 400), (10, 600)])),
 ]
+
+
+class UntiedStack(torch.nn.Module):
+    """Standard (NON-weight-tied) K-layer residual attention stack — the mini-BERT control.
+    Discriminates the weight-tying hypothesis: causal masks give a weight-tied net computational
+    STAGING for free (position order = computation order); bidirectionally all phases must coexist
+    in one tied cell. If untied layers solve the task where the tied cell/unroll cannot, the fix is
+    heterogeneity inside the cell (double-step f = B∘A); if they can't, the task construction is
+    the problem (go cloze-MQAR)."""
+
+    def __init__(self, K):
+        super().__init__()
+        self.cells = torch.nn.ModuleList(sw.SeqDEQ("softmax", "unroll", 1) for _ in range(K))
+
+    def h0(self, toks):
+        return self.cells[0].h0(toks)
+
+    def solve(self, h0, mask):
+        z = h0
+        for c in self.cells:                     # f(z, h0=z, ...) = z + s*attn(z): residual, per-layer weights
+            z = c.f(z, z, c.wn(), c._maskp(mask))
+        return z
+
+    def run(self, toks):
+        h0 = self.h0(toks)
+        mask = sw.band_causal_mask(toks.shape[1], toks.device)
+        return self.cells[0].head(self.solve(h0, mask))
 
 
 def mean_cossim(m, gap=GAP):
@@ -98,16 +137,24 @@ def main():
     sw.BIDIR = True
     print(flush=True)
     for name, cfg in CONFIGS:
-        print(f"[{name}] lr={cfg['lr']} s_max={cfg['s_max']} steps={cfg['steps']}"
+        print(f"[{name}] lr={cfg['lr']} s_max={cfg['s_max']}"
+              + (f" wsched={cfg['wsched']}" if "wsched" in cfg else f" steps={cfg.get('steps', 700)}")
               + (f" init={cfg['init']}" if "init" in cfg else "")
               + (" rel_bias" if cfg.get("rel_bias") else "")
               + (" readonly-q" if cfg.get("roq") else "")
-              + (f" mode={cfg.get('mode', 'deq')}" + (f" K={cfg['K']}" if "K" in cfg else "")), flush=True)
+              + (" query-full" if cfg.get("qfull") else "")
+              + (f" arch={cfg.get('arch', 'tied')} mode={cfg.get('mode', 'deq')}"
+                 + (f" K={cfg['K']}" if "K" in cfg else "")), flush=True)
         sw.S_MAX = cfg["s_max"]
         sw.REL_BIAS = cfg.get("rel_bias", False)
         sw.READONLY_Q = cfg.get("roq", False)
+        sw.QUERY_FULL = cfg.get("qfull", False)
+        sw.W = 10                                        # construct at full width (relb table sized to max)
         torch.manual_seed(0)
-        m = sw.SeqDEQ("softmax", cfg.get("mode", "deq"), cfg.get("K")).to(sw.DEV)
+        if cfg.get("arch") == "untied":
+            m = UntiedStack(cfg["K"]).to(sw.DEV)
+        else:
+            m = sw.SeqDEQ("softmax", cfg.get("mode", "deq"), cfg.get("K")).to(sw.DEV)
         if "init" in cfg:
             cki = torch.load(cfg["init"], map_location=sw.DEV, weights_only=False)
             m.load_state_dict(cki["state_dict"])
@@ -115,8 +162,13 @@ def main():
             acc0 = sw.recall(m, GAP, torch.Generator().manual_seed(123), reps=2)
             print(f"    step    0 (pre-finetune, causal weights under bidir mask)  recall {acc0:.3f}", flush=True)
         t0 = time.time()
-        train_tracked(m, cfg["steps"], cfg["lr"])
+        for w_stage, steps_stage in cfg.get("wsched", [(10, cfg.get("steps", 700))]):
+            sw.W = w_stage
+            if len(cfg.get("wsched", [])) > 1:
+                print(f"    -- window stage w={w_stage} ({steps_stage} steps)", flush=True)
+            train_tracked(m, steps_stage, cfg["lr"])
         print(f"  ({time.time()-t0:.0f}s)\n", flush=True)
+        sw.W = 10
     sw.S_MAX = 0.9
 
 
