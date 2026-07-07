@@ -48,6 +48,9 @@ sw.H, sw.dh = 4, sw.d // 4
 def load_ckpt(path):
     ck = torch.load(path, map_location=sw.DEV, weights_only=False)
     sw.REL_BIAS = "relb" in ck["state_dict"]     # bidir ckpts carry the rel-pos bias; causal ones don't
+    sw.READONLY_Q = ck.get("readonly_q", False)  # restore the mask the checkpoint was trained with
+    sw.QUERY_FULL = ck.get("query_full", False)
+    sw.BIDIR = ck.get("bidir", False)
     m = sw.SeqDEQ("softmax", "deq").to(sw.DEV)
     m.load_state_dict(ck["state_dict"])
     m.eval()
@@ -162,11 +165,10 @@ def main():
         nu_causal = None
         cpath = os.path.join(CKPT_DIR, f"curr{ck['stage_gap']:02d}.pt")
         if os.path.exists(cpath):
-            sw.BIDIR = False
-            mc, _ = load_ckpt(cpath)
+            mc, _ = load_ckpt(cpath)                 # sets causal flags
             _, _, _, nu_causal = kappa_nu_of(mc, seqs[0])
             del mc
-            sw.BIDIR = True
+            sw.BIDIR, sw.READONLY_Q, sw.QUERY_FULL = True, ck.get("readonly_q", False), ck.get("query_full", False)
 
         # per-seq noise floors + multistability screen (change (2))
         noise_profs, uniq = [], []
