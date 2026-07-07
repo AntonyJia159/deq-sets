@@ -147,8 +147,41 @@ Two genuine bounds added to `c2_bidir.py` (`route_a_xi`, `route_b_xi`), run on t
 - **Corrects Note #9 / earlier framing:** "Faber is proper on the bidirectional face" is over-stated. What is
   proper there: *σ_min/conditioning governs reach* (Route A certifies). The Faber-FOV *rate* is not
   certifiable in this model class (0∈W(I−J)). Referee-proofing: we checked 0∉W(I−J); it fails; we fall back to
-  the sound κ bound. A tighter certified rate would need a region sharper than W(J) (pseudospectral ε-tuning)
-  — open, not needed for soundness. Log: `checkpoints/c2_bidir_certified_log.txt`.
+  the sound κ bound. Log: `checkpoints/c2_bidir_certified_log.txt`.
+
+### 4c. The TIGHT a-priori certificate — block-transfer rate + adapted norm (2026-07-08, `c2_weighted_cert.py`)
+
+The scalar bounds (proxy, Route A, Route B) are all vacuous/abstaining because they are worst-case over the
+whole operator, blind to structure. The tight object: re-block (I−J) into w-token windows (block-tridiagonal),
+form the **block-Jacobi iteration matrix** G = −D⁻¹(M−D) (D=blockdiag(M)); reach is governed by **ρ(G)**, the
+cross-window transport rate. Measured (`block_transfer` + `c2_weighted_cert`):
+
+| ckpt | ρ(G) | ‖G‖ (transient) | exact resolvent per-hop | certified reach (adapted norm) | measured filler ξ | Route A |
+|---|---|---|---|---|---|---|
+| bidir16 | 0.33 | 5.6 (17×) | 0.36 | **1.04 hops @ const 57** (or 1.37 @ 26) | 0.41 | 93 (vacuous) |
+| bidir24 | 0.42 | 7.9 (19×) | — | ~1.3 hops (reach; const pending) | 0.51 | 79 |
+| bidir40 | 0.85 | 22 (26×) | 0.78 | ~6–9 hops (near-singular, honest) | <noise | 222 |
+| curr24 (causal) | **0.000** | 5.6 | 0.55 | NILPOTENT → exact terminating product | — | — |
+
+**The certificate:** ρ(G) is 10–100× tighter than the scalar bounds and tracks the exact resolvent, but
+‖G‖≈5–22 (transient growth = non-normality) defeats a norm bound (‖G‖<1) — same disease as Route B. Fix =
+**adapted (Stein/Lyapunov) norm**: for target rate r∈(ρ(G),1), P solves (G/r)\*P(G/r)−P=−I, giving
+**‖Gᵏ‖₂ ≤ √κ(P)·rᵏ** → certified reach ξ=1/ln(1/r) hops, amplitude C=√κ(P)‖D⁻¹‖/(1−r). Rate r is tight
+(→ρ(G)); non-normality is quarantined into the one-time √κ(P). bidir16 tradeoff (all certified): r=0.38→1.04
+hops @ 57; 0.48→1.37 @ 26; 0.66→2.44 @ 13; 0.90→8.78 @ 7.7. **A-priori rigor recovered: certified ~1 hop
+where well-conditioned, growing honestly near-singular, vs the vacuous 80–220 hop scalar Route A.**
+
+**LINEAGE SHIFT + UNIFICATION (the important structural point):** this LEAVES approximation theory
+(DMS/Benzi-Golub/Faber = "how a banded inverse decays") and JOINS dynamical-systems/Lyapunov (ρ of an
+iteration operator + adapted-norm certificate for the transient; Stein eq; Kreiss) — **the causal face's OWN
+lineage.** Causal M block-lower-triangular → G nilpotent (ρ(G)=0, confirmed curr24) → series terminates →
+exact product-Lyapunov. Bidir M block-tridiagonal → ρ(G)∈(0,1) → geometric, certified. **The two faces are
+two regimes of ONE object G**, not two disconnected proof families; Faber/DMS demoted to the loose scalar
+floor. **"Conditioning not contraction" sharpened:** ρ(G)<1 = spatial-coupling contraction of the resolvent's
+iteration, NOT temporal contraction of f (ρ(J) still to 8.4); two distinct axes govern, neither is ρ(J):
+ρ(G) (spatial → a-priori reach) and σ_min (conditioning → a-posteriori error). Log `c2_weighted_log.txt`.
+**Debt:** full ρ(G)/const sweep on bidir24/40 + causal is CPU-bound (dense `eigvals` on n=2–3k) — swap to
+Lanczos/Arnoldi ρ(G); formalize √κ(P) scaling.
 
 ---
 

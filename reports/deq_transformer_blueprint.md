@@ -451,7 +451,17 @@ optional booster, not needed. See findings digest §11.
     theorem. Route B (sharp Faber-on-FOV+Crouzeix) **abstains on both faces** — +1∈W(J) everywhere (ρ≈0.74 but
     Re W(J)≈3.1, w/ρ≈4×): huge numerical range despite ρ<1, sharp rate defeated by non-normality. This
     **corrects "proper Faber regime" → "σ_min governs; Faber-FOV rate not certifiable here"**, and is a **4th
-    clever prediction (Route-B splits faces) dying on measurement** while the crude κ object survives. ~~must-carry dissolves~~ **CORRECTED: must-carry PERSISTS on this
+    clever prediction (Route-B splits faces) dying on measurement** while the crude κ object survives.
+    **TIGHT a-priori certificate (2026-07-08, `c2_weighted_cert.py`, digest §4c):** Route A is
+    sound-but-VACUOUS (222 hops on 5 windows). Tight object = **block-transfer rate ρ(G)** (G=block-Jacobi of
+    reblocked resolvent): ρ(G) 0.33/0.42/0.85, 10–100× tighter, tracks the exact resolvent. Transient growth
+    (‖G‖ 5–22) defeats a norm bound; **adapted (Stein/Lyapunov) norm** gives ‖Gᵏ‖≤√κ(P)rᵏ → **certified ~1 hop
+    @ const 26–57** (bidir16), rate tight, non-normality quarantined into √κ(P). **LINEAGE SHIFT: off
+    approximation-theory (DMS/Faber), onto dynamical-systems/Lyapunov = the causal face's own lineage.** Causal
+    G nilpotent (ρ=0) = exact product-Lyapunov corner; bidir ρ(G)∈(0,1) = geometric. **Two faces = two regimes
+    of one operator G**; Faber demoted to loose floor. ρ(G)<1 = SPATIAL contraction of the resolvent iteration,
+    NOT ρ(J) (to 8.4) — "conditioning not contraction" sharpened into two axes (ρ(G) reach; σ_min error).
+    ~~must-carry dissolves~~ **CORRECTED: must-carry PERSISTS on this
     substrate** (irrelevant far/near 0.061 vs causal 0.068 — nearly identical; READONLY_Q makes queries
     invisible to the context, so query-awareness is architecturally impossible here and the reader-set
     principle predicts exactly this; the old "dissolves" contrast used a stale v2-era causal ξ≈27. True

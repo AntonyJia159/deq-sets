@@ -68,11 +68,14 @@
   measured reach sits an order of magnitude inside the envelope, and reach grows as $\sigma_{\min}$ falls.
   The certificate that headlines the paper is therefore <em>measured on its proper face</em>. But the
   envelope as we first computed it was a <strong>sophisticated heuristic, not a theorem</strong> (the
-  Chebyshev rate applied to a non-normal matrix); a normality-free certified bound replaces it (measured reach
-  sits $\sim\!100\times$ inside), so the claim now rests on a theorem &mdash; while the sharp field-of-values
-  bound turns out to <em>abstain on both faces</em> ($0\in W(I{-}J)$ universally: a huge numerical range
-  despite $\rho<1$), a fourth clever prediction dying on measurement. On the causal face the scalar
-  certificate is vacuous, and we build a <strong>three-tier
+  Chebyshev rate applied to a non-normal matrix); the normality-free version is <em>sound but vacuous</em>
+  (222 hops on a 5-window sequence) and the sharp field-of-values bound <em>abstains on both faces</em>
+  ($0\in W(I{-}J)$ universally: a huge numerical range despite $\rho<1$). The a-priori rigor is instead
+  carried by a different object &mdash; the <strong>block-transfer rate $\rho(G)$ + an adapted (Stein/Lyapunov)
+  norm</strong>, which certifies a tight ~1-hop reach (const 26&ndash;57) and, tellingly, <em>unifies the two
+  faces</em>: the causal product&ndash;Lyapunov form is its nilpotent corner. This is a lineage shift &mdash;
+  off approximation theory, onto dynamical systems. On the causal face the scalar certificate is vacuous, and
+  we build a <strong>three-tier
   claw-back ladder</strong> (a-priori directional / a-posteriori residual / emergent metering) whose rungs
   degrade gracefully. And the arc's real lesson: <strong>three clever emergent-mechanism predictions died on
   contact with measurement</strong> (lazy evaluation, must-carry dissolution, a universal metering law)
@@ -159,6 +162,57 @@ and ran them on the real Jacobians &mdash; which killed a prediction of our own 
   Frobenius sense; it is nowhere near enough to pull $W$ off the singularity. This is a <em>fourth</em> clever
   prediction dying on measurement (&sect;4) &mdash; and again the crude conditioning object is what survives.
 </div>
+
+<h2>2b. The tight a-priori certificate: block-transfer rate + adapted norm</h2>
+<p>
+Route&nbsp;A is <em>sound but vacuous</em> (222 hops on a 5-window sequence constrains nothing), and the
+proxy is barely better &mdash; because every scalar spectral/FOV bound is a worst-case over the whole
+operator, blind to structure. The fix is to look at the right object. Re-block $(I-J)$ into $w$-token windows
+(block-tridiagonal), solve <em>within</em> each window exactly, and form the <strong>block-Jacobi iteration
+matrix</strong> $G=-D^{-1}(M-D)$. Its spectral radius $\rho(G)$ is the true cross-window transport rate:
+</p>
+<table>
+  <tr><th>ckpt</th><th>$\rho(G)$ (true rate)</th><th>$\lVert G\rVert$ (transient)</th><th>implied reach</th><th>measured filler $\xi$</th><th>Route A</th></tr>
+  <tr><td>bidir16</td><td>0.33</td><td>5.6 (17&times;)</td><td class="good">~1 hop</td><td>0.41</td><td class="bad">93</td></tr>
+  <tr><td>bidir24</td><td>0.42</td><td>7.9 (19&times;)</td><td class="good">~1.3 hop</td><td>0.51</td><td class="bad">79</td></tr>
+  <tr><td>bidir40</td><td>0.85</td><td>22 (26&times;)</td><td class="warn">~6&ndash;9 hop</td><td>&lt;noise</td><td class="bad">222</td></tr>
+</table>
+<p>
+$\rho(G)$ tracks the measurement and is 10&ndash;100&times; tighter than the scalar bounds &mdash; but
+$\lVert G\rVert\approx5$&ndash;22 (transient growth from non-normality) means a plain norm certificate
+($\lVert G\rVert<1$) fails, exactly as Route&nbsp;B did. The <strong>adapted (Stein/Lyapunov) norm</strong>
+fixes it: solve $\tilde G^{*}P\tilde G-P=-I$ for $\tilde G=G/r$ (exists iff $\rho(G)<r<1$), giving
+$\lVert G^{k}\rVert_2\le\sqrt{\kappa(P)}\,r^{k}$ &mdash; the rate $r$ tight, the non-normality quarantined
+into a one-time constant $\sqrt{\kappa(P)}$. Measured on bidir16 (<code>c2_weighted_cert.py</code>):
+</p>
+<table>
+  <tr><th>target $r$</th><th>certified reach $\xi=1/\ln(1/r)$</th><th>amplitude $\sqrt{\kappa(P)}$</th><th>status</th></tr>
+  <tr><td>0.38</td><td class="good">1.04 hops</td><td>57</td><td class="good">certified</td></tr>
+  <tr><td>0.48</td><td class="good">1.37 hops</td><td>26</td><td class="good">certified</td></tr>
+  <tr><td>0.66</td><td>2.44 hops</td><td>13</td><td class="good">certified</td></tr>
+  <tr><td>0.90</td><td>8.78 hops</td><td>7.7</td><td class="good">certified</td></tr>
+</table>
+<div class="callout key">
+  <strong>The a-priori rigor is recovered &mdash; and the lineage changed.</strong> A <em>certified ~1-hop
+  reach</em> (const 26&ndash;57), vs the vacuous 93-hop Route&nbsp;A, with a clean rate&ndash;constant
+  tradeoff. This <strong>leaves the approximation-theory lineage</strong> (Demko&ndash;Moss&ndash;Smith /
+  Benzi&ndash;Golub / Faber-on-FOV &mdash; &ldquo;how the inverse of a banded matrix decays&rdquo;) and
+  <strong>joins the dynamical-systems / Lyapunov lineage</strong> (spectral radius of an iteration operator +
+  an adapted-norm certificate for the transient; Stein equation; Kreiss). That is <em>the causal face's own
+  lineage</em>: the causal $M$ is block-lower-triangular $\Rightarrow$ $G$ is <strong>nilpotent</strong>
+  ($\rho(G)=0$, confirmed on curr24) $\Rightarrow$ the series terminates $\Rightarrow$ the exact
+  product&ndash;Lyapunov form. So the two faces are not two proof families but <strong>two regimes of one
+  object</strong> $G$: the nilpotent corner (causal, exact) and the contractive-after-reweighting case
+  (bidirectional, geometric). The Faber/DMS branch is demoted to the honestly-loose scalar floor.
+</div>
+<p>
+And this <em>sharpens</em> &mdash; does not retract &mdash; &ldquo;conditioning, not contraction.&rdquo;
+$\rho(G)<1$ is a <strong>spatial-coupling contraction of the resolvent's iteration</strong>, not temporal
+contraction of $f$ ($\rho(J)$ still ranges to 8.4). Two distinct axes govern maintenance, <em>neither</em>
+of them $\rho(J)$: $\rho(G)$ (spatial locality $\to$ a-priori reach) and $\sigma_{\min}(I-J)$ (conditioning
+$\to$ a-posteriori error). $\sigma_{\min}$'s role is unchanged; what moved is that the a-priori spatial reach
+now rests on $\rho(G)$ + an adapted norm, a theorem, instead of the vacuous scalar $\kappa$-envelope.
+</p>
 
 <h2>3. The causal face is vacuous &mdash; so we build a ladder</h2>
 <p>
@@ -280,11 +334,11 @@ Certifying Local Edits in Deep Equilibrium Transformers.</em> Six beats:
   mid-context edit operation. Equilibrium is load-bearing, not incidental.</li>
 
   <li><strong>One structural fact splits the certificate into two faces.</strong> Jacobian geometry, with
-  $\nu$ (departure from normality) as the measured discriminator that <em>orders</em> the faces: bidirectional
-  / less-non-normal $\Rightarrow$ a screened elliptic response whose reach is certified by the normality-free
-  $\sigma_{\min}$/$\kappa$ bound (the sharp Faber-on-FOV rate is defeated by the model's large numerical range,
-  $0\in W(I{-}J)$ &mdash; §2); causal / strongly-non-normal $\Rightarrow$ a forward relay certified by a
-  product&ndash;Lyapunov form, with the scalar version vacuous.</li>
+  a single object &mdash; the block-transfer (block-Jacobi) operator $G$ of the re-blocked resolvent &mdash;
+  certified by an adapted (Stein/Lyapunov) norm (§2b). Two regimes: causal $\Rightarrow$ $G$ nilpotent
+  ($\rho(G)=0$), the exact product&ndash;Lyapunov form; bidirectional $\Rightarrow$ $\rho(G)\in(0,1)$,
+  geometric decay certified tightly (~1 hop) despite transient growth. The scalar $\kappa$/Faber envelope is
+  demoted to a loose worst-case floor; $\sigma_{\min}$ stays as the separate conditioning axis.</li>
 
   <li><strong>A certificate ladder, rigor stated per rung.</strong> A-priori directional (Tier&nbsp;1) /
   a-posteriori residual (Tier&nbsp;2, unconditional) / emergent metering (Tier&nbsp;3, measured, not
@@ -312,10 +366,12 @@ Certifying Local Edits in Deep Equilibrium Transformers.</em> Six beats:
 
 <h2>7. What is owed before drafting</h2>
 <ul>
-  <li><strong>Certified-bound numbers &mdash; done (§2).</strong> Route&nbsp;A certifies (42&ndash;222 hops,
-  measured $\sim\!100\times$ inside); Route&nbsp;B abstains universally ($0\in W(I{-}J)$). A tighter certified
-  <em>rate</em> would need a region sharper than the field of values (e.g. pseudospectral $\varepsilon$-tuning)
-  &mdash; open, but not needed for soundness.</li>
+  <li><strong>Certified reach &mdash; done (§2, §2b).</strong> Scalar Route&nbsp;A is sound but vacuous
+  (42&ndash;222 hops) and Route&nbsp;B abstains ($0\in W(I{-}J)$); the <em>tight</em> a-priori certificate is
+  the block-transfer rate $\rho(G)$ + adapted (Stein/Lyapunov) norm &mdash; certified ~1 hop (const
+  26&ndash;57) on bidir16. Remaining: complete the full $\rho(G)$/constant sweep on bidir24/40 and curr
+  (the run is CPU-bound on the larger eigendecompositions &mdash; needs a Lanczos/Arnoldi $\rho(G)$ instead of
+  dense <code>eigvals</code>), and formalize the amplitude constant $\sqrt{\kappa(P)}$ scaling.</li>
   <li><strong>C2i &mdash; edit interference.</strong> Paired edits vs sum-of-singles vs separation: the
   linear-regime boundary (superposition until attention patterns re-form). Owed, not yet run.</li>
   <li><strong>Insert/delete.</strong> The aligned-frame reduction (a width-$w$ substitution at the cut) on
