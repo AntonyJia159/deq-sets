@@ -229,9 +229,10 @@ is a *measured property of the Jacobians*, not a modeling assumption. Honest foo
   pipeline rerun for a footnote. Staggered-block = good future work, ideally on a seam-sensitive task.
 - **Insert/delete under relative PE** is **screened, not wide**: the "exponential shadow on both sides" *is*
   the σ_min ξ-ball (+ O(n) index bookkeeping, zero recompute), which the certificate prices. Under absolute PE
-  it really is global. **Bonus:** the rel-bias we added to fix the binding blocker makes the bidir substrate
-  already relative-PE → a C2-insert (v2) measurement needs no architecture change, only an insert-type
-  `apply_edit`.
+  it really is global. **CORRECTION (this run):** the substrate is **not actually relative-PE yet** — `h0 =
+  emb + posw[:L]` still adds a *learned absolute* positional embedding; the rel-bias was added *on top* for the
+  binding fix, `posw` was never removed. Invisible for substitutions (no index shift), but it would smear an
+  insert's response globally. See §11 (posw-ablation check + the aligned-frame reduction).
 - **The Excel/NCA anecdote (ZJ):** linearly-interpolated Wolfram CA collapsing to gray 0.5 = consensus
   collapse; discrete CA stays interesting because thresholding is maximally non-averaging (= peaked softmax
   re-sharpening). One-line inhabitant of the NCA corner of the four-lands figure: continuous-CA gray-out =
@@ -239,9 +240,95 @@ is a *measured property of the Jacobians*, not a modeling assumption. Honest foo
 
 ---
 
-## 10. Remaining (non-spine) debts before drafting
+## 10. The causal claw-back ladder + deferred-billing metering
+
+The central honesty (§5 / blueprint) says causal edits aren't *local*. It does **not** say they aren't
+*adaptively priced* — different claim, and it survives. Three tiers, decreasing guarantee strength:
+
+- **Tier 1 — certified, a priori, DIRECTIONAL (small new experiment, = the product-form debt).** The scalar
+  ξ-ball is vacuous because σ_min reports the *carry* direction and charges every edit as if its whole δh lay
+  there. Refine scalar → projection: precompute the low-rank **carry subspace** (top singular directions of the
+  accumulated per-hop transfer product `∏(I−D_i)⁻¹A_i`) once per context; δh is known *before* solving (the
+  embedding delta at the edit sites), so project it — transverse component gets a certified short-ξ⊥ screened
+  bound, carry component is "transported at gain≈1 but **rank-r**." Certified recompute set becomes *ξ⊥-ball +
+  rank-r carry update* instead of "the whole suffix," and low-carry-projection edits get an a-priori
+  containment verdict. Doesn't shrink for genuinely carry-exciting edits (they *do* reach the cursor — correct);
+  it stops charging *every* edit for the carry. Validatable against the measured 3-tier far/near table.
+- **Tier 2 — certified, a posteriori (DONE, C2 v4.1).** Even when the a-priori ball is vacuous, `‖z−z*‖ ≤
+  resid/σ_min` holds at every point of a warm re-solve → any *partial* recompute carries a certified error bar;
+  stop when `resid/σ_min < tol` and the result is provably close. The "third face" of σ_min, now stated as the
+  causal face's a-posteriori guarantee.
+- **Tier 3 — emergent metering (MEASURED, epistemic label: property of the trained model, not a guarantee).**
+  Warm-start iterations track `‖z*_new − z*_old‖` with *no* pre-classification: filler ~4 evals → unqueried
+  ~11–18 → queried ~22≈cold. Feedforward recompute is **input-sensitive** (always L×suffix, however trivial);
+  the equilibrium channel is **output-sensitive** (charges for the change that actually happened). This sits
+  *inside* the tier-2 bound, so the composite is sound: "cost adapts to realized change (measured), any early
+  stop is certified (proved)."
+
+**Deferred-billing / lazy-activation reading (ZJ, the resolution of "why edit if nothing reached the
+cursor?").** Most edits are a **quiet build-up of relationships, stored locally, awaiting a future trigger
+that activates them** — a renamed variable, a fixed config value, an updated fact: meaningful to *some*
+eventual reader, inert for the next decode step. Metering **bills you when the reader arrives and excites the
+carry**, not at write time. So (a) "meaningful" is reader-relative and time-distributed (the paradox
+dissolves — the reader-set principle from the other side); (b) a cheap "nothing propagated" verdict is *itself
+the product* (incremental-build value = confirming most outputs unchanged, cheaply, with a certified residual);
+(c) the write→trigger gradient (single-digit → moderate → heavy iters, keyed to how much a reader activates) is
+exactly the desired billing curve, and it's emergent — the solver discovers it without classifying anything.
+
+**Certificate verdict + caveats.** Worth building at **one-subsection scale** (completes the causal ladder;
+same computation as the product-form debt; one validation run). Harness hook worth **one paragraph**: δh known
+pre-solve + carry basis precomputed at cache-build → O(r·d) test *before* paying (small carry projection → patch
+the ξ⊥-ball, keep the downstream cache; large → schedule the full warm re-solve; tier-2 certifies whatever
+partial work you do) — the role dependency summaries play in incremental compilers. **Caveats to attach:** it's
+a **first-order** certificate (linearization at z*), and a token substitution is a *finite* perturbation — our
+C2 envelopes already survived that gap empirically, but the directional refinement needs the same style of
+validation, not just derivation; **rank choice** and **subspace stability across contexts** are the
+reviewer-attack surfaces (measure subspace stability as part of validation).
+
+---
+
+## 11. Multi-token & insert/delete — directional theory + the posw finding
+
+**Multi-token edits: superposition + one cheap experiment.** First-order theory is clean: stack the per-site
+δh's, project jointly onto the carry subspace — transverse balls union, carry components combine (and can
+**cancel** — a rename edits many sites coherently, its carry projection may interfere destructively). What
+breaks superposition is the **nonlinear attention re-routing** (two edits jointly flip an attention decision
+neither flips alone). → **Edit-interference experiment** (cheap, same C2 machinery, one new loop): response to
+paired edits vs the sum of single-edit responses, as a function of separation — quantifies where the linear
+regime ends = the validity boundary of the whole certificate story.
+
+**Insert/delete: theory reduces cleanly.** In the **aligned frame** (match unchanged prefix + suffix), an
+insert/delete under relative PE + banded attention **is** a multi-site substitution confined to the width-w
+band straddling the cut (far regions shift uniformly → attention byte-identical). So directionally it's just
+the multi-token case at the cut; no new theory. Insert/delete = "a width-w edit at the cut," two-sided screened
+shadow prices the rest.
+
+**BUT the substrate isn't relative-PE — posw is load-bearing (measured, `posw_ablation.py`).** `h0 = emb +
+posw[:L]` still adds a *learned absolute* PE. Ablation (zero posw at eval): recall holds at gap 0 (1.000) but
+**COLLAPSES at every gap > 0** (0.997→0.489, 0.987→0.487, 0.995→0.525, 0.938→0.399), and `‖posw‖` **grows with
+gap** (2.84→5.48→7.91→9.68→11.15) — *the model recruits absolute position harder as the relay lengthens.* So
+absolute PE is doing real cross-window relay work, not bookkeeping; an insert experiment on this substrate would
+measure the absolute-PE artifact, not the screened shadow. There's also a genuine research question underneath:
+*can a pure-relative-PE banded DEQ do the cross-window relay at all, or does the relay lean on an absolute
+coordinate?* (The growing ‖posw‖ hints the latter — worth knowing, don't over-interpret from one probe.)
+
+**Verdict / plan for insert/delete (→ v2 spine, not this paper):** state the aligned-frame reduction as theory
++ flag the absolute-PE limitation honestly. Measuring it needs: **(i)** retrain the bidir curriculum with posw
+disabled (pure rel-bias) and confirm the relay survives — this is *also* the answer to the research question
+above; **(ii)** insert-type `apply_edit` with alignment bookkeeping, measured in the aligned frame vs the
+"band at the cut" prediction. The directional certificate (§10) + interference experiment are the better
+marginal spend for *this* paper; insert/delete is the natural v2 spine.
+
+---
+
+## 12. Remaining (non-spine) debts before drafting
 
 1. Full reads of the 4 must-read refs: Vogt 2006.14123, Cirone 2402.19047, Benzi–Golub decay, 2411.04400.
-2. Product-form certificate computed on real J blocks (g max + geo-mean) vs the L1 exact-resolvent oracle.
-3. C4 multiscale — optional/stretch.
-4. C2-insert (v2) — cheap now (bidir substrate is relative-PE); optional depending on scope.
+2. **Directional certificate (§10 tier 1)** = product-form on real J blocks (carry-subspace SVD + per-edit
+   projection) vs the L1 exact-resolvent oracle, validated on the curr 3-tier far/near table. *The recommended
+   next experiment* — completes the causal claw-back ladder, cheap, high value.
+3. **Edit-interference experiment (§11)** — paired-edit response vs sum-of-singles vs separation; maps the
+   linear-regime validity boundary. Cheap, same C2 machinery.
+4. C4 multiscale — optional/stretch.
+5. **Insert/delete (§11) → v2 spine:** needs a posw-disabled bidir retrain first (posw is load-bearing, measured)
+   — *not* a weekend; also answers "can pure relative-PE relay?".

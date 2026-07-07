@@ -343,10 +343,13 @@ direct hit, σ_min + multiscale handle propagation. **Make relative PE the defau
 story** — but the localization comes from sparsity, not from the PE choice. So an insert's "exponential shadow
 on both sides" is **not** a wide recompute but exactly the σ_min-screened ξ-ball (+ an O(n) index-bookkeeping
 pass with zero recompute) — the certificate *prices* it rather than an uncontrolled cost — provided PE is
-relative; under absolute PE the shadow really is global. **Free bonus from this run:** the per-head
-relative-position bias added to fix the bidirectional binding blocker means the **bidir substrate is already
-relative-PE**, so a C2-insert (v2) measurement needs *no* architecture change — only an insert-type
-`apply_edit`.
+relative; under absolute PE the shadow really is global. **CORRECTION (measured, `posw_ablation.py`):** the
+substrate is **not** relative-PE despite the rel-bias — `h0 = emb + posw[:L]` still adds a *learned absolute* PE,
+and it is **load-bearing for the cross-window relay**: zeroing `posw` holds recall at gap 0 (1.000) but collapses
+it at every gap>0 (→0.4–0.5), and `‖posw‖` *grows* with gap (2.84→11.15) — the model recruits absolute position
+harder as the relay lengthens. So insert/delete needs a **posw-disabled retrain first** (→ v2 spine, not a
+weekend); the retrain doubles as the answer to "can a pure-relative-PE banded DEQ relay at all?" See findings
+digest §11.
 
 ---
 
@@ -377,6 +380,23 @@ relative-PE**, so a C2-insert (v2) measurement needs *no* architecture change �
   **What the CAUSAL face is FOR in the paper:** it is the *proof ground* (product-Lyapunov / the RNN-Lyapunov
   BPTT bridge) and the regime where we *characterize the must-carry limitation* — **not** where we claim a
   maintenance proposal. Characterization, not proposal, in causal-land.
+- **THE CAUSAL CLAW-BACK — not local, but adaptively priced (a 3-tier ladder; see findings digest §10).** The
+  central honesty says causal edits aren't *local*; it does NOT say they aren't *adaptively priced*. (1) **Tier 1
+  — directional certificate** (a-priori, certified; the recommended small experiment = the product-form debt):
+  project the known-before-solving δh onto the low-rank **carry subspace** (top singular dirs of the per-hop
+  transfer product) → transverse part gets a certified short-ξ⊥ bound, carry part is a rank-r long-range update;
+  the vacuous scalar ball refines to *ξ⊥-ball + rank-r carry*, and low-carry edits get an a-priori containment
+  verdict. (2) **Tier 2 — a-posteriori** (done): `‖z−z*‖ ≤ resid/σ_min` certifies *any* partial recompute
+  (stop at `resid/σ_min<tol`). (3) **Tier 3 — emergent metering** (measured, model-property not guarantee):
+  warm-start is **output-sensitive** (iters ∝ realized `‖Δz*‖`) vs feedforward **input-sensitive** (always
+  L×suffix); sits inside the tier-2 bound so the composite is sound. **Deferred-billing reading (ZJ):** most
+  edits are a quiet build-up of relationships stored locally, awaiting a future trigger; metering bills you
+  **when the reader arrives and excites the carry**, not at write time — the write→trigger iter-gradient
+  (single-digit→moderate→heavy) is the desired billing curve, emergent. Harness hook (one paragraph): δh known
+  pre-solve + carry basis precomputed → O(r·d) cost-prediction *before* paying (small proj → patch ξ⊥-ball, keep
+  cache; large → schedule full re-solve). Caveats: **first-order** certificate on a *finite* perturbation (needs
+  C2-style validation, not just derivation); rank choice + carry-subspace stability across contexts = the
+  attack surface.
 - **The genuine regime for a maintenance WIN = bidirectional + local-readout + readers-present.** ξ-ball
   compression needs σ_min bounded away from 0 in *all* directions (no long-range carry) — i.e. the model is
   *not* a long-memory autoregressor. That is the bidirectional niche we identified: code editing (re-predict
@@ -445,11 +465,23 @@ relative-PE**, so a C2-insert (v2) measurement needs *no* architecture change �
   surprise. CAVEAT: flatness may partly reflect our contraction control (SN + s_max cap) pinning learned σ_min
   into a similar range across `w`; the honest claim is "reach tracked conditioning, and conditioning didn't
   move much with `w`," not "the window is powerless." Don't oversell.
+- **C2d (directional certificate — the causal claw-back, recommended next experiment; = the product-form
+  debt).** Precompute the low-rank carry subspace (SVD of the per-hop transfer product on real J blocks);
+  project each edit's δh; certify *ξ⊥-ball + rank-r carry* per edit; validate the a-priori per-edit verdict
+  against the measured curr 3-tier far/near table. Cheap, completes the causal ladder (§10 of findings digest).
+- **C2i (edit-interference — maps the linear-regime validity boundary).** Response to *paired* edits vs the sum
+  of single-edit responses, as a function of separation. Where they diverge = where nonlinear attention
+  re-routing breaks first-order superposition = the validity boundary of the whole directional-certificate
+  story. Cheap, same C2 machinery, one new loop. Also grounds multi-token edits (stack-and-project).
 - **C4 (multi-scale resolution).** Adding `O(log n)` coarse / global nodes lets a *long-range-relevant*
   edit reach the generation point in `O(log n)` via the coarse channel (local ball + `O(log n)` coarse
   updates) instead of full-suffix recompute — at the cost of the coarse nodes being bounded (`O(log n)`)
   locality-breaking hubs. This is the concrete answer to "how does the signal reach the end without a
   whole recomputation."
+- **C-insert (insert/delete — v2 spine, NOT this paper).** Aligned-frame reduction: an insert/delete under
+  relative PE + banded attention = a width-`w` multi-site substitution at the cut (theory, §11). Blocked on a
+  **posw-disabled bidir retrain** (posw is load-bearing for the relay — measured, `posw_ablation.py`), which
+  also answers "can a pure-relative-PE banded DEQ relay across windows at all?"
 
 ---
 
