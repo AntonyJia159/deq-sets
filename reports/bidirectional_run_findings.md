@@ -430,6 +430,37 @@ MLM-objective hypothesis and the local-decomposability limit are the two open ed
 
 ---
 
+## 11b. Post-arc leads (registered end-of-arc, 2026-07-07; designed, NOT run)
+
+- **Why is linear response this good? — mechanism hypothesis (probe #1, upgraded by ZJ's "transformers are
+  secretly linear" pointer).** With attention patterns frozen, a transformer is LINEAR in the values (OV
+  pathway; nonlinearity concentrates in QK/pattern formation — Elhage et al. framework; also a 2024
+  "secretly linear" paper, ~0.99 inter-layer linearity — VERIFY before citing). Our block semantics says
+  J = value transport (a_ij·Wv, linear) + re-routing (∂a/∂z, spiky). **Hypothesis: trained attention is
+  saturated → ∂a/∂z ≈ 0 locally → edits that don't flip an attention decision propagate linearly; linear
+  response fails exactly at attention TIES.** Testable: per-edit attention-pattern change should predict the
+  linearity residual; plus an ε-sweep for the basin boundary. Explains the campaign's most robust result
+  (forecast Spearman 0.96–1.00).
+- **The collage connection (ZJ) — our a-posteriori bound is the conditioning upgrade of the collage theorem.**
+  Collage/Banach: ‖z−z*‖ ≤ ‖f(z)−z‖/(1−c), global, needs contraction c<1. Ours: ‖z−z*‖ ≤ resid/σ_min(I−J),
+  local (first-order, empirically validated), TIGHTER when contraction holds (σ_min ≥ 1−c) and VALID at ρ>1
+  where collage is void — the paper's ρ→σ_min move in error-bound form. **Future work — "conditioned collage
+  training":** ZJ's old collage-loss (supervise ‖f_θ(target)−target‖, never solve) fails silently near-singular
+  (certifies nothing); train on the *certified* error resid/σ_min (or collage residual + σ_min-health
+  regularizer) instead. Novelty flags: adjacent to Bai's Jacobian-Frobenius regularization (we'd regularize
+  the certificate quantity, not a norm proxy) and to Jacobian-free/phantom training — run past Geng.
+- **The semi-causal dial (C2ν, ZJ's confound catch — the missing control for "ν governs everything").** All
+  ν-governs claims (proof family, trainability, billing legibility) are confounded: ν only varies through the
+  mask, so "near-normal governs X" ≡ "bidirectional governs X" in our data. Control: an ASYMMETRIC band
+  [i−w, i+βw], β ∈ {0, 0.25, 0.5, 1} — ν moves continuously with β; then metering legibility either tracks ν
+  continuously (ν vindicated as the governing variable) or jumps at β>0 (strict triangularity is topologically
+  special; ν was a proxy). Either outcome sharpens the claim. Practical mirror: streaming/ASR bounded-lookahead
+  attention is literally semi-causal. Cost: one curriculum retrain + C2m pass per β → slated, not now.
+- **Multistability: explicitly OUT OF SCOPE for this paper (ZJ decision).** Stays the natural v2/spin-off
+  (branch-tracking, hysteresis/primed-branch probe, amplifier-coupling EoS thread from the dormant notes).
+
+---
+
 ## 12. Scale path — everything survives losing the dense Jacobian (ZJ's practicality question)
 
 The dense J / exact resolvent is the toy-scale **oracle we validate estimators against**, not the method.

@@ -389,7 +389,12 @@ optional booster, not needed. See findings digest §11.
   transfer product) → transverse part gets a certified short-ξ⊥ bound, carry part is a rank-r long-range update;
   the vacuous scalar ball refines to *ξ⊥-ball + rank-r carry*, and low-carry edits get an a-priori containment
   verdict. (2) **Tier 2 — a-posteriori** (done): `‖z−z*‖ ≤ resid/σ_min` certifies *any* partial recompute
-  (stop at `resid/σ_min<tol`). (3) **Tier 3 — emergent metering** (measured; **REVISED by
+  (stop at `resid/σ_min<tol`). Lineage note (ZJ): this is the **conditioning upgrade of the collage/Banach
+  a-posteriori bound** `‖z−z*‖ ≤ ‖f(z)−z‖/(1−c)` — tighter when contraction holds (σ_min ≥ 1−c), valid at
+  ρ>1 where collage is void, at the price of locality (first-order, empirically validated). Future work:
+  "conditioned collage training" — train on the certified error resid/σ_min instead of the raw collage
+  residual (which certifies nothing near-singular); check novelty vs Bai's Jacobian regularization +
+  phantom-gradient line with Geng. (3) **Tier 3 — emergent metering** (measured; **REVISED by
   C2m**: a *bidirectional* property — clean output-sensitive law there (Spearman ~0.9), weak/mode-confounded
   causally, absent near-singular; causal face's reliable instruments are tiers 1–2 only; the coarse 3-class
   cost ordering still holds causally as a step, not a law); feedforward/cold = input-sensitive flat toll
@@ -523,6 +528,13 @@ optional booster, not needed. See findings digest §11.
   trainability, and billing legibility.** Universal winner: the forecast ‖R·δh‖→‖Δz‖ at Spearman 0.96–1.00 on
   both faces at all conditioning. Flat toll confirmed (cold ≈ constant, Spearman ≈ 0). Caveats: 18–36% floor
   points (coarse at the small end); slope-vs-σ_min inconclusive. Figure: `checkpoints/c2m_records.npz`.
+- **C2ν (semi-causal dial — SLATED, not run; the missing control for every "ν governs X" claim).** Our
+  ν-governs results (proof family, trainability, billing legibility) are confounded with causality itself
+  (ν only varies through the mask). Control: an **asymmetric band** [i−w, i+βw], β ∈ {0, 0.25, 0.5, 1} —
+  ν moves continuously with β; metering legibility (C2m rerun) then either tracks ν continuously (ν is the
+  governing variable) or jumps at β>0 (strict triangularity is topologically special; ν was a proxy). Either
+  outcome sharpens the claim. Streaming/ASR bounded-lookahead attention = the practical semi-causal mirror.
+  Cost: curriculum retrain + C2m pass per β.
 - **C4 (multi-scale resolution).** Adding `O(log n)` coarse / global nodes lets a *long-range-relevant*
   edit reach the generation point in `O(log n)` via the coarse channel (local ball + `O(log n)` coarse
   updates) instead of full-suffix recompute — at the cost of the coarse nodes being bounded (`O(log n)`)
