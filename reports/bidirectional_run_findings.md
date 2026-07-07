@@ -147,6 +147,24 @@ selective or not — that is the certificate (a guarantee)**; must-carry vs. que
 *where inside that sound envelope* the trained map puts transport — that is measured mechanism. Same structure
 as loose-but-sound recompute.
 
+**How the ξ-ball interfaces with must-carry, and the central honesty (edit-locality is dual to forgetting).**
+The certificate is worst-case (smallest-σ_min direction), so the ξ-ball **always contains** the carry
+direction → soundness holds for a queried-value edit (it correctly says "can reach the cursor"). But the *same*
+σ_min gives ξ (edit-locality) *and* the memory horizon: small σ_min = long ξ = long memory. So **a causal LM
+doing its job (long memory) has a large ξ by necessity — its edits are not local**, and a causal model with
+local edits is one that has *forgotten*. Edit-locality in the causal regime is exactly the property you don't
+want. Interface verdict: in the useful causal regime the ξ-ball ≈ the whole suffix → the certificate is **sound
+but vacuous** (no compression) for carry-exciting edits; it only compresses for filler/unqueried edits, and
+"cheap maintenance of the irrelevant context" is a weak generation-time pitch. Nuance: reach is *anisotropic*
+(product-Lyapunov coupling ≈1 along the low-dim carry, <1 transverse; scalar σ_min reports the carry), so it's
+not literally *every* edit — but the demotion stands. **Consequence for scope:** the causal face is the *proof
+ground* (product-Lyapunov / BPTT bridge) and the regime where we *characterize the must-carry limitation* — NOT
+a maintenance proposal. A maintenance *win* needs σ_min bounded from 0 in all directions (no long carry) = the
+**bidirectional local-readout niche with readers present in context**. Even there, edit-now/query-later brings
+back unknown future readers → must-carry-like burden; the cleanest claimable regime is bidirectional
+local-readout where relevant readers are already in context. **State this plainly in the paper — do not sell
+causal-LM maintenance.**
+
 ---
 
 ## 6. The KV-cache interface — what our object *is* in serving terms

@@ -358,10 +358,37 @@ relative-PE**, so a C2-insert (v2) measurement needs *no* architecture change �
 - **NOT cheap for long-range-relevant edits in a pure sliding-window model.** An edit that must reach a
   far generation point costs O(distance) — fundamental (information must travel), not fixable by any
   method. Partially resolved by the multi-scale arm (C4).
-- **The genuine regime** = edit-heavy / local-readout: code editing (re-predict near the cursor — PIE's
-  setting), agent scratchpad revision, RAG chunk swaps re-read locally. The *characterization* (recompute
-  exactly the certified ξ-ball) also transfers to standard transformers; the DEQ is the clean setting
-  where it is provable.
+- **THE CENTRAL HONESTY — edit-locality is DUAL to forgetting, so it is self-defeating in the causal/decode
+  regime; the maintenance win lives ONLY in the bidirectional local-readout niche.** The *same* σ_min gives
+  the screening length ξ (edit-locality) AND the memory horizon (one-number-two-readings): small σ_min = long
+  ξ = long memory; large σ_min = short ξ = short memory. Therefore **a causal LM that is doing its job (long
+  memory — it carries bindings to the cursor) has a large ξ by necessity — edits are NOT local**, and a causal
+  model whose edits ARE local is one that has forgotten (useless for recall). *Edit-locality in the causal
+  regime is exactly the property you do not want.* The queried-value edit's must-carry to the cursor is not a
+  DEQ flaw and not a win — it is the memory horizon, priced. **How the ξ-ball interfaces with must-carry:** the
+  certificate is worst-case (smallest σ_min direction), so the ξ-ball **always contains** the carry direction
+  → soundness holds (it correctly says "this edit can reach the cursor"). But in the useful causal regime that
+  ball ≈ the whole suffix, so the certificate is **sound but VACUOUS** (no compression, "recompute everything
+  downstream") for any carry-exciting edit. It only compresses for edits that miss the carry subspace (filler,
+  unqueried-value) — and "cheaply maintaining the part of the context that doesn't matter" is a weak pitch in a
+  generation setting. NUANCE (keeps it from being too self-flagellating): reach is **anisotropic** — the causal
+  product-Lyapunov form has geometric-mean coupling ≈1 along the low-dim carry (full-suffix reach) and <1
+  transverse (short reach); the scalar σ_min just reports the worst (carry) direction. But the demotion stands.
+  **What the CAUSAL face is FOR in the paper:** it is the *proof ground* (product-Lyapunov / the RNN-Lyapunov
+  BPTT bridge) and the regime where we *characterize the must-carry limitation* — **not** where we claim a
+  maintenance proposal. Characterization, not proposal, in causal-land.
+- **The genuine regime for a maintenance WIN = bidirectional + local-readout + readers-present.** ξ-ball
+  compression needs σ_min bounded away from 0 in *all* directions (no long-range carry) — i.e. the model is
+  *not* a long-memory autoregressor. That is the bidirectional niche we identified: code editing (re-predict
+  near the cursor — PIE's setting), agent scratchpad revision, RAG chunk swaps re-read locally — no single
+  cursor everything must flow to, relevance spatially bounded, and (crucially) the readers/queries are
+  **present in the context at solve time** so the relay can be query-aware and selectively forget (must-carry
+  *dissolves*, measured in C2-bidir). REMAINING CAVEAT even here (reader-set principle): for the edit-now /
+  query-later workload the future readers are unknown → a must-carry-like burden returns; our C2-bidir measured
+  selectivity only because the queries sat in the solved context. So the *cleanest* claimable regime is
+  bidirectional local-readout where the relevant readers are already in context. The *characterization*
+  (recompute exactly the certified ξ-ball) still transfers to standard transformers; the DEQ is the clean
+  setting where it is provable.
 
 ---
 
