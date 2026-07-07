@@ -34,6 +34,7 @@ PHASE_A = [(2, 400), (4, 400), (10, 600)]    # (window, steps) at gap 0, QUERY_F
 PHASE_B = [0, 8, 16, 24, 40]                 # gap stages at w=10, QUERY_FULL off (relay pressure)
 STEPS_B = 350
 CKPT_DIR = "checkpoints"
+PREFIX = "bidir"                             # checkpoint name prefix (wrappers override, e.g. "bidirnp")
 
 
 def eval_stage(m, gap):
@@ -69,10 +70,11 @@ def main():
         t0 = time.time()
         sw.train(m, steps=STEPS_B)
         acc, r, smin, rs = eval_stage(m, g)
-        path = os.path.join(CKPT_DIR, f"bidir{g:02d}.pt")
+        path = os.path.join(CKPT_DIR, f"{PREFIX}{g:02d}.pt")
         torch.save({"state_dict": m.state_dict(), "stage_gap": g, "recall": acc,
                     "rho": r, "sigma_min": smin, "resid": rs, "H": sw.H, "W": sw.W,
-                    "bidir": True, "rel_bias": True, "readonly_q": True, "query_full": False}, path)
+                    "bidir": True, "rel_bias": True, "readonly_q": True, "query_full": False,
+                    "no_posw": sw.NO_POSW}, path)
         print(f"  [B] gap {g:>2}: recall={acc:.3f}  rho={r:.3f}  smin={smin:.3f}  resid={rs:.1e}  "
               f"-> {path}  ({time.time()-t0:.0f}s)", flush=True)
     print("\nDone. c2_bidir loads these for the Faber-face edit-locality measurement.", flush=True)

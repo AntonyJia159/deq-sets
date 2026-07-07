@@ -275,6 +275,15 @@ the product* (incremental-build value = confirming most outputs unchanged, cheap
 (c) the write→trigger gradient (single-digit → moderate → heavy iters, keyed to how much a reader activates) is
 exactly the desired billing curve, and it's emergent — the solver discovers it without classifying anything.
 
+**Deferred billing is MEASURABLE (C2t, registered in blueprint claims).** Retargeting a query token (which key
+it asks) *is* the "reader arrives" event — a substitution edit the harness already supports. Lazy path (bidir):
+edit unqueried value (cheap write, stored locally) → retarget a query to it (expensive trigger — the transport
+ridge should appear *at trigger time, not write time*). Eager control: retarget first, then edit (cost lands at
+write). Conservation ledger: total(lazy) ≈ total(eager), only the split moves. Causal contrast: must-carry
+pre-pays at write, retarget cheap. **Punchline: causal = eager evaluation, bidirectional query-aware = lazy
+evaluation — the two faces implement the two classic evaluation strategies, measured as an iteration ledger.**
+Also the direct measurement of the reader-set principle.
+
 **Certificate verdict + caveats.** Worth building at **one-subsection scale** (completes the causal ladder;
 same computation as the product-form debt; one validation run). Harness hook worth **one paragraph**: δh known
 pre-solve + carry basis precomputed at cache-build → O(r·d) test *before* paying (small carry projection → patch
@@ -323,12 +332,18 @@ marginal spend for *this* paper; insert/delete is the natural v2 spine.
 
 ## 12. Remaining (non-spine) debts before drafting
 
-1. Full reads of the 4 must-read refs: Vogt 2006.14123, Cirone 2402.19047, Benzi–Golub decay, 2411.04400.
-2. **Directional certificate (§10 tier 1)** = product-form on real J blocks (carry-subspace SVD + per-edit
-   projection) vs the L1 exact-resolvent oracle, validated on the curr 3-tier far/near table. *The recommended
-   next experiment* — completes the causal claw-back ladder, cheap, high value.
-3. **Edit-interference experiment (§11)** — paired-edit response vs sum-of-singles vs separation; maps the
-   linear-regime validity boundary. Cheap, same C2 machinery.
-4. C4 multiscale — optional/stretch.
-5. **Insert/delete (§11) → v2 spine:** needs a posw-disabled bidir retrain first (posw is load-bearing, measured)
-   — *not* a weekend; also answers "can pure relative-PE relay?".
+1. **Pure-relative-PE retrain (`curriculum_bidir_noposw.py`, RUNNING) — REPRIORITIZED to the top (ZJ):** the
+   application narrative is insert/delete-heavy, and the aligned-frame story requires shift invariance; if a
+   pure-relative banded DEQ *cannot* relay, the insert story collapses for this model class — this is a
+   **viability check on the application narrative**, not a v2 nicety. Either outcome is a finding: trains →
+   posw-reliance was training convenience, insert unblocked; fails → the relay leans on an absolute coordinate
+   (genuine, reportable, forces a different position mechanism e.g. RoPE-style rotation).
+2. Full reads of the 4 must-read refs: Vogt 2006.14123, Cirone 2402.19047, Benzi–Golub decay, 2411.04400.
+3. **Directional certificate (§10 tier 1, claim C2d)** = product-form on real J blocks (carry-subspace SVD +
+   per-edit projection) vs the L1 exact-resolvent oracle, validated on the curr 3-tier far/near table.
+4. **Deferred-billing / trigger experiment (§10, claim C2t)** — the lazy-vs-eager iteration ledger; one new
+   edit mode (`retarget`), existing machinery; runs on existing bidir + curr checkpoints.
+5. **Edit-interference experiment (§11, claim C2i)** — paired-edit response vs sum-of-singles vs separation;
+   maps the linear-regime validity boundary. Cheap, same C2 machinery.
+6. C4 multiscale — optional/stretch.
+7. **Insert/delete (§11) → v2 spine:** unblocked (or redefined) by item 1.

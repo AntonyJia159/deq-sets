@@ -473,6 +473,21 @@ digest §11.
   of single-edit responses, as a function of separation. Where they diverge = where nonlinear attention
   re-routing breaks first-order superposition = the validity boundary of the whole directional-certificate
   story. Cheap, same C2 machinery, one new loop. Also grounds multi-token edits (stack-and-project).
+- **C2t (deferred billing / trigger — measures the lazy-vs-eager evaluation split; the reader-set principle as
+  an iteration ledger).** KEY TRICK: retargeting a query token (substituting which key it asks) IS the "reader
+  arrives" event — just another substitution edit the harness already supports. Protocol per ckpt/seq:
+  **lazy path** (bidir): (1) edit an *unqueried* value → warm re-solve → `iters_write` (predict: cheap,
+  contained — the query-aware relay stores it locally); (2) retarget a query to the edited key → warm re-solve →
+  `iters_trigger` (predict: expensive, gap-dependent — the binding must travel NOW; the transport ridge should
+  appear in the response profile *at trigger time, not write time*). **Eager control:** retarget first (reader
+  present), then edit → cost lands at write (`iters_write_eager` large). **Baseline:** retarget a query to an
+  *unedited* key (pure reader-arrival cost). **Conservation ledger:** total(lazy) ≈ total(eager); only the
+  *split* moves — deferred billing shifts cost from write to trigger. **Causal contrast** (curr ckpts): the
+  opposite pattern — must-carry pre-pays transport at write (edit expensive regardless of readers), query
+  retarget cheap (reads the already-carried state). PUNCHLINE: **causal = eager evaluation, bidirectional
+  query-aware = lazy evaluation** — the two faces implement the two classic evaluation strategies, and the
+  iteration ledger measures it. Also the direct measurement of the reader-set principle ("the burden returns
+  when the reader arrives"). Cheap: existing machinery + one new edit mode (`retarget`).
 - **C4 (multi-scale resolution).** Adding `O(log n)` coarse / global nodes lets a *long-range-relevant*
   edit reach the generation point in `O(log n)` via the coarse channel (local ball + `O(log n)` coarse
   updates) instead of full-suffix recompute — at the cost of the coarse nodes being bounded (`O(log n)`)

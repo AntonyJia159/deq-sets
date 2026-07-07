@@ -84,6 +84,12 @@ QUERY_FULL = False                       # module flag (BIDIR only): query rows 
                                          # regardless of band — probes read the whole document; the banded
                                          # object whose edit-locality we certify is the CONTEXT-CONTEXT
                                          # block, and queries are readout appendages hanging off it.
+NO_POSW = False                          # module flag: drop the learned ABSOLUTE positional embedding from
+                                         # h0 (position enters only via the relative bias relb). posw_ablation
+                                         # showed posw is load-bearing for the cross-window relay when trained
+                                         # with it; this flag tests whether a PURE-relative substrate can relay
+                                         # at all — the viability premise of the insert/delete (aligned-frame)
+                                         # application story.
 
 
 def band_causal_mask(L, device):
@@ -122,6 +128,8 @@ class SeqDEQ(nn.Module):
         return S_MAX * torch.sigmoid(self.s_raw)
 
     def h0(self, toks):
+        if NO_POSW:
+            return self.emb(toks)
         return self.emb(toks) + self.posw[:toks.shape[1]]
 
     def wn(self):                                            # q/k RAW (must peak); v,o normed (contraction)
