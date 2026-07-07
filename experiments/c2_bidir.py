@@ -47,6 +47,7 @@ sw.H, sw.dh = 4, sw.d // 4
 
 def load_ckpt(path):
     ck = torch.load(path, map_location=sw.DEV, weights_only=False)
+    sw.REL_BIAS = "relb" in ck["state_dict"]     # bidir ckpts carry the rel-pos bias; causal ones don't
     m = sw.SeqDEQ("softmax", "deq").to(sw.DEV)
     m.load_state_dict(ck["state_dict"])
     m.eval()

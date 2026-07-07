@@ -66,13 +66,30 @@ def _sn(Wm):
 
 
 BIDIR = False                            # module flag: True -> two-sided band [i-W, i+W] (edit regime; C2-bidir)
+REL_BIAS = False                         # module flag: per-head learned relative-position bias b[h, j-i] on the
+                                         # logits (T5-style). Needed bidirectionally: a value token's neighborhood
+                                         # is left/right SYMMETRIC (own key at -1, next pair's key at +1) and
+                                         # content+weak-absolute-PE can't break the tie -> binding blends (probe:
+                                         # recall stuck ~0.38 across init/steps/lr/s_max). Causal mask gave
+                                         # direction for free, so causal checkpoints don't have this parameter.
+
+
+READONLY_Q = False                       # module flag (BIDIR only): context tokens cannot attend TO query
+                                         # positions — queries read out without injecting. Round-3 finding:
+                                         # bidirectionally, query tokens (literal duplicates of key tokens)
+                                         # leak their identity into every context state, poisoning the
+                                         # content-matching recall needs; causal masks got this protection
+                                         # for free (nothing before the queries could see them).
 
 
 def band_causal_mask(L, device):
     i = torch.arange(L, device=device)[:, None]
     j = torch.arange(L, device=device)[None, :]
     if BIDIR:
-        return (i - j).abs() <= W                        # bidirectional band (Faber/BVP face)
+        m = (i - j).abs() <= W                           # bidirectional band (Faber/BVP face)
+        if READONLY_Q:
+            m = m & ((j < L - NQ) | (j == i))            # queries attendable by nobody (self excepted)
+        return m
     return (j <= i) & (i - j <= W)                       # (L,L) True = allowed (causal + within window)
 
 
@@ -87,6 +104,8 @@ class SeqDEQ(nn.Module):
         self.Wv = nn.Linear(d, d, bias=False)
         self.Wo = nn.Linear(d, d, bias=False)
         self.s_raw = nn.Parameter(torch.tensor(0.4))
+        if REL_BIAS:
+            self.relb = nn.Parameter(0.01 * torch.randn(H, 2 * W + 1))   # b[h, (j-i)+W]
         self.head = nn.Linear(d, NVAL)
         if mode == "deq":
             self.deq = get_deq(f_solver="anderson", f_max_iter=60, f_tol=1e-4,
@@ -103,7 +122,15 @@ class SeqDEQ(nn.Module):
         return self.Wq.weight, self.Wk.weight, _sn(self.Wv.weight), _sn(self.Wo.weight)
 
     def _maskp(self, mask):                                  # precompute once per solve (hoist out of f)
-        return torch.where(mask, 0.0, -1e30) if self.kind == "softmax" else mask.float()
+        if self.kind != "softmax":
+            return mask.float()
+        base = torch.where(mask, 0.0, -1e30)
+        if hasattr(self, "relb"):                            # (H,L,L) additive bias broadcast over batch
+            L = mask.shape[0]
+            i = torch.arange(L, device=mask.device)
+            delta = (i[None, :] - i[:, None]).clamp(-W, W) + W
+            return base + self.relb[:, delta]
+        return base
 
     def f(self, z, h0, wn, maskp):
         Wq, Wk, Wv, Wo = wn

@@ -20,6 +20,8 @@ import torch
 import experiments.sliding_window_reach as sw
 
 sw.BIDIR = True
+sw.REL_BIAS = True     # bidir needs an explicit direction signal: without it, binding blends (probe round 1:
+                       # recall stuck ~0.38 across init/steps/lr/s_max; value token's neighborhood is l/r-symmetric)
 STAGES = [0, 8, 16, 24, 40]
 STEPS_PER = 350
 CKPT_DIR = "checkpoints"
