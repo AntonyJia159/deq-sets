@@ -497,13 +497,20 @@ optional booster, not needed. See findings digest §11.
   `iters_trigger` (predict: expensive, gap-dependent — the binding must travel NOW; the transport ridge should
   appear in the response profile *at trigger time, not write time*). **Eager control:** retarget first (reader
   present), then edit → cost lands at write (`iters_write_eager` large). **Baseline:** retarget a query to an
-  *unedited* key (pure reader-arrival cost). **Conservation ledger:** total(lazy) ≈ total(eager); only the
-  *split* moves — deferred billing shifts cost from write to trigger. **Causal contrast** (curr ckpts): the
-  opposite pattern — must-carry pre-pays transport at write (edit expensive regardless of readers), query
-  retarget cheap (reads the already-carried state). PUNCHLINE: **causal = eager evaluation, bidirectional
-  query-aware = lazy evaluation** — the two faces implement the two classic evaluation strategies, and the
-  iteration ledger measures it. Also the direct measurement of the reader-set principle ("the burden returns
-  when the reader arrives"). Cheap: existing machinery + one new edit mode (`retarget`).
+  *unedited* key (pure reader-arrival cost). **RESULT (MEASURED — NEGATIVE, reported straight):** the
+  lazy-evaluation prediction **did not hold**. Clean signal = **write-cost(edit unqueried value) is
+  reader-INDEPENDENT on all three substrates** (causal 7.6≈7.8, readonly 12.9≈13.0, query-visible 15.3≈15.7,
+  lazy≈eager) → the relay carries unqueried bindings regardless of reader presence → **must-carry is
+  empirically robust, and selective forgetting did NOT emerge even where architecturally permitted
+  (query-visible).** = "emergent not certified" coming back negative (nothing in the recall loss rewards
+  selectivity; qv also trained worse). Reader visibility made the query-retarget *more* expensive (readonly
+  trigger ~4 vs qv ~11 — visibility couples the reader into the context equilibrium) = the opposite of a
+  laziness win. Path-independence held cleanly (totals conserved, final states 1e-7 = warm-start exactness).
+  MEASUREMENT LESSON: dz@reader-position is confounded (retargeting changes the query token's own embedding =
+  direct state change, not transport). **SURVIVES:** tier-3 metering (cost ∝ realized ‖Δz‖); the "two faces =
+  eager vs lazy evaluation" framing is **demoted** to "lazy is permitted but not incentivized — these trained
+  models are all eager." Bonus finding: bidirqv substrate = a **visibility↔trainability tension** (recall
+  0.94→0.63 at gap 40 vs readonly).
 - **C4 (multi-scale resolution).** Adding `O(log n)` coarse / global nodes lets a *long-range-relevant*
   edit reach the generation point in `O(log n)` via the coarse channel (local ball + `O(log n)` coarse
   updates) instead of full-suffix recompute — at the cost of the coarse nodes being bounded (`O(log n)`)

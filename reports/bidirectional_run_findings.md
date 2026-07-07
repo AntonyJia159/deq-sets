@@ -282,14 +282,23 @@ the product* (incremental-build value = confirming most outputs unchanged, cheap
 (c) the write→trigger gradient (single-digit → moderate → heavy iters, keyed to how much a reader activates) is
 exactly the desired billing curve, and it's emergent — the solver discovers it without classifying anything.
 
-**Deferred billing is MEASURABLE (C2t, registered in blueprint claims).** Retargeting a query token (which key
-it asks) *is* the "reader arrives" event — a substitution edit the harness already supports. Lazy path (bidir):
-edit unqueried value (cheap write, stored locally) → retarget a query to it (expensive trigger — the transport
-ridge should appear *at trigger time, not write time*). Eager control: retarget first, then edit (cost lands at
-write). Conservation ledger: total(lazy) ≈ total(eager), only the split moves. Causal contrast: must-carry
-pre-pays at write, retarget cheap. **Punchline: causal = eager evaluation, bidirectional query-aware = lazy
-evaluation — the two faces implement the two classic evaluation strategies, measured as an iteration ledger.**
-Also the direct measurement of the reader-set principle.
+**Deferred billing — C2t RESULT (MEASURED, NEGATIVE; report straight, do not spin).** The lazy-evaluation
+prediction **failed**. Clean signal: **write-cost(edit unqueried value) is reader-INDEPENDENT on all three
+substrates** — causal 7.6≈7.8, readonly 12.9≈13.0, query-visible 15.3≈15.7 (lazy≈eager iters). So the relay
+carries unqueried bindings regardless of reader presence: **must-carry is empirically robust, and selective
+forgetting did NOT emerge even where architecturally permitted (query-visible).** This is "emergent not
+certified" coming back negative — nothing in the recall loss rewards selectivity (and the query-visible model
+trained worse, recall 0.63@gap40). Reader visibility made query-retarget *more* expensive (readonly trigger ~4
+iters vs query-visible ~11 — visible queries couple the reader into the context equilibrium), the *opposite* of
+a laziness win: visibility costs iterations AND trainability. Path-independence held cleanly (totals conserved,
+final states agree 1e-7 = a warm-start-exactness sub-result). **Measurement lesson:** the designed
+dz@reader-position observable is confounded — retargeting a query changes the query token's own embedding (a
+direct state change, not transport) — so reader-independence of *write-cost* is the clean signal.
+**What survives:** tier-3 metering (cost ∝ realized ‖Δz‖ — contained edits cheaper than transporting ones)
+holds qualitatively; the "two faces = eager vs lazy evaluation strategies" framing is **demoted** to "lazy is
+permitted but not incentivized; these trained models are all eager." **Bonus finding:** the query-visible
+substrate is itself a **visibility↔trainability tension** (recall 0.94→0.63 at gap 40 vs readonly — making
+readers attendable, to enable selectivity, degrades long-relay trainability).
 
 **C2d RESULTS (2026-07-07, `c2d_directional.py` on curr16/24/40 — the directional certificate, MEASURED).**
 Oracle = exact resolvent; far-reach map F_p = R[far rows, block col p]; pred_far = ‖F_p·δh‖ computed
@@ -428,8 +437,9 @@ we measure" — a limitation *quantified by our own invariant*, which is the rig
 2. Full reads of the 4 must-read refs: Vogt 2006.14123, Cirone 2402.19047, Benzi–Golub decay, 2411.04400.
 3. ~~Directional certificate (C2d)~~ **DONE — validated (§10):** a-priori taxonomy quantitative, zero false
    containments, carry rank ~8/64, product-form identity at machine precision, scalar slack up to 764×.
-4. **Deferred-billing / trigger experiment (§10, claim C2t)** — the lazy-vs-eager iteration ledger; one new
-   edit mode (`retarget`), existing machinery; runs on existing bidir + curr checkpoints.
+4. ~~Deferred-billing / trigger (C2t)~~ **DONE — NEGATIVE (§10):** must-carry robust even when permitted;
+   write-cost reader-independent on all substrates; lazy evaluation didn't emerge; visibility↔trainability
+   tension found. Tier-3 metering survives; eager/lazy framing demoted.
 5. **Edit-interference experiment (§11, claim C2i)** — paired-edit response vs sum-of-singles vs separation;
    maps the linear-regime validity boundary. Cheap, same C2 machinery.
 6. C4 multiscale — optional/stretch.
