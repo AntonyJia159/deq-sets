@@ -293,6 +293,34 @@ finite feedforward network; whether this makes equilibrium LMs practical at scal
 do not answer."* Counterweights stay attached: warm-start needs the O(n·d) equilibrium state stored (≈ a KV
 cache — no memory win), and per-token decode overhead remains; the channel is for **edits**, not generation.
 
+**The KV-cache interface (what our object *is*, in serving terms).** The cached object is not the embeddings
+(`h0` is the *input* injection — caching it restarts the solve from scratch); it is the **equilibrium state
+`z*` itself** (or its projections `Wk z*, Wv z*`). The dictionary, standard-transformer ↔ equilibrium:
+- **Cache contents:** per-layer K,V over all past tokens, `O(L·n·d)` ↔ a single `z*`, **`O(n·d)`** — weight-tying
+  collapses the depth axis, so the equilibrium cache is a factor `L` smaller.
+- **Append (decode):** reuse the cache exactly ↔ *causal face* — prefix equilibria provably do not depend on
+  the appended token, so append = solve one new position against a frozen cached `z*`.
+- **Edit:** cache invalid downstream, reused *heuristically* and lossily (CacheBlend/PIE) ↔ cache provably valid
+  **outside the ξ-ball**, re-solved inside and **warm-started from the cache itself** — the sound version of
+  what CacheBlend approximates: *certified partial invalidation, the invalidation region is a theorem not a
+  guess.* This is Geng's scenario B closed into a loop.
+- **Dual use:** in standard practice the cache is only a speed trick; here `z*` is *one object with two reads* —
+  it **is** the KV cache (decode) and it **is** the warm start (edit).
+Honest counterweights unchanged: `O(n·d)` beats `O(L·n·d)` in memory but decode still pays solver iterations
+per appended token (no throughput claim vs optimized serving stacks); and on the **bidirectional face there is
+no free append** — a new tail token perturbs its own ξ-ball *backward*, the correct price of two-sided semantics.
+
+**Practical bidirectional architectures use exactly our two sparsity patterns (cite, don't rebuild).** Production
+bidirectional models are sparse in one of two ways, both already in this blueprint: (a) **alternating local
+windows** — Swin (vision) is literally the Margolus construction (W-MSA ↔ SW-MSA shifted windows cross seams by
+the stagger); ModernBERT interleaves sliding-window layers with a periodic global layer; (b) **local band +
+designated global/hub tokens** — Longformer, BigBird = our C4 multiscale, and it matches the attention-sink
+finding (real models grow `O(1)` hubs). The certificate is topology-agnostic, so it applies to both unchanged
+(staggered blocks = a different J sparsity; hubs = C4). Notably the *infilling* workload is served today mostly
+by **causal + rearrangement (FIM)** — because bidirectional training is the harder path (our six-round blocker
+saga is the small-scale echo). Staggered-block substrate = good future work, **not** a second experiment for
+this paper (a full pipeline rerun for a footnote); one demonstrated topology + the two measured faces suffices.
+
 **Support-graph incremental re-solve (promoted from "later" to a named component).** The support of the
 attention matrix (nonzero-weight indices) *is* a sparse dependency graph. Re-solving only over the region
 reachable from the edit along that graph, freezing the rest, is **self-adjusting computation** (Acar) applied
@@ -312,7 +340,13 @@ recompute the band; (ii) begin↔end of a block wider than `w` — perturbed onl
 σ_min-decayed within ξ; (iii) a truly distant generation point — `O(distance)` fundamental, amortized only by
 the C4 multi-scale coarse channel. Relative PE handles the uniform-shift bookkeeping, sparsity confines the
 direct hit, σ_min + multiscale handle propagation. **Make relative PE the default for the insert/delete (v2)
-story** — but the localization comes from sparsity, not from the PE choice.
+story** — but the localization comes from sparsity, not from the PE choice. So an insert's "exponential shadow
+on both sides" is **not** a wide recompute but exactly the σ_min-screened ξ-ball (+ an O(n) index-bookkeeping
+pass with zero recompute) — the certificate *prices* it rather than an uncontrolled cost — provided PE is
+relative; under absolute PE the shadow really is global. **Free bonus from this run:** the per-head
+relative-position bias added to fix the bidirectional binding blocker means the **bidir substrate is already
+relative-PE**, so a C2-insert (v2) measurement needs *no* architecture change — only an insert-type
+`apply_edit`.
 
 ---
 
@@ -354,6 +388,26 @@ story** — but the localization comes from sparsity, not from the PE choice.
     transport); **maintenance channel quantified**: warm 4 vs cold 14–22 evals on filler (3.5–5.5×), warm≈cold
     on relevant edits (cost ∝ how far the solution moves). At σ_min=0.016 one seq near-multistable → filler
     gated "not measurable: approaching the uniqueness boundary" (honest degradation, same as causal face).
+  - **The reader-set principle (the correct general statement of must-carry — supersedes "causal carries,
+    bidirectional doesn't").** Three edit tiers have three *logical statuses*, not three magnitudes: (i)
+    **queried-value** edits — transport to the cursor is **information-theoretically necessary in both faces**
+    (if the answer changes it must arrive; measured ridge far/near ~0.09–0.10 both faces); (ii) **filler** —
+    never carried, either face (the fair envelope witness); (iii) **unqueried-value** — the tier where faces
+    diverge, and the divergence is **impossibility vs. observed capability, not two guarantees**: causally,
+    carrying is *forced* (the relay cannot condition on future queries → must keep every binding — an
+    availability argument, architecture-level, theorem-flavored), whereas bidirectionally selective forgetting
+    is *permitted* and our trained model *exercises* it — **emergent, not certified** (a carry-everything
+    bidirectional model scores identically on recall; nothing in the loss demands selectivity). The deep,
+    general statement: **selectivity is possible exactly w.r.t. readers *present in the context at solve time*;
+    unknown/future readers force carry in *any* architecture.** Causal attention is the special case where all
+    readers are structurally unknown (future by construction). CONSEQUENCE for the maintenance workload
+    (edit-now, query-later): future readers are unknown even to a bidirectional model → a must-carry-like
+    burden returns; our C2-bidir measured selectivity only because the queries sit *in* the solved context.
+    DIVISION OF LABOR (the load-bearing framing): the σ_min/Faber **envelope upper-bounds *every* edit class,
+    selective or not — that is the certificate (a guarantee)**; must-carry vs. query-awareness only describes
+    *where inside that sound envelope* the trained map places transport — that is measured mechanism. Same
+    structure as loose-but-sound recompute: certify with the envelope, observe the realized footprint is
+    usually far smaller.
 - **C3 (tradeoff — DISSOLVES; result in, `c3_mixing_locality.py`).** Predicted a Pareto (small `w`: slow
   solve, local edits; large `w`: fast solve, global edits). Measured (window sweep, ξ fit in positions):
   solve-iters **fall** with `w` (98→40) but ξ_positions is **flat and window-independent** (~3–5 tokens,
