@@ -26,15 +26,18 @@ import os
 
 import numpy as np
 import torch
+from torchdeq import get_deq
 
 import experiments.sliding_window_reach as sw
-from experiments.c2_edit_locality import load_checkpoint, counted_solve, make_ff, apply_edit
+from experiments.c2_edit_locality import load_checkpoint, make_ff, apply_edit
 from experiments.c2d_directional import dense_resolvent
 
 CKPT_DIR = "checkpoints"
 N_SEQS = 3
 EDITS_PER_MODE_SEQ = 4
 RANKS = [4, 8, 16]
+ITER_TOL = 1e-3            # ACHIEVABLE rel-resid (Anderson floors ~1e-4) so early-stop FIRES -> iters are
+ITER_MAXIT = 300          # init-sensitive; the OLD 151 was f_max_iter=150 + unreachable f_tol=1e-6 (always capped)
 sw.H, sw.dh = 4, sw.d // 4
 
 
@@ -44,6 +47,20 @@ def residual(ff, z_init):
         return float((ff(z_init) - z_init).norm())
 
 
+def iters_to_tol(deq, ff, z_init):
+    """Count f-evals for Anderson (early-stop at ITER_TOL) from z_init; return (n_evals, final_rel_resid,
+    converged). A better init => fewer evals -- the real efficiency signal, uncapped for convergent cases."""
+    n = [0]
+
+    def fc(z):
+        n[0] += 1
+        return ff(z)
+    with torch.no_grad():
+        z = deq(fc, z_init.clone())[0][-1]
+        rel = float((ff(z) - z).norm() / (z.norm() + 1e-9))
+    return n[0], rel, rel < ITER_TOL
+
+
 def main():
     ckpts = sorted(glob.glob(os.path.join(CKPT_DIR, "curr*.pt")))
     if not ckpts:
@@ -51,7 +68,10 @@ def main():
     print(f"device={sw.DEV}  C5 Woodbury-prior smoke test (residual only): does z*_old + R@delta_h beat plain\n"
           f"  warm-start (z*_old) as an init? verdict = resid(Woodbury) < resid(warm) < resid(cold).\n"
           f"  L1 full-resolvent predictor; L2 rank-r truncation (the cheap version). {N_SEQS} seqs x "
-          f"{EDITS_PER_MODE_SEQ} edits/mode.\n", flush=True)
+          f"{EDITS_PER_MODE_SEQ} edits/mode.  iters@tol={ITER_TOL:g} (achievable -> early-stop fires).\n",
+          flush=True)
+    deq = get_deq(f_solver="anderson", f_max_iter=ITER_MAXIT, f_tol=ITER_TOL, ift=True,
+                  b_solver="anderson", b_max_iter=40)
     all_rows = []
     for path in ckpts:
         m, ck = load_checkpoint(path)
@@ -93,12 +113,15 @@ def main():
                         init_r = z_old + dzr.view(1, L, d).float()
                         r_rank[r] = residual(ff2, init_r)
 
-                    # secondary (context only): iterations to converge from warm vs Woodbury init
-                    _, it_warm = counted_solve(m, ff2, z_old.clone())
-                    _, it_wood = counted_solve(m, ff2, init_full.clone())
+                    # C5 EFFICIENCY SIGNAL: f-evals to an ACHIEVABLE tol (early-stop fires => init-sensitive;
+                    # this replaces the old flat-151 cap). cold vs warm vs Woodbury init.
+                    it_cold, _, cv_c = iters_to_tol(deq, ff2, z_cold)
+                    it_warm, _, cv_w = iters_to_tol(deq, ff2, z_old)
+                    it_wood, _, cv_o = iters_to_tol(deq, ff2, init_full)
 
                     rows.append(dict(mode=mode, r_cold=r_cold, r_warm=r_warm, r_full=r_full,
-                                     it_warm=it_warm, it_wood=it_wood,
+                                     it_cold=it_cold, it_warm=it_warm, it_wood=it_wood,
+                                     cv=int(cv_c and cv_w and cv_o),
                                      **{f"r_rank{r}": r_rank[r] for r in RANKS}))
         if not rows:
             print("    (no usable edits)\n", flush=True); continue
@@ -114,12 +137,14 @@ def main():
             rc, rw, rf = mean("r_cold", sel), mean("r_warm", sel), mean("r_full", sel)
             gain = rw / (rf + 1e-30)                        # >1 => Woodbury prior is closer than warm
             rank_str = "  ".join(f"r{r}:{mean(f'r_rank{r}', sel):.2e}" for r in RANKS)
-            iw, iwo = mean("it_warm", sel), mean("it_wood", sel)
+            ic, iw, iwo = mean("it_cold", sel), mean("it_warm", sel), mean("it_wood", sel)
+            cvf = mean("cv", sel)
             verdict = "OK (closer)" if rf < rw else "NO (overshoot: worse than warm)"
             print(f"    {mode:>10}: resid  cold={rc:.2e}  warm={rw:.2e}  Woodbury(full)={rf:.2e}  "
                   f"[{gain:.2f}x closer than warm -> {verdict}]", flush=True)
             print(f"                rank-trunc: {rank_str}    (retains benefit if ~ Woodbury-full)", flush=True)
-            print(f"                iters (context only): warm={iw:.1f}  Woodbury={iwo:.1f}", flush=True)
+            print(f"                iters@tol{ITER_TOL:g}: cold={ic:.1f}  warm={iw:.1f}  Woodbury={iwo:.1f}  "
+                  f"(converged frac={cvf:.2f})", flush=True)
         print(flush=True)
 
     if all_rows:
@@ -131,7 +156,10 @@ def main():
     print("READ: verdict = resid(Woodbury full) < resid(warm) < resid(cold) => the linear-response prediction is\n"
           "a strictly better init (the 'warmer-than-warm' prior holds). rank-trunc ~ Woodbury-full => the CHEAP\n"
           "low-rank version keeps the benefit (deployable). If Woodbury > warm on some class = overshoot, the\n"
-          "prediction is too nonlinear there (report straight). iters are context only; efficiency is C5's job.", flush=True)
+          "prediction is too nonlinear there (report straight).\n"
+          "iters@tol: f-evals to an ACHIEVABLE rel-resid (early-stop fires; the old 151 was a cap). cold > warm >\n"
+          "Woodbury = the init-sensitive efficiency signal; converged frac < 1 = the solver stalled above tol on\n"
+          "some near-singular cells (report straight, don't count those as a speedup).", flush=True)
 
 
 if __name__ == "__main__":

@@ -554,6 +554,17 @@ MLM-objective hypothesis and the local-decomposability limit are the two open ed
   attention is literally semi-causal. Cost: one curriculum retrain + C2m pass per β → slated, not now.
 - **Multistability: explicitly OUT OF SCOPE for this paper (ZJ decision).** Stays the natural v2/spin-off
   (branch-tracking, hysteresis/primed-branch probe, amplifier-coupling EoS thread from the dormant notes).
+- **SPIN-OFF (GENG'S TERRITORY, NOT this paper; ZJ agrees 2026-07-08) — "incremental / streaming DEQ inference
+  via certified low-rank warm-start prediction."** The inversion of our spine: instead of "the equilibrium
+  *enables* certified maintenance," sell "the equilibrium *enables* cheap certified incremental inference." Same
+  machinery (Woodbury low-rank resolvent predictor + §4 residual certificate), pitched on **inference cost**, not
+  maintenance guarantees — it attacks DEQs' actual weakness (the iterative solve; a feedforward net has no
+  iterate to warm). Squarely Geng's area (DEQ efficiency: Jacobian-free, phantom gradients; `torchdeq` is the
+  vehicle). HONEST scale obstacles: predictor not free (need iterative M⁻¹U when J isn't materialized), cache
+  staleness (J drifts across edits), overshoot near the well-posedness edge (the σ_min=0.028 miss), and large
+  deployed DEQs don't yet exist. Separate systems/architecture project → **raise with Geng**, do NOT let it
+  absorb the characterization paper. Prereq for credibility: the C5 efficiency harness (real convergence-to-tol
+  iters) on the toy, then a non-toy DEQ.
 - **Woodbury "warmer-than-warm" prior — SMOKE TEST RUN (2026-07-08, `c5_woodbury_prior.py`; a C5 ingredient,
   candidate appendix).** Claim tested (residual only, timing excluded): initialize a post-edit re-solve at
   `z*_old + (I−J)⁻¹δh` (the low-rank/Woodbury linear-response prediction of the NEW equilibrium) — does it land
@@ -561,9 +572,20 @@ MLM-objective hypothesis and the local-decomposability limit are the two open ed
   rank-4 truncation ≈ rank-8 ≈ full EVERYWHERE (deployable cheap version = the C2d rank-8 carry).** The 1 miss
   is the honest one: curr40 (σ_min=0.028, most near-singular) × *irrelevant* edits **OVERSHOOTS** (0.78×, worse
   than warm) — exactly the Kantorovich regime (β=1/σ_min huge → h=βLη large → linear step overshoots), and
-  precisely why the loop must be predict→**certify(§4)**→correct-or-fallback, not blind predict. Iters came back
-  flat at 151 (solver cap in reused `counted_solve`) → **efficiency inconclusive, quarantined; residual verdict
-  is solver-independent and stands.** LIT BOUNDARY (searched 2026-07-08): Sherman–Morrison IS standard in DEQ —
+  precisely why the loop must be predict→**certify(§4)**→correct-or-fallback, not blind predict.
+  **EFFICIENCY (iters fix, 2026-07-08): the flat 151 was a solver cap** (`counted_solve`: Anderson f_max_iter=150
+  + UNREACHABLE f_tol=1e-6; Anderson floors ~1e-4 so always ran to the wall). Re-ran with an ACHIEVABLE tol (1e-3)
+  so early-stop fires → iters now init-sensitive (range 5–266). **HONEST RESULT, more sobering than the residual:**
+  (a) the dominant win is **warm-start over cold** (e.g. curr24 filler 46→6, already known); **Woodbury adds a
+  modest further ~15–30%** over warm on well-conditioned cells. (b) **RESIDUAL ≠ ITERATIONS** — curr16 filler is
+  the counterexample: Woodbury residual 8× lower (0.55 vs 4.30) yet MORE Anderson iters (19.8 vs 12.8). Anderson
+  convergence tracks the error's slow-mode (carry) content + subspace conditioning, not initial residual
+  magnitude (consistent w/ the σ_min slow-mode story). So the clean residual win does NOT cleanly translate to
+  iteration savings under Anderson. (c) near-singular curr40 doesn't converge to tol (frac 0.17–0.50, quarantine).
+  **INSIGHT: solver choice decides whether the prior pays — Newton (quadratic from a low-resid init) WOULD cash
+  the residual advantage; Anderson doesn't.** → pair the Woodbury rung with a NEWTON corrector. Reinforces the
+  appendix-corollary scoping: modest/inconsistent iteration win on this toy+Anderson, do NOT oversell.
+  LIT BOUNDARY (searched 2026-07-08): Sherman–Morrison IS standard in DEQ —
   but **solver-internal** (Broyden approximating J⁻¹ *within one solve*, Bai 2019); DEQ warm-start across inputs
   exists but is plain state-copy (temporal DEQ, DEQ-MPC). **Cross-EDIT Woodbury-prior (measured low-rank
   footprint → predict new eq → residual-certify) NOT found** (provisional, 3 searches — verify w/ Geng before a
