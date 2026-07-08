@@ -467,6 +467,32 @@ recovering — treat the bidirnp16 spectrum row with suspicion), but the relay r
 alignment bookkeeping, measured in the aligned frame vs the "band at the cut" prediction, on the bidirnp
 checkpoints. (Optionally re-run C2-bidir on bidirnp for full substrate consistency.)
 
+**INSERT/DELETE MEASURED (`c2_insertdelete.py`, 2026-07-08).** Null filler insert/delete in the filler region,
+aligned-frame diff (insert: old i≥c ↔ new i+1; delete: old i>c ↔ new i−1), normalized by the per-position
+state norm. **POSITIONAL-SHADOW ratio = insert far-field / substitution far-field** (same-arch, PE the only
+difference — the clean isolate) at gap40 (n=8, where the sequence is long enough to have a far field beyond
+2W; **gap24 is too short — nothing sits past 2W of the cut, far_rel≡0, uninformative**):
+- **bidir40 (bidir+ABS PE): ratio 70×** — a semantically-null insert casts a downstream far-field 70× a
+  substitution's = the **dense positional-reindex shadow** (every shifted token's absolute h0 changed;
+  downstream-dense 0.84).
+- **bidirnp40 (bidir+REL PE): ratio 2×** — insert ≈ substitution-at-cut. **Relative PE cuts the insert shadow
+  ~33× (70→2): the aligned-frame reduction, confirmed and isolated to the PE choice.**
+- curr40 (causal+ABS): ratio 2× — small, but confounded (near-singular gap40 → substitutions already reach far,
+  so the ratio understates; the clean causal test wants a well-conditioned **causal+relative** checkpoint,
+  `currnp`, which we don't have — owed).
+- **Far-field RANK 2–6 of d=64 across all** — structural-edit shadows compress to the carry 'highway' →
+  certifiable via a rank-r update, same as substitutions.
+- **Warm-start < cold** at gap40 (curr 25/53, bidir 18/34, bidirnp 38/64) — structural edits are maintainable
+  via the aligned-frame warm start (splice a fresh slot at the cut, keep the rest).
+- Causal (curr) **up_rel ≈ 0** — insert shadow is strictly downstream (causal structure preserved).
+
+CAVEATS (state them): gap40 checkpoints are near-singular so the far field is thin (few positions past 2W) and
+absolute magnitudes are large — the **ratio** is the clean signal, not the magnitudes; n=8; bidirnp24 warm>cold
+(68/44) is the known near-singular outlier. Clean causal-relative test (`currnp` retrain) and a longer-context
+(gap≥60) substrate with a thicker far field are the owed strengtheners. **Verdict: your "heavy causal shadow"
+expectation is right for ABSOLUTE PE (70×); relative PE reduces insert/delete to a certifiable, low-rank,
+maintainable width-w edit at the cut — the aligned-frame reduction is real.**
+
 **Anchor-token contingency (recorded, NOT needed — keep in the drawer as an optional booster for the weak
 gap-40 stage).** If pure-relative had failed (or to close the recall gap), a designated anchor token is the
 minimal absolute scaffold, pleasing on four axes: (i) **BVP reading** — the bidirectional face is a

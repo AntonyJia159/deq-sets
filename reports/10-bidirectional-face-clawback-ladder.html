@@ -382,8 +382,12 @@ Certifying Local Edits in Deep Equilibrium Transformers.</em> Six beats:
   $\sqrt{\lambda_{\max}(P)}$ scaling, and the scale story (Arnoldi $\rho(G)$ + low-rank/block Stein solvers).</li>
   <li><strong>C2i &mdash; edit interference.</strong> Paired edits vs sum-of-singles vs separation: the
   linear-regime boundary (superposition until attention patterns re-form). Owed, not yet run.</li>
-  <li><strong>Insert/delete.</strong> The aligned-frame reduction (a width-$w$ substitution at the cut) on
-  the pure-relative <code>bidirnp</code> substrate. Owed, not yet run.</li>
+  <li><strong>Insert/delete &mdash; first pass done</strong> (<code>c2_insertdelete.py</code>). A null filler
+  insert casts a downstream far-field <strong>70&times; a substitution's under absolute PE</strong> (dense
+  positional-reindex shadow) but only <strong>2&times; under relative PE</strong> &mdash; same architecture, PE
+  the only difference: the aligned-frame reduction, confirmed and isolated. Shadows stay <strong>low-rank
+  (2&ndash;6 of 64)</strong> and warm-start-maintainable. Owed: a well-conditioned <em>causal+relative</em>
+  (<code>currnp</code>) checkpoint and a longer-context (gap&nbsp;$\ge$&nbsp;60) substrate.</li>
   <li><strong>Reading, not running.</strong> The four backbone papers are read (see
   <code>sequence_certificate_literature.md</code>, full-read corrections); the remaining work before text is
   the draft itself.</li>
