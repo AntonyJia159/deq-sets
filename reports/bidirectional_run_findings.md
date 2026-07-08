@@ -591,6 +591,19 @@ MLM-objective hypothesis and the local-decomposability limit are the two open ed
   footprint → predict new eq → residual-certify) NOT found** (provisional, 3 searches — verify w/ Geng before a
   novelty claim). Scoping: in-scope as a CONSTRUCTIVE COROLLARY of the low-rank corridor (C2d-V4), appendix/short
   main-text mention, NOT a headline — the paper stays characterization-forward.
+- **PE DECISION RESOLVED — the certificate is PE-AGNOSTIC (2026-07-09, `curriculum_currnp.py` + C2/C2d re-run).**
+  Trained `currnp` (causal + PURE relative PE: NO_POSW+REL_BIAS via the window curriculum) → the causal relay
+  works with relative-only position: σ_min ladder 0.197→0.024 (vs curr 0.184→0.028), recall 1.0/1.0/0.974/0.893/
+  0.810. Re-ran the two load-bearing experiments on it (`load_checkpoint` now restores substrate flags; curr*.pt
+  unaffected; the `curr*` glob also matches `currnp*` → one run = abs-vs-rel compare). **EVERY property holds on
+  relative PE:** C2 **ENVELOPE OK** on all currnp filler cells (ξ_meas 0.77/1.49/1.18 ≪ ξ_faber 8.8/13.5/18.2),
+  filler far/near≈0, must-carry ridge preserved; C2d **V1** 0.97/0.96/0.99, **V3 zero false containments
+  everywhere**, **V4** carry rank ~6–8/64, **V5** product-form exact ~2e-15. HONEST NUANCE: currnp is MORE
+  ill-conditioned at matched gaps (κ 2–8× curr's — gap24 733 vs 91) → looser (still sound) ξ_faber; a touch more
+  near-singular multistability wobble. **ADOPTED FRAMING:** *the certificate holds under BOTH PE encodings; relative
+  is a bit harder-conditioned AND makes structural edits local (aligned-frame)* — a stronger, more general claim
+  than picking one. **Relative = PRIMARY substrate; absolute = pedagogical intro + PE-agnosticism ablation.**
+  Build C6 (hub/spoke) on relative from birth.
 
 ---
 
