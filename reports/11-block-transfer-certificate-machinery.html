@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set-DEQ Notes #11 — The Block-Transfer Certificate: How the Reach Bound Is Actually Computed</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$', '$']], displayMath: [['$$', '$$']] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --ink:#1a1a1a; --muted:#666; --rule:#e2e2e2; --accent:#2b6cb0; --good:#1a7f4b; --bad:#b02a2a; --warn:#b07a1a; --bg:#fafafa; --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 48px 24px 96px; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 32px; }
+  .kicker { font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
+  h1 { font-size: 1.7rem; line-height:1.25; margin:.1em 0 .35em; }
+  .byline { color:var(--muted); font-size:.92rem; }
+  h2 { font-size:1.2rem; margin:2.2em 0 .6em; padding-bottom:.25em; border-bottom:1px solid var(--rule); }
+  h3 { font-size:1.02rem; margin:1.6em 0 .4em; }
+  p { margin:.7em 0; }
+  code { background:#f0f0f3; padding:.08em .35em; border-radius:4px; font-size:.9em;
+         font-family: "SF Mono", Consolas, "Liberation Mono", monospace; }
+  table { width:100%; border-collapse:collapse; margin:1.1em 0; font-size:.88rem; background:var(--card); }
+  th, td { padding:7px 9px; text-align:center; border-bottom:1px solid var(--rule); }
+  th { background:#f3f5f8; font-weight:600; }
+  td:first-child, th:first-child { text-align:left; }
+  .good { color:var(--good); font-weight:600; }
+  .bad  { color:var(--bad);  font-weight:600; }
+  .warn { color:var(--warn); font-weight:600; }
+  .callout { background:#eef4fb; border:1px solid #cfe0f3; border-radius:8px; padding:14px 18px; margin:1.2em 0; }
+  .callout.warn { background:#fdf3ee; border-color:#f3d8c8; }
+  .callout.key { background:#eaf6ee; border-color:#bfe3cb; }
+  .muted { color:var(--muted); }
+  ul, ol { margin:.5em 0; padding-left:1.3em; }
+  li { margin:.35em 0; }
+  dl.defs { margin:1em 0; }
+  dl.defs dt { font-weight:600; margin-top:.7em; }
+  dl.defs dd { margin:.15em 0 0 0; color:#333; }
+  footer { margin-top:48px; padding-top:18px; border-top:1px solid var(--rule); color:var(--muted); font-size:.85rem; }
+  .win { background:#eaf6ee; font-weight:600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="kicker">Set-DEQ Notes · #11 · the certificate machinery, end to end</p>
+  <h1>The Block-Transfer Certificate: How the Reach Bound Is Actually Computed</h1>
+  <p class="byline">Zhibai Jia · 8 July 2026 · a short reference note — the arc from the resolvent to a certified reach, one scalar mnemonic that carries the whole shape, and the subtle three-way play of $d$, $r$, and eff_rate</p>
+</header>
+
+<div class="callout">
+  <strong>What this note is.</strong> A compact, self-contained account of the machine that turns the
+  linearized operator $M=I-J$ into a <em>certified</em> statement "an edit at position $j$ moves position $i$
+  by at most this much." Notes&nbsp;#9–#10 established <em>why</em> we need it (the scalar Faber routes are
+  vacuous / abstain); this one records <em>how</em> the working certificate runs, so the derivation is in one
+  place before drafting.
+</div>
+
+<h2>1. The arc, in one pass</h2>
+
+<p>We study the <strong>resolvent</strong> $M^{-1}$, where $M = I - J$ and $J$ is the Jacobian of the
+equilibrium map at the fixed point. The block $[M^{-1}]_{ij}$ <em>is</em> the linear response of position $i$
+to a perturbation at position $j$ — the object whose decay is edit-locality.</p>
+
+<p><strong>(a) Block structure from windowing.</strong> Attention only couples a token to its own window and
+its neighbours (Moore-neighbourhood / NCA-land), so after reblocking into $w$-token windows, $M$ is
+<strong>block-tridiagonal</strong>: diagonal blocks are within-window coupling, off-diagonals are the only
+cross-window transport.</p>
+
+<p><strong>(b) Split off the diagonal (precondition by $D$).</strong> Let $D=\mathrm{blockdiag}(M)$ collect the
+within-window blocks. Factor</p>
+$$ M = D\,(I - G), \qquad G := -\,D^{-1}(M-D) = I - D^{-1}M. $$
+<p>This is the block-Jacobi splitting. $D^{-1}$ absorbs all the <em>local</em> (in-window) coupling once and
+for all; $G$ is the leftover <strong>normalized cross-window transport operator</strong> — one application of
+$G$ = one hop between windows. Where does the "$I-$" come from? It is just $I - D^{-1}M$ rearranged from
+$D^{-1}M = I - G$: solving $Mx=b$ by the fixed-point iteration $x\leftarrow D^{-1}(b + (D-M)x)$ has iteration
+matrix exactly $G$.</p>
+
+<p><strong>(c) The resolvent as a hop series.</strong> From $M=D(I-G)$,</p>
+$$ M^{-1} = (I-G)^{-1}D^{-1} = \Big(\textstyle\sum_{k\ge 0} G^{k}\Big) D^{-1}. $$
+<p>This cleanly separates the two jobs: $D^{-1}$ handles the <em>within</em>-window amplitude (the "scale"),
+and $G^k$ handles <em>reaching across</em> $k$ windows (the "shape"). The block $[M^{-1}]_{ij}$ between windows
+$d$ apart is dominated by $G^{d}$ — so the entire reach question reduces to <strong>how fast $\|G^k\|$
+decays</strong>.</p>
+
+<p><strong>(d) $\rho(G)$ is the truth but it lies at finite $k$.</strong> The asymptotic decay rate of
+$\|G^k\|$ is the spectral radius $\rho(G)$ (Gelfand). But $G$ is <strong>non-normal</strong>, so $\|G^k\|$ can
+<em>grow</em> for many steps before it decays — a transient hump. A naive $\|G^k\|\le\|G\|^k$ bound is useless
+($\|G\|\approx5\text{–}22$), and $\rho(G)^k$ is not an upper bound at finite $k$. We need something that
+honours the true rate <em>and</em> covers the hump.</p>
+
+<p><strong>(e) The adapted-norm (Stein/Lyapunov) certificate.</strong> Pick a target rate
+$r\in(\rho(G),1)$. Solve the discrete Lyapunov / <strong>Stein equation</strong> for the symmetric positive
+$P$:</p>
+$$ (G/r)^{*} P\,(G/r) - P = -I \;\;\Longleftrightarrow\;\; P = \sum_{k\ge0}\big((G/r)^{*}\big)^{k}(G/r)^{k}. $$
+<p>$P$ is the <strong>observability Gramian</strong> of $G/r$ — it accumulates the total future energy of the
+scaled operator, so it is large in exactly the directions that transiently amplify, and re-weighting by it
+flattens the hump. In the $P$-norm $\|x\|_P=\sqrt{x^*Px}$, $G/r$ is a genuine contraction:</p>
+$$ \|(G/r)\,x\|_P \le c_P\,\|x\|_P,\qquad c_P := \|G/r\|_P < 1. $$
+<p>Iterating $k$ times and converting the $P$-norm back to Euclidean (the exchange rate is
+$\sqrt{\kappa(P)}$; in code $\sqrt{\lambda_{\max}(P)}$, valid since $P\succeq I$) gives the certified per-term
+bound</p>
+$$ \boxed{\;\|G^{k}\|_2 \le \sqrt{\kappa(P)}\;\big(\underbrace{r\,c_P}_{\texttt{eff\_rate}}\big)^{k}.\;} $$
+<p>The non-normality is now <em>quarantined</em> into the constant $\sqrt{\kappa(P)}$; the base
+<code>eff_rate</code>$=r\,c_P$ is a hair below $r$ and carries the decay.</p>
+
+<p><strong>(f) Back to the resolvent block.</strong> Sum the tail from hop $d$ onward and reattach $\|D^{-1}\|$:</p>
+$$ \big\|[M^{-1}]_{ij}\big\| \;\le\; \|D^{-1}\|\sum_{k\ge d}\|G^k\|
+   \;\le\; \frac{\sqrt{\kappa(P)}\,\|D^{-1}\|}{1-\texttt{eff\_rate}}\;\texttt{eff\_rate}^{\,d}. $$
+<p>That is the whole certificate: a clean geometric envelope in the block-distance $d$, with a certified rate
+and a finite constant, no normality assumption anywhere.</p>
+
+<h3>(g) Where <code>eff_rate</code> comes from, and why it isn't exactly $r$</h3>
+
+<p>Write $\tilde G = G/r$. The Stein equation <em>is</em> the statement $\tilde G^{*}P\tilde G = P - I$, so reading
+it in the $P$-norm gives a one-line identity:</p>
+$$ \|\tilde G x\|_P^{2} = x^{*}\tilde G^{*}P\tilde G\,x = x^{*}(P-I)x = \|x\|_P^{2} - \|x\|_2^{2}. $$
+<p>Every hop <strong>drains a full unit of Euclidean energy</strong> $\|x\|_2^2$ out of the $P$-energy. The
+$P$-operator-norm is the sup of that ratio over directions, and $\lambda_{\max}(P)$ enters as the worst one:</p>
+$$ c_P^{2} = \sup_{x\ne0}\frac{\|\tilde G x\|_P^{2}}{\|x\|_P^{2}}
+   = \sup_x\frac{\|x\|_P^{2}-\|x\|_2^{2}}{\|x\|_P^{2}}
+   = 1 - \inf_x\frac{x^{*}x}{x^{*}Px}
+   = 1 - \frac{1}{\lambda_{\max}(P)}, $$
+<p>since $\sup_x \tfrac{x^{*}Px}{x^{*}x}=\lambda_{\max}(P)$ (Rayleigh quotient), so the infimum is
+$1/\lambda_{\max}(P)$, attained at $P$'s top eigenvector. Hence</p>
+$$ c_P = \|\tilde G\|_P = \sqrt{1 - \tfrac{1}{\lambda_{\max}(P)}} < 1,
+   \qquad \texttt{eff\_rate} = r\,c_P < r. $$
+<p><code>eff_rate</code> is below $r$ because the "$-I$" hands back a bit more contraction than you asked for.
+<strong>Why the <em>max</em>:</strong> the drain is a fixed unit of Euclidean energy; in the direction $P$
+stretches most (eigenvalue $\lambda_{\max}(P)$) the $P$-energy is largest relative to $\|x\|_2^2$, so that unit
+is the <em>smallest</em> fraction of it — the weakest contraction. The worst-draining mode sets the rate, and
+that mode is exactly the peak accumulated transient energy $\lambda_{\max}(P)$. Note it appears <em>twice</em>:
+the same $\lambda_{\max}(P)$ sets this tiny rate correction <em>and</em> the large constant
+($\sqrt{\kappa(P)}$, in code $\sqrt{\lambda_{\max}(P)}$ since $P\succeq I$) — one number governs both.</p>
+
+<p><strong>But the "$-I$" drain is <em>not</em> a non-normal effect</strong> — it is present for any $G$. What
+non-normality controls is how much of the true decay the drain can <em>recover</em>:</p>
+<ul>
+  <li><strong>$G$ normal</strong> ($G=U\Lambda U^{*}$): $\tilde G^{*}$ and $\tilde G$ commute, so
+      $(\tilde G^{*})^{k}\tilde G^{k}=(\tilde G^{*}\tilde G)^{k}$ and the Gramian collapses to a rational
+      function of $G$,
+      $$ P = \sum_{k\ge0}(\tilde G^{*}\tilde G)^{k} = (I - \tilde G^{*}\tilde G)^{-1}, $$
+      diagonal in $G$'s eigenbasis with entries $1/(1-|\lambda_i/r|^{2})$. Then
+      $\lambda_{\max}(P)=1/\!\big(1-(\rho/r)^{2}\big)$, so $c_P=\rho/r$ and
+      $\texttt{eff\_rate}=r\cdot(\rho/r)=\rho(G)$ <em>exactly</em>. The drain squeezes the injected $r$ all the
+      way back to the true rate, $\sqrt{\kappa(P)}$ stays modest, and the adapted norm was never needed — a
+      normal operator already has $\|G^{k}\|_2=\rho^{k}$ with no transient.</li>
+  <li><strong>$G$ non-normal:</strong> the transient hump inflates $\lambda_{\max}(P)$, so
+      $1/\lambda_{\max}(P)\approx0$, $c_P\approx1$, and $\texttt{eff\_rate}\approx r$ — the drain recovers
+      almost <em>none</em> of the gap down to $\rho$, and the entire non-normality bill is paid in the large
+      $\sqrt{\kappa(P)}$ instead. This is exactly what our runs show: bidir16 has $\rho(G)=0.332$ yet
+      $\texttt{eff\_rate}\approx r\approx0.38$ (well above $\rho$), with the prefactor $\approx92$ carrying the
+      cost.</li>
+</ul>
+<div class="callout key">
+  <strong>The honest reading.</strong> The "$-I$" drain is what <em>lets</em> <code>eff_rate</code> dip below
+  $r$; non-normality is what <em>stops</em> it from reaching $\rho$. In the normal limit $P$ degenerates into
+  $(I-\tilde G^{*}\tilde G)^{-1}$ and the whole certificate collapses to the elementary geometric bound at rate
+  $\rho$ with constant $1$. Our operators are far from that limit, which is precisely why the reach lives in
+  $\rho(G)$ but the price shows up in $\sqrt{\kappa(P)}$.
+</div>
+
+<div class="callout key">
+  <strong>The lineage, in one line.</strong> This is <em>not</em> approximation theory
+  (Demko–Moss–Smith / Faber-on-the-field-of-values, which abstain here). It is dynamical-systems / RNN-Lyapunov:
+  a discrete Lyapunov function $V(x)=\|x\|_P^2$ with $V(Gx)<r^2V(x)$, exactly the Kreiss / adapted-norm move.
+  The bidirectional and causal faces now share <em>one</em> lineage; causal is the degenerate corner where $G$
+  is strictly block-triangular, hence nilpotent, $\rho(G)=0$, and the series terminates.
+</div>
+
+<h2>2. The scalar mnemonic that carries the shape</h2>
+
+<p>Strip the matrices away. Let $s_k=\|G^k\|$ be a scalar sequence that <em>first grows then decays</em> —
+the transient hump. The archetype is</p>
+$$ s_k = k\,(\tfrac12)^{k}: \qquad s_1=s_2=0.5,\; s_3=0.375,\; s_4=0.25,\;\dots \to 0 \text{ at rate } \rho=\tfrac12. $$
+<p>We cannot sum $\sum_{k\ge d}s_k$ in closed form, and $\rho^k=(\tfrac12)^k$ is <em>not</em> an upper bound
+(it misses the early bump). The move: <strong>dominate the bumpy sequence by a clean geometric one</strong>.
+Choose a rate $r$ above the true one — say $r=0.6$ — and take the smallest constant $C$ with
+$s_k\le C\,r^{k}$ for <em>all</em> $k$:</p>
+$$ C = \sup_k \frac{s_k}{r^k} = \sup_k\, k\Big(\tfrac{0.5}{0.6}\Big)^{k} \approx 2.0 \;(<\infty, \text{ since } s_k/r^k\to0). $$
+<p>The $\sup$ is finite precisely because $r>\rho$ forces $s_k/r^k\to0$, so the hump is a <em>finite</em>
+overshoot. Then the tail collapses to a geometric series:</p>
+$$ \sum_{k\ge d} s_k \;\le\; C\sum_{k\ge d} r^{k} \;=\; \frac{C}{1-r}\,r^{\,d}. $$
+<p>That is the bound's entire skeleton: <strong>$\dfrac{C}{1-r}\,r^{d}$</strong>. Compare with §1(f) — the
+matrix certificate is <em>this exact expression</em>, with two substitutions:</p>
+<ul>
+  <li>$r \to \texttt{eff\_rate}$ &nbsp;(the adapted norm delivers a base a hair below $r$, a free extra bit of contraction);</li>
+  <li>$C \to \sqrt{\kappa(P)}$ &nbsp;(we cannot take a $\sup$ over infinitely many matrix powers, so the Gramian
+      <em>computes</em> the dominating constant in one Stein solve instead).</li>
+</ul>
+<p>The mnemonic pins the rate at $r$ and dumps the whole hump into $C$; the Stein machine is the <em>same</em>
+bound, but able to trim the rate below $r$ (all the way to $\rho$ when $G$ is normal — §1g), paying instead in
+$\sqrt{\kappa(P)}$. For our strongly non-normal $G$ the trim is negligible, so $\texttt{eff\_rate}\approx r$ and
+the mnemonic's rate-$r$ picture is essentially what runs — which is why it is faithful, not a caricature.</p>
+
+<h2>3. The three-way play of $d$, $r$, and eff_rate</h2>
+
+<dl class="defs">
+  <dt>$d$ — block-distance (given by the question)</dt>
+  <dd>How many window-hops separate positions $i$ and $j$. You do not choose it; it is the reach you are asking
+      about. The bound decays as $\texttt{eff\_rate}^{\,d}$.</dd>
+  <dt>$r$ — target rate (a free knob you tune)</dt>
+  <dd>The rate you <em>ask</em> the Stein solve to certify. Legal for any $r\in(\rho(G),1)$. It is pure
+      scaffolding: it selects which Gramian $P$ you build, and then <strong>disappears from the final
+      bound</strong>. Push $r\downarrow\rho(G)$ for a steeper envelope but a blowing-up constant
+      ($\sqrt{\kappa(P)}\to\infty$); raise $r$ for a gentle envelope with a small constant.</dd>
+  <dt>eff_rate $=r\,c_P$ — the certified base (an output, not a choice)</dt>
+  <dd>What the adapted norm actually delivers, below $r$ by the Stein drain (§1g): $=\rho(G)$ when $G$ is
+      normal, $\approx r$ when strongly non-normal. This — not $r$, not $\rho(G)$ — is the number raised to the
+      $d$. Bracketed by $\rho(G)\le\texttt{eff\_rate}<1$: you can never certify below the true asymptotic rate.</dd>
+  <dt>$\rho(G)$ — the asymptotic floor (a fact, never in the formula)</dt>
+  <dd>The genuine decay rate. It sets the <em>ideal</em> reach $1/\ln(1/\rho(G))$ that <code>eff_rate</code>
+      approaches from above as $r\downarrow\rho(G)$; the certified reach is that ideal plus the margin you pay
+      for a finite constant.</dd>
+</dl>
+
+<p><strong>The tradeoff, in real numbers</strong> (bidir16, $\rho(G)=0.332$; prefactor
+$=\sqrt{\kappa(P)}/(1-\texttt{eff\_rate})$, dropping the common $\|D^{-1}\|$). Read <em>down</em> each column —
+the best (smallest) bound is highlighted:</p>
+
+<table>
+<thead><tr><th>$r$</th><th>eff_rate</th><th>prefactor</th><th>$B \propto$ at $d{=}1$</th><th>$d{=}3$</th><th>$d{=}5$</th></tr></thead>
+<tbody>
+  <tr><td>0.38</td><td>0.382</td><td>92</td><td>35</td><td class="win">5.1</td><td class="win">0.75</td></tr>
+  <tr><td>0.48</td><td>0.482</td><td>50</td><td class="win">24</td><td>5.6</td><td>1.3</td></tr>
+  <tr><td>0.66</td><td>0.664</td><td>39</td><td>26</td><td>11</td><td>5.0</td></tr>
+  <tr><td>0.90</td><td>0.892</td><td>71</td><td>64</td><td>51</td><td>40</td></tr>
+</tbody>
+</table>
+
+<p>The optimal $r$ <strong>slides with the distance you are asking about</strong>:</p>
+<ul>
+  <li><strong>Up close ($d=1$):</strong> $\texttt{eff\_rate}^{d}$ barely differs between rows, so the
+      <em>constant</em> dominates — the gentle rate $r=0.48$ (small prefactor) wins.</li>
+  <li><strong>Far out ($d=3,5$):</strong> a smaller base compounds exponentially, so the tight rate $r=0.38$
+      wins despite its larger constant — steepness beats the prefactor at distance.</li>
+</ul>
+<p>You need not commit: the lower envelope $B^\star(d)=\min_r B(r,d)$ (best row per column) is itself a valid
+certified bound, and it automatically does the right thing — loose near the edit, tightening toward $\rho(G)$
+as you look further out.</p>
+
+<div class="callout">
+  <strong>Why <code>eff_rate</code> is not "a posteriori cheating."</strong> $r$ and $P$ are chosen from the
+  operator $G$ alone (the linearization at the fixed point) — no edit, no measured response is used. The
+  Gramian just <em>computes</em> the dominating constant that the scalar mnemonic would get by a $\sup$. The
+  bound is a genuine <em>a-priori</em> envelope; the only "posterior" object in the whole program is the
+  separate deployable certificate $\|z-z^\*\|\le\|f(z)-z\|/\sigma_{\min}$ (the residual bound, §4), which uses the actual residual.
+</div>
+
+<h2>4. The other certificate: the a-posteriori residual bound</h2>
+
+<p>Everything so far (§§1–3) is <em>a priori</em>: it bounds the resolvent from the operator $M=I-J$ alone,
+answering <em>where</em> an edit can reach. There is a second, complementary certificate — the one you actually
+deploy at solve time — that turns $\sigma_{\min}$ into a hard stopping guarantee. It is a single inequality:</p>
+
+$$ \boxed{\;\|z - z^{\star}\| \;\le\; \frac{\|f(z)-z\|}{\sigma_{\min}(I-J)}.\;} $$
+
+<p>At <em>any</em> iterate $z$ during a solve, the residual $f(z)-z$ is something you compute for free (one
+function eval — you were going to apply $f$ anyway). The bound says the true distance to the equilibrium
+$z^{\star}$ is that residual <strong>amplified by $1/\sigma_{\min}$</strong>.</p>
+
+<h3>Where it comes from</h3>
+<p>Let $g(z)=f(z)-z$, so the equilibrium is its root, $g(z^{\star})=0$. The fundamental theorem of calculus
+along the segment from $z^{\star}$ to $z$ gives</p>
+$$ g(z) = g(z)-g(z^{\star}) = \Big[\underbrace{\textstyle\int_0^1\!\big(J(w_t)-I\big)\,dt}_{-A}\Big](z-z^{\star}),
+   \qquad w_t = z^{\star} + t(z-z^{\star}), $$
+<p>where $A=\int_0^1 (I-J(w_t))\,dt$ is the segment-averaged $(I-J)$. Invert and take norms:
+$z-z^{\star}=-A^{-1}g(z)$, so $\|z-z^{\star}\|\le\|A^{-1}\|\,\|f(z)-z\|=\|f(z)-z\|/\sigma_{\min}(A)$. Near the
+fixed point $A\approx I-J$ (exactly, if $f$ is affine) — the stated bound.</p>
+
+<h3>Why it is a certificate, not "residual looks small, stop"</h3>
+<p>Solvers habitually stop when the residual is small, silently assuming residual $\approx$ error. This bound
+makes the hidden amplifier explicit: $\text{error}=\text{residual}\times1/\sigma_{\min}$. Near singularity
+($\sigma_{\min}\to0$) a <em>tiny</em> residual can still hide a <em>large</em> error — the naive rule fails
+exactly where conditioning bites, and this one does not (it inflates the tolerance accordingly). When $(I-J)$
+is well-conditioned the same bound certifies the residual <em>is</em> a faithful proxy. Either way it is a
+<em>proof</em> that $z$ lies within a known tolerance of $z^{\star}$, not a hope.</p>
+
+<div class="callout key">
+  <strong>The two halves.</strong> The a-priori reach envelope (§§1–3, rate $\rho(G)$/eff_rate) tells you
+  <em>where</em> to recompute after an edit; this a-posteriori residual bound (amplifier $\sigma_{\min}$) tells
+  you <em>when you have recomputed enough</em> — take the residual over the whole state and the untouched region
+  is certified within tolerance. Cost is essentially nil: the residual is a byproduct of the solve, and
+  $\sigma_{\min}(I-J)$ is the single number the program already estimates once at $z^{\star}$. It is also the
+  part that is genuinely <em>equilibrium-native</em>: a feedforward stack has no fixed-point residual to
+  self-check against.
+</div>
+
+<h3>The rigorous version (Newton–Kantorovich), and where $L$ comes from</h3>
+<p>The stated bound is <em>first-order</em>: it uses $\sigma_{\min}(I-J)$ in place of the segment-averaged
+$\sigma_{\min}(A)$ — exact for affine $f$, good near $z^{\star}$. To make it a theorem at finite curvature you
+must control how fast $J$ varies: a Lipschitz constant $L$ with $\|J(u)-J(v)\|\le L\|u-v\|$, i.e. a bound on
+$f$'s <em>second</em> derivative $\|\partial^{2}f\|$. With $\beta=1/\sigma_{\min}(I-J)$ at the iterate,
+$\eta=\beta\|f(z)-z\|$, and $h=\beta L\eta$, Newton–Kantorovich gives: if $h\le\tfrac12$ a unique $z^{\star}$
+exists within</p>
+$$ \|z-z^{\star}\|\;\le\;R_-=\frac{1-\sqrt{1-2h}}{\beta L}. $$
+<p>As $h\to0$ (well-conditioned, small residual, mild curvature) $R_-\to\eta=\|f(z)-z\|/\sigma_{\min}$ — the
+linear bound is exactly its limit; when $h>\tfrac12$ there is no valid radius and the certificate
+<strong>abstains</strong> rather than lying.</p>
+<p><strong>Where $L$ comes from</strong> — one new ingredient (a curvature bound on $f$), on a rigor↔cost
+spectrum:</p>
+<ul>
+  <li><strong>Analytic:</strong> compose it from the weight operator norms and the curvature moduli of softmax
+      and the activation (GELU) — fully rigorous but pessimistic (the usual transformer-Lipschitz looseness).</li>
+  <li><strong>Probed:</strong> $L$ is only needed on the ball, so sample $\|J(z+\delta)-J(z)\|/\|\delta\|$ at a
+      few random $\delta$ of size $\sim R_-$ (each one Hessian–vector product via autodiff, cheap) and take the
+      max — tight, but an <em>estimate</em>, so the certificate is rigorous only conditional on it.</li>
+  <li><strong>Certified-local:</strong> an interval / CROWN-style bound on $\|\partial^{2}f\|$ over the ball —
+      rigorous <em>and</em> toy-feasible; the honest "real theorem" path.</li>
+</ul>
+<div class="callout key">
+  <strong>Why a crude $L$ is fine where we deploy.</strong> $L$ enters only through $h=\beta L\eta$, and $\eta$
+  (the residual-scaled error) is tiny near convergence — so even a loose $L$ clears $h\le\tfrac12$ comfortably in
+  exactly the warm-start re-solve regime we certify. $\eta$ does the work; $L$ only has to be finite.
+</div>
+<p class="muted"><strong>Note.</strong> This replaces the earlier hand-wave ("an $\inf$ of $\sigma_{\min}$ over a
+Kantorovich-type neighborhood"): $R_-$ is that neighborhood, made concrete. It remains an owed <em>experiment</em>
+(measure $L$, report $h$ and $R_-$ on the trained substrates), not a gap in the argument.</p>
+
+<h2>5. Two invariants, kept straight</h2>
+<p>The certificate touches two <em>distinct</em> pseudospectral facts, and the paper's title lives on keeping
+them apart:</p>
+<ul>
+  <li><strong>$\rho(G)$ governs SHAPE / reach</strong> — how far a perturbation travels before it dies (the
+      $\texttt{eff\_rate}^{d}$ envelope above).</li>
+  <li><strong>$\sigma_{\min}(I-J)$ governs SCALE / amplitude</strong> — $\|M^{-1}\|=1/\sigma_{\min}$, the
+      height of the response and the error-amplification $\text{resid}/\sigma_{\min}$.</li>
+</ul>
+<p>Neither is $\rho(J)$ (temporal contraction, which may exceed 1 with no harm). "Conditioning, not
+contraction" is precisely this: reach and amplitude are set by $\rho(G)$ and $\sigma_{\min}$, not by whether
+the map contracts.</p>
+
+<footer>
+  Set-DEQ Notes&nbsp;#11 · reference companion to <a href="09-causal-face-product-lyapunov.html">#9</a> and
+  <a href="10-bidirectional-face-clawback-ladder.html">#10</a>. Code: <code>experiments/c2_weighted_cert.py</code>
+  (GPU-native block-Jacobi + vector Gelfand $\rho$ + early-stopped Gramian + power-iteration $\lambda_{\max}$).
+</footer>
+</div>
+</body>
+</html>

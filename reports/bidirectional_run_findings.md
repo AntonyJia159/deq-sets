@@ -554,6 +554,21 @@ MLM-objective hypothesis and the local-decomposability limit are the two open ed
   attention is literally semi-causal. Cost: one curriculum retrain + C2m pass per β → slated, not now.
 - **Multistability: explicitly OUT OF SCOPE for this paper (ZJ decision).** Stays the natural v2/spin-off
   (branch-tracking, hysteresis/primed-branch probe, amplifier-coupling EoS thread from the dormant notes).
+- **Woodbury "warmer-than-warm" prior — SMOKE TEST RUN (2026-07-08, `c5_woodbury_prior.py`; a C5 ingredient,
+  candidate appendix).** Claim tested (residual only, timing excluded): initialize a post-edit re-solve at
+  `z*_old + (I−J)⁻¹δh` (the low-rank/Woodbury linear-response prediction of the NEW equilibrium) — does it land
+  closer than plain warm-start (copy `z*_old`)? **RESULT: yes, 14/15 (ckpt×class) cells, 1.8–65× lower residual;
+  rank-4 truncation ≈ rank-8 ≈ full EVERYWHERE (deployable cheap version = the C2d rank-8 carry).** The 1 miss
+  is the honest one: curr40 (σ_min=0.028, most near-singular) × *irrelevant* edits **OVERSHOOTS** (0.78×, worse
+  than warm) — exactly the Kantorovich regime (β=1/σ_min huge → h=βLη large → linear step overshoots), and
+  precisely why the loop must be predict→**certify(§4)**→correct-or-fallback, not blind predict. Iters came back
+  flat at 151 (solver cap in reused `counted_solve`) → **efficiency inconclusive, quarantined; residual verdict
+  is solver-independent and stands.** LIT BOUNDARY (searched 2026-07-08): Sherman–Morrison IS standard in DEQ —
+  but **solver-internal** (Broyden approximating J⁻¹ *within one solve*, Bai 2019); DEQ warm-start across inputs
+  exists but is plain state-copy (temporal DEQ, DEQ-MPC). **Cross-EDIT Woodbury-prior (measured low-rank
+  footprint → predict new eq → residual-certify) NOT found** (provisional, 3 searches — verify w/ Geng before a
+  novelty claim). Scoping: in-scope as a CONSTRUCTIVE COROLLARY of the low-rank corridor (C2d-V4), appendix/short
+  main-text mention, NOT a headline — the paper stays characterization-forward.
 
 ---
 

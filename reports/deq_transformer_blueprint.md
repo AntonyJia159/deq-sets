@@ -419,9 +419,18 @@ optional booster, not needed. See findings digest §11.
   irrelevant-edit transport = the bidirqv retrain + C2t. REMAINING CAVEAT regardless: for the edit-now /
   query-later workload the future readers are unknown → a must-carry-like burden returns even with visibility.
   So the *cleanest* claimable regime is
-  bidirectional local-readout where the relevant readers are already in context. The *characterization*
-  (recompute exactly the certified ξ-ball) still transfers to standard transformers; the DEQ is the clean
-  setting where it is provable.
+  bidirectional local-readout where the relevant readers are already in context. CALIBRATION (2026-07-08,
+  correcting a looser earlier claim): the *cheap certificate* does **not** transfer to a standard transformer.
+  The deployable bound is the a-posteriori `‖z−z*‖ ≤ ‖f(z)−z‖/σ_min` — its power is that `‖f(z)−z‖` is a
+  self-check computable from the candidate alone (one `f`-eval). A feedforward stack has **no fixed point**, so
+  no free residual, no `(I−J)⁻¹`, no `σ_min(I−J)` — to check a partial recompute you'd have to recompute it.
+  The clean single-rate `ρ(G)`/Stein form additionally needs weight-tying (autonomy) and windowed attention
+  (the block-tridiagonal structure); Llama has neither (per-layer weights → non-autonomous product; full
+  attention → dense resolvent, only the low-rank-carry story survives). What *does* transfer is the
+  **qualitative** picture — causal downstream cone + low-rank long-range highways — measurable on any
+  transformer as a (gradient-expensive) diagnostic, but not a cheap certificate. So the equilibrium is
+  **load-bearing**: it is what creates the residual self-check and the well-defined resolvent. Certified KV
+  maintenance genuinely pends a DEQ-style model (or DEQ-ifying the cache with a few tied refinement iters).
 
 ---
 
@@ -563,6 +572,131 @@ optional booster, not needed. See findings digest §11.
   §11). The viability premise is **verified**: the pure-relative substrate exists and relays (bidirnp00–40,
   recall 0.82–1.00). Remaining: insert-type `apply_edit` + alignment bookkeeping, measured vs the
   "band at the cut" prediction.
+
+---
+
+### Scoped plan — the end-to-end pipeline + a hub/spoke ground-truth test (PLANNED, 2026-07-08)
+
+Motivation: every result so far is a *separate* measurement-against-a-bound on **MQAR**, whose dependency
+structure is **planted and near-uniform**. Two honest gaps: (i) the a-priori reach ball, the residual bound
+(§4 of Note #11), and the reader-set machinery have never been run as **one integrated loop**; (ii) the
+**reader-set / dependency-graph** claim — our most distinctive angle — has never been tested against a task
+with *heterogeneous, non-planted* dependencies (real hubs vs spokes). Both are fixable **without** leaving the
+theory/small-experiment side (synthetic tasks, known ground truth, toy DEQ, no LM-scale bakeoff). Decision:
+do **C5 regardless** (cheap, and it is the harness-level evidence the paper implicitly promises); do **C6**
+because the reader-set/lanes idea is the headline and is currently untested — but keep it a **ground-truth
+synthetic**, never real text.
+
+- **C5 (end-to-end certified-recompute pipeline — PLANNED; runs on the CURRENT curr/bidir checkpoints, no new
+  model).** Materialize tiers 1+2 + warm-start as a single validated artifact. Loop per (ckpt, seq, edit):
+  (1) apply an edit; (2) compute the **a-priori** reach ball from ρ(G)/eff_rate (Note #11 §§1–3) walked along
+  the attention-support graph; (3) **partial re-solve only that ball** (freeze the complement); (4)
+  **residual-certify** the frozen region via `‖z−z*‖ ≤ ‖f(z)−z‖/σ_min` (§4); (5) **verify against a full
+  re-solve** that the frozen region really is within the certified tolerance; (6) report. Metrics:
+  **containment** (true changed set ⊆ certified ball → target **zero false containments**, the C2d-V3 safety
+  bar); **exactness** (‖partial − full‖ on the frozen region ≤ certified tol, i.e. the residual bound holds
+  empirically); **recompute fraction** |ball|/L; and the **Kantorovich numbers** h=βLη and R₋ from a probed L
+  (show h ≤ ½ fires so the rigorous version — not just the linear bound — is in force).
+  **EFFICIENCY PROBE (iterations as the compute proxy — no wall-clock, per the ledger's "count evals, don't
+  trust wall-clock" rule):** log (a) `iters_full` / f-evals of a cold full re-solve (baseline), (b)
+  `iters_partial` / f-evals of the warm partial-ball re-solve, and (c) the honest **compute proxy** = iters ×
+  active tokens, since one f-eval over a ball of `b` tokens costs O(b·w) not O(L·w). Headline number:
+  `iters_full·L` vs `iters_partial·|ball|` (this is where the recompute fraction |ball|/L *becomes* a compute
+  claim, not just a set-size claim). Report the iteration ratio AND the compute-proxy ratio; both must beat 1
+  for the certificate to pay for itself, and the gap between them exposes any warm-start iteration penalty.
+  Deliverable = "the machinery works as a *system* AND saves measurable compute," replacing three isolated
+  bound-checks with one closed loop.
+  **INGREDIENT / ABLATION LADDER (toggle each, measure on the compute proxy — "which piece earns its keep"):**
+  (0) cold full re-solve (baseline); (1) + ball restriction (solve only the reach ball); (2) + warm start (old
+  z* as the init); (3) **+ Woodbury low-rank PREDICTOR as a "warmer-than-warm" prior** — the fun one: the edit
+  is a low-rank δJ=UVᵀ (footprint from the weights, carry rank ~8 of 64 per C2d-V4), so the Woodbury update
+  `M_new⁻¹ = M⁻¹ + M⁻¹U(I−VᵀM⁻¹U)⁻¹VᵀM⁻¹` gives a **first-order-exact prediction of the new equilibrium**
+  (exact if f affine) to initialize from, *strictly better than copying the old z*. Then **residual-certify the
+  prediction (§4) and iterate only if the residual exceeds tol** — often it doesn't, so the solve is *skipped*.
+  This is the Kantorovich predict→certify→correct loop: Woodbury = predictor, partial re-solve = corrector,
+  residual bound = the "do I even need to correct?" test. Ingredients for the update: U,V from the weights,
+  M⁻¹U from the *cached* warm resolvent action, an r×r reduced solve (cheap, dense). (4) **+ adaptive per-WINDOW
+  early-stop** — freeze a window once its certified per-token error $[M⁻¹\,\text{res}]_i=\sum_j[M⁻¹]_{ij}\text{res}_j$
+  (the resolvent row · residual field = the reach envelope, already bounded) drops below tol; the ball
+  *shrinks* as outer windows converge. **OWED CHECK:** this makes the iteration masked/Gauss–Seidel-style —
+  verify it still converges to the *same* fixed point under our diagonal-dominance/contraction conditions
+  (expected, not assumed). Do it per-window (contiguous), NOT per-token (see hardware note). Each rung is one
+  toggle on the same loop; the ladder tells us whether Woodbury+gating actually beat plain warm-start-on-a-ball.
+  **HARDWARE-ALIGNMENT NOTE (design-level, NOT a systems/wall-clock claim; goal: don't build something absurd
+  at the kernel level).** The hazard is fine-grained per-token dynamic sparsity (irregular gather/scatter,
+  warp divergence, memory-bound) — a proxy win that's a wall-clock loss. We avoid it because the framework's
+  natural granularities are already GPU-aligned, and not by accident: (i) the reblocking that makes the ρ(G)
+  certificate clean also makes a recompute ball a **contiguous range of windows** = a dense sub-slice → restricting
+  the solve is just **the existing attention kernel on a shorter sequence**, no sparse primitive; per-window
+  early-stop shrinks that contiguous slice; (ii) the carry is **low-rank, not sparse**, so Woodbury is a small
+  *dense* r×r solve + tall-skinny matmuls (dense BLAS); (iii) window size `w` is a free knob → align `w·d` to
+  tensor-core tile sizes so block-Jacobi blocks *are* the tiles; (iv) DEQ's O(1)-memory implicit diff +
+  compute-bound matmul solve are memory-friendly where it counts. **Design rule: stay at block/window
+  granularity + low-rank corrections; never make per-token gather the headline.** We report only the
+  architecture-level proxy (iters × active tokens), realizable by coarse-contiguous recompute, and explicitly
+  disclaim wall-clock; kernel fusion / ragged-batch scheduling = named out of scope. Caveat: this is an
+  *argument* that the mechanism isn't hardware-hostile, not a profile — "checked it's not absurd," not "it's fast."
+
+- **C6 (hub/spoke structured-dependency task — PLANNED; the ground-truth test of the reader-set machinery
+  beyond planted-uniform MQAR).** Pick a synthetic where positions have **genuinely heterogeneous influence
+  footprints** and the true dependency graph is **known exactly**. Shortlist (primary → dense control):
+  (a) **pointer-chase / hierarchical MQAR** — keys point to keys (indirection chains), a root key is a **hub**
+  read by many, chains create narrow **lanes**; (b) **bracket-matching / state-tracking** — an open bracket is
+  a hub for everything until its close, nesting depth = a spread of footprints; (c) **sorting / set-op** — a
+  deliberately **dense** control where dependencies are global, so lanes *should* fill (the honest negative
+  case that checks the certificate reports a large ball when it must, not a false sparsity win). For each, with
+  the true graph in hand, measure: **safety** (certified reader-set ⊇ true dependency set, zero false
+  containment); **tightness** (|certified| / |true|); **lane sparsity** (do recompute paths zigzag in narrow
+  lanes or fill the downstream cone — the sparsity hypothesis, with sorting as the built-in dense witness);
+  **hub identification** (does the resolvent / σ_min-locality correctly flag hub tokens as wide-footprint and
+  spokes as narrow?). Runs the *entire* moving apparatus — ρ(G) reach, σ_min residual bound, C5 loop, reader
+  cones — on non-uniform structure with ground truth. Cost: a small task generator + a curriculum retrain of
+  the same cell; no DEQ-LM. This is the load-bearing addition if the reader-set is a **headline** claim (you
+  cannot claim a dependency-aware method and only ever show planted-uniform dependencies); if it stays a
+  discussion-level *principle*, C5 alone suffices for TMLR.
+
+  **CONCRETE GENERATORS (spec, 2026-07-08; establishment status checked).** Base MQAR is canonical (Zoology /
+  Arora et al. 2023); the two hub/spoke variants below extend it — pointer-chasing is a classic task family,
+  multi-hop AR appears in eval suites (MAD, mechanistic-eval work) but has **no single canonical generator**, so
+  these generators are ours, grounded in established tasks. Both hand you the **true dependency graph by
+  construction** — that is the whole point.
+  - **Task A — multi-hop / hierarchical MQAR** (tree/DAG topology; hubs by fan-in). Bindings form a depth-`D`
+    indirection DAG: level-0 keys → level-1 keys → … → value (`D` = 2–3). Vocab split into key- and value-space;
+    sequence = shuffled binding token-pairs `[child : parent]` + queries at the tail; answering a query **chases
+    `D` hops**. **Hub** = a node with high fan-in (referenced by many children) → wide influence footprint;
+    **spoke** = a leaf. Ground-truth recompute set for editing binding `b` = its **ancestor cone** (every query
+    that chases through `b`). Params: depth `D`, fan-in distribution (dials hub-ness), n_bindings, gap.
+  - **Task B — pointer-chase** (chain topology; hubs by in-degree / shared tails; the cleanest lane test). A
+    functional graph on `N` nodes, each with a pointer `ptr(i)`; sequence encodes the table as pairs
+    `[i : ptr(i)]` + a query `(start s, hops k)`; answer = `ptr^k(s)`. **Permutation** pointers → disjoint cycles
+    → each query walks a **narrow lane of exactly its k nodes** (the sparse-lanes ideal); **random-function**
+    pointers → ρ-shaped graphs with **shared tails = super-hubs** (the heterogeneous case). Editing `ptr(j)`
+    invalidates exactly the queries whose chain passes through `j` → a **path-shaped, sparse** recompute set —
+    the direct test of "does the certified reader-set zigzag in lanes or fill the cone." Params: `N`, chain
+    length `k`, permutation vs random-function (the hub dial).
+  - **Dense control — sorting / set-op** (already in the shortlist): global dependencies, lanes *should* fill;
+    the honest witness that the certificate reports a large ball when it must, rather than a false sparsity win.
+
+- **On a real-text DEQ-LM (WikiText etc.) — DEFERRED, optional, robustness-only; DO NOT let it become the
+  paper.** Real text = the only place you *can't* test the headline (no ground-truth dependency graph → you
+  drop to self-consistency: partial re-solve ≈ full re-solve), it flips the genre (perplexity/recompute tables
+  invite systems baselines — CacheBlend/ProphetKV on Llama — and wall-clock we can't provide on 6 GB), and it
+  smuggles in "first build a DEQ-LM." Note DEQ-LMs are **not** hypothetical: **Bai, Kolter & Koltun 2019
+  ("Deep Equilibrium Models")** trained a DEQ-Transformer (and TrellisNet) on **WikiText-103** (code:
+  locuslab/deq), and the maintained modern vehicle is **`torchdeq` (Geng's library)**, whose DEQ Zoo ships
+  `deq-lm` (WikiText-103, word-level).
+  **SEARCH FINDINGS (2026-07-08):** (i) the torchdeq DEQ-Zoo model doc gives launch/data instructions but
+  **does not advertise a released *pretrained* LM checkpoint** — availability unconfirmed (check the
+  locuslab/deq repo releases / HF directly before relying on it); (ii) confirmed the cell is **"MultiHead
+  Decoder Attention" = full causal attention**, so it will **not** drop into our windowed / block-tridiagonal
+  structure that the **ρ(G) reach half** of the certificate needs. **USEFUL NUANCE:** a full-attention DEQ-LM
+  still *has a fixed point*, so the **σ_min residual bound (§4) and the reader-set diagnostic transfer to it**
+  as-is (they need only a fixed point, not windowing) — only the ρ(G) block-transfer *reach* certificate is
+  windowing-bound. So IF a pretrained `deq-lm` checkpoint turns up, it could test the **residual-bound half of
+  C5 on real text** for near-zero cost (no training), while the reach half stays on our windowed substrates.
+  Otherwise a real-text run means training a *small windowed* DEQ-LM ourselves via torchdeq (char/byte, tiny
+  corpus), self-consistency-only, framed as "scales to natural text," **not** a benchmark — and only if
+  C5 + C6 land first.
 
 ---
 
