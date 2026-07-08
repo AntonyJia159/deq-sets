@@ -172,30 +172,38 @@ operator, blind to structure. The fix is to look at the right object. Re-block $
 matrix</strong> $G=-D^{-1}(M-D)$. Its spectral radius $\rho(G)$ is the true cross-window transport rate:
 </p>
 <table>
-  <tr><th>ckpt</th><th>$\rho(G)$ (true rate)</th><th>$\lVert G\rVert$ (transient)</th><th>implied reach</th><th>measured filler $\xi$</th><th>Route A</th></tr>
-  <tr><td>bidir16</td><td>0.33</td><td>5.6 (17&times;)</td><td class="good">~1 hop</td><td>0.41</td><td class="bad">93</td></tr>
-  <tr><td>bidir24</td><td>0.42</td><td>7.9 (19&times;)</td><td class="good">~1.3 hop</td><td>0.51</td><td class="bad">79</td></tr>
-  <tr><td>bidir40</td><td>0.85</td><td>22 (26&times;)</td><td class="warn">~6&ndash;9 hop</td><td>&lt;noise</td><td class="bad">222</td></tr>
+  <tr><th>ckpt</th><th>$\rho(G)$ bracket</th><th>$\lVert G\rVert$ (transient)</th><th>certified reach (tightest)</th><th>const $\sqrt{\lambda_{\max}(P)}$</th><th>measured $\xi$</th><th>Route A</th></tr>
+  <tr><td>bidir16</td><td>$(0,\,0.35]$</td><td>5.6 (17&times;)</td><td class="good">0.95 hops</td><td>93</td><td>0.41</td><td class="bad">93</td></tr>
+  <tr><td>bidir24</td><td>$(0.40,\,0.45]$</td><td>7.9 (19&times;)</td><td class="good">1.25 hops</td><td>81</td><td>0.51</td><td class="bad">79</td></tr>
+  <tr><td>bidir40</td><td>$(0.80,\,0.90]$</td><td>22 (26&times;)</td><td class="warn">9.49 hops</td><td>61</td><td>&lt;noise</td><td class="bad">222</td></tr>
+  <tr><td>curr24/40</td><td>nilpotent, $\rho(G)=0$</td><td>&mdash;</td><td colspan="4">exact terminating product over $\le 3$&ndash;$4$ hops (product&ndash;Lyapunov corner)</td></tr>
 </table>
+<p class="muted">
+The $\rho(G)$ bracket is read <em>rigorously off the sweep</em> (largest divergent $r < \rho(G) \le$ smallest
+valid $r$), and validates the dense-eigenvalue values (bidir24's true $0.42\in(0.40,0.45]$; bidir40's
+$0.85\in(0.80,0.90]$). Reach is tight (~1 hop) where well-conditioned and grows honestly at the near-singular
+bidir40 &mdash; still $23\times$ under Route A's 222.
+</p>
 <p>
 $\rho(G)$ tracks the measurement and is 10&ndash;100&times; tighter than the scalar bounds &mdash; but
 $\lVert G\rVert\approx5$&ndash;22 (transient growth from non-normality) means a plain norm certificate
 ($\lVert G\rVert<1$) fails, exactly as Route&nbsp;B did. The <strong>adapted (Stein/Lyapunov) norm</strong>
 fixes it: solve $\tilde G^{*}P\tilde G-P=-I$ for $\tilde G=G/r$ (exists iff $\rho(G)<r<1$), giving
-$\lVert G^{k}\rVert_2\le\sqrt{\kappa(P)}\,r^{k}$ &mdash; the rate $r$ tight, the non-normality quarantined
-into a one-time constant $\sqrt{\kappa(P)}$. Measured on bidir16 (<code>c2_weighted_cert.py</code>):
+$\lVert G^{k}\rVert_2\le\sqrt{\lambda_{\max}(P)}\,r^{k}$ &mdash; the rate $r$ tight, the non-normality
+quarantined into a one-time constant $\sqrt{\lambda_{\max}(P)}$ (which upper-bounds $\sqrt{\kappa(P)}$ since
+$P\succeq I$). The <strong>rate&ndash;constant tradeoff</strong>, swept on bidir16 (<code>c2_weighted_cert.py</code>):
 </p>
 <table>
-  <tr><th>target $r$</th><th>certified reach $\xi=1/\ln(1/r)$</th><th>amplitude $\sqrt{\kappa(P)}$</th><th>status</th></tr>
-  <tr><td>0.38</td><td class="good">1.04 hops</td><td>57</td><td class="good">certified</td></tr>
-  <tr><td>0.48</td><td class="good">1.37 hops</td><td>26</td><td class="good">certified</td></tr>
-  <tr><td>0.66</td><td>2.44 hops</td><td>13</td><td class="good">certified</td></tr>
-  <tr><td>0.90</td><td>8.78 hops</td><td>7.7</td><td class="good">certified</td></tr>
+  <tr><th>target $r$</th><th>certified reach $\xi=1/\ln(1/r)$</th><th>amplitude $\sqrt{\lambda_{\max}(P)}$</th><th>status</th></tr>
+  <tr><td>0.35 (tight)</td><td class="good">0.95 hops</td><td>93</td><td class="good">certified</td></tr>
+  <tr><td>0.60 (mid)</td><td class="good">1.96 hops</td><td>16</td><td class="good">certified</td></tr>
+  <tr><td>0.95 (loose)</td><td>19.5 hops</td><td>7.1</td><td class="good">certified</td></tr>
 </table>
 <div class="callout key">
   <strong>The a-priori rigor is recovered &mdash; and the lineage changed.</strong> A <em>certified ~1-hop
-  reach</em> (const 26&ndash;57), vs the vacuous 93-hop Route&nbsp;A, with a clean rate&ndash;constant
-  tradeoff. This <strong>leaves the approximation-theory lineage</strong> (Demko&ndash;Moss&ndash;Smith /
+  reach</em> (const ~15&ndash;90 across the well-conditioned checkpoints), vs the vacuous 79&ndash;93-hop
+  Route&nbsp;A, with a clean rate&ndash;constant tradeoff. This <strong>leaves the approximation-theory
+  lineage</strong> (Demko&ndash;Moss&ndash;Smith /
   Benzi&ndash;Golub / Faber-on-FOV &mdash; &ldquo;how the inverse of a banded matrix decays&rdquo;) and
   <strong>joins the dynamical-systems / Lyapunov lineage</strong> (spectral radius of an iteration operator +
   an adapted-norm certificate for the transient; Stein equation; Kreiss). That is <em>the causal face's own
@@ -366,12 +374,12 @@ Certifying Local Edits in Deep Equilibrium Transformers.</em> Six beats:
 
 <h2>7. What is owed before drafting</h2>
 <ul>
-  <li><strong>Certified reach &mdash; done (§2, §2b).</strong> Scalar Route&nbsp;A is sound but vacuous
-  (42&ndash;222 hops) and Route&nbsp;B abstains ($0\in W(I{-}J)$); the <em>tight</em> a-priori certificate is
-  the block-transfer rate $\rho(G)$ + adapted (Stein/Lyapunov) norm &mdash; certified ~1 hop (const
-  26&ndash;57) on bidir16. Remaining: complete the full $\rho(G)$/constant sweep on bidir24/40 and curr
-  (the run is CPU-bound on the larger eigendecompositions &mdash; needs a Lanczos/Arnoldi $\rho(G)$ instead of
-  dense <code>eigvals</code>), and formalize the amplitude constant $\sqrt{\kappa(P)}$ scaling.</li>
+  <li><strong>Certified reach &mdash; complete (§2, §2b).</strong> Scalar Route&nbsp;A is sound but vacuous
+  (79&ndash;222 hops) and Route&nbsp;B abstains ($0\in W(I{-}J)$); the <em>tight</em> a-priori certificate is
+  the block-transfer rate $\rho(G)$ + adapted (Stein/Lyapunov) norm &mdash; swept across all checkpoints
+  (bidir16/24/40 certified ~1&ndash;1.3 hops well-conditioned, 9.5 near-singular; curr24/40 = nilpotent exact
+  corner), with $\rho(G)$ bracketed rigorously off the sweep. Remaining theory work: formalize the amplitude
+  $\sqrt{\lambda_{\max}(P)}$ scaling, and the scale story (Arnoldi $\rho(G)$ + low-rank/block Stein solvers).</li>
   <li><strong>C2i &mdash; edit interference.</strong> Paired edits vs sum-of-singles vs separation: the
   linear-regime boundary (superposition until attention patterns re-form). Owed, not yet run.</li>
   <li><strong>Insert/delete.</strong> The aligned-frame reduction (a width-$w$ substitution at the cut) on

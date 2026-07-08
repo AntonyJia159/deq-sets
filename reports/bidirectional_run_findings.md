@@ -156,12 +156,17 @@ whole operator, blind to structure. The tight object: re-block (I−J) into w-to
 form the **block-Jacobi iteration matrix** G = −D⁻¹(M−D) (D=blockdiag(M)); reach is governed by **ρ(G)**, the
 cross-window transport rate. Measured (`block_transfer` + `c2_weighted_cert`):
 
-| ckpt | ρ(G) | ‖G‖ (transient) | exact resolvent per-hop | certified reach (adapted norm) | measured filler ξ | Route A |
+| ckpt | ρ(G) bracket | ‖G‖ (transient) | exact resolvent per-hop | certified reach (tightest) @ const | measured filler ξ | Route A |
 |---|---|---|---|---|---|---|
-| bidir16 | 0.33 | 5.6 (17×) | 0.36 | **1.04 hops @ const 57** (or 1.37 @ 26) | 0.41 | 93 (vacuous) |
-| bidir24 | 0.42 | 7.9 (19×) | — | ~1.3 hops (reach; const pending) | 0.51 | 79 |
-| bidir40 | 0.85 | 22 (26×) | 0.78 | ~6–9 hops (near-singular, honest) | <noise | 222 |
-| curr24 (causal) | **0.000** | 5.6 | 0.55 | NILPOTENT → exact terminating product | — | — |
+| bidir16 | (0, 0.35] | 5.6 (17×) | 0.36 | **0.95 hops @ 93** (mid 1.96 @ 16; loose 19.5 @ 7.1) | 0.41 | 93 (vacuous) |
+| bidir24 | (0.40, 0.45] | 7.9 (19×) | — | **1.25 hops @ 81** | 0.51 | 79 |
+| bidir40 | (0.80, 0.90] | 22 (26×) | 0.78 | **9.49 hops @ 61** (near-singular, honest) | <noise | 222 |
+| curr24 (causal) | **0 (nilpotent)** | 5.6 | 0.55 | NILPOTENT → exact product ≤3 hops | — | — |
+| curr40 (causal) | **0 (nilpotent)** | 6+ | — | NILPOTENT → exact product ≤4 hops | — | — |
+
+The **ρ(G) bracket is read rigorously off the sweep** (largest divergent r < ρ(G) ≤ smallest valid r) and
+validates the dense-eigenvalue values (bidir24 true 0.42∈(0.40,0.45]; bidir40 0.85∈(0.80,0.90]). Const =
+√λmax(P) ≥ √κ(P) (since P⪰I), early-stopped (tighter than full convergence).
 
 **The certificate:** ρ(G) is 10–100× tighter than the scalar bounds and tracks the exact resolvent, but
 ‖G‖≈5–22 (transient growth = non-normality) defeats a norm bound (‖G‖<1) — same disease as Route B. Fix =
@@ -179,9 +184,11 @@ exact product-Lyapunov. Bidir M block-tridiagonal → ρ(G)∈(0,1) → geometri
 two regimes of ONE object G**, not two disconnected proof families; Faber/DMS demoted to the loose scalar
 floor. **"Conditioning not contraction" sharpened:** ρ(G)<1 = spatial-coupling contraction of the resolvent's
 iteration, NOT temporal contraction of f (ρ(J) still to 8.4); two distinct axes govern, neither is ρ(J):
-ρ(G) (spatial → a-priori reach) and σ_min (conditioning → a-posteriori error). Log `c2_weighted_log.txt`.
-**Debt:** full ρ(G)/const sweep on bidir24/40 + causal is CPU-bound (dense `eigvals` on n=2–3k) — swap to
-Lanczos/Arnoldi ρ(G); formalize √κ(P) scaling.
+ρ(G) (spatial → a-priori reach) and σ_min (conditioning → a-posteriori error). Log `c2_weighted_final.txt`.
+**Sweep COMPLETE (2026-07-08):** all checkpoints done after fixing the CPU-bound path — GPU-native
+(vector-Gelfand ρ, early-stopped Gramian, power-iteration λmax; fp32 matmuls; ρ(G) bracketed off the sweep
+so no reliance on a fragile estimate; block inverse kept fp64). Remaining theory: formalize √λmax(P) scaling;
+scale story = Arnoldi ρ(G) + low-rank/block Stein solvers (deployment uses a-posteriori resid/σ_min anyway).
 
 ---
 

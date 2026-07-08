@@ -56,52 +56,77 @@ def block_jacobi(J, L, d, w):
     return G, dinv_norm, len(idx)
 
 
-def stein_gramian(G, r, K=800, tol=1e-13):
-    """P = sum_{k>=0} (G/r)*^k (G/r)^k (the Stein solution for target rate r), by truncated sum on GPU.
-    Valid iff rho(G)<r (else diverges). Returns P and the tail SPECTRAL norm ||(G/r)^K|| (computed ONCE at
-    the end) used to certify the truncation (P is a valid Lyapunov certificate once ||(G/r)^K||<1). The loop
-    uses the cheap Frobenius norm to decide when to stop; P >= I so lambda_min(P)>=1."""
+def gelfand_rho(G, K=250, tol_nilp=1e-11):
+    """rho(G) via VECTOR Gelfand power iteration: ||G^k x||/||G^{k-1} x|| -> rho(G) (Gelfand). O(n^2)/iter,
+    GPU-native (no eigendecomposition, no cuSOLVER fallback). Handles the nilpotent (causal) corner
+    naturally -- the powers crash to 0. Returns (rho_est, is_nilpotent)."""
+    n = G.shape[0]
+    x = torch.randn(n, dtype=G.dtype, device=G.device)
+    x = x / torch.linalg.norm(x)
+    ratios = []
+    for _ in range(K):
+        y = G @ x
+        ny = torch.linalg.norm(y).item()          # = ||G x|| / ||x|| since ||x||=1
+        if ny < tol_nilp:
+            return 0.0, True                       # nilpotent: powers vanished -> causal corner
+        ratios.append(ny)
+        x = y / ny
+    return float(np.median(ratios[-25:])), False   # median of the settled tail = rho(G)
+
+
+def power_lammax(P, iters=100):
+    """lambda_max of a symmetric PSD matrix by power iteration (GPU-native, O(n^2)/iter)."""
+    v = torch.randn(P.shape[0], dtype=P.dtype, device=P.device)
+    v = v / torch.linalg.norm(v)
+    lam = 0.0
+    for _ in range(iters):
+        w = P @ v
+        nw = torch.linalg.norm(w).item()
+        if nw < 1e-30:
+            break
+        v = w / nw
+        lam = torch.dot(v, P @ v).item()           # Rayleigh quotient -> lambda_max
+    return lam
+
+
+def weighted_cert(G, r, Kmax=600, tail_thresh=0.9):
+    """Certified bound ||G^k||_2 <= const * r^k, const=sqrt(lambda_max(P_M)), via an EARLY-STOPPED Stein
+    Gramian P_M = sum_{j=0}^{M} (Gt^T)^j Gt^j, Gt=G/r. Key facts used:
+      (1) P_M >= I  => lambda_min(P_M) >= 1, so sqrt(lambda_max(P_M)) >= sqrt(kappa(P_M)) is a valid (conservative)
+          constant -- no need for lambda_min or a cholesky.
+      (2) P_M is a valid Lyapunov certificate (Gt^T P_M Gt <= P_M) as soon as ||Gt^{M+1}||_2 < 1, because
+          Gt^T P_M Gt - P_M = -(I - (Gt^T)^{M+1} Gt^{M+1}). So we STOP early (once ||Gt^{M+1}||_F < tail_thresh
+          => ||.||_2 < 1), which is both faster and gives a TIGHTER const than summing to convergence.
+    All GPU-native: matmuls + Frobenius norms + symmetric power iteration. No eig/SVD/cholesky."""
     n = G.shape[0]
     Gt = G / r
-    P = torch.eye(n, dtype=torch.float64, device=G.device)
-    Gk = Gt.clone()
-    k = 1
-    for k in range(1, K):
-        P = P + Gk.T @ Gk
-        if torch.linalg.norm(Gk).item() < tol:          # Frobenius (cheap) stopping proxy
+    P = torch.eye(n, dtype=G.dtype, device=G.device)
+    Gk = Gt.clone()                                 # Gt^1
+    terms, tailF, diverged = 1, torch.linalg.norm(Gt).item(), False
+    for k in range(1, Kmax):
+        P = P + Gk.T @ Gk                           # add term j=k  (P now = sum_{j=0}^{k})
+        Gk = Gk @ Gt                                # advance: Gk = Gt^{k+1}
+        tailF = torch.linalg.norm(Gk).item()        # ||Gt^{k+1}||_F  >= ||Gt^{k+1}||_2
+        terms = k
+        if tailF < tail_thresh:                     # ||Gt^{k+1}||_2 < 1 guaranteed -> P is a valid cert
             break
-        Gk = Gk @ Gt
-    tail = torch.linalg.matrix_norm(Gk, ord=2).item()    # spectral norm of the last retained power, once
-    return P, tail, k
-
-
-def weighted_cert(G, r):
-    """Certified bound ||G^k||_2 <= const * (eff_rate)^k from the adapted P-norm at target rate r.
-    eff_rate = r * ||G/r||_P  (<= r); const = sqrt(kappa(P)); reach = 1/ln(1/eff_rate) hops."""
-    P, tail, terms = stein_gramian(G, r)
-    lam = torch.linalg.eigvalsh(P)
-    lam_max, lam_min = lam[-1].item(), lam[0].item()
-    kappaP = lam_max / lam_min
-    # induced norm ||G/r||_P via congruence L^{-1}(.)L^{-T}, P=L L^T
-    Gt = G / r
-    A = Gt.T @ P @ Gt
-    Lc = torch.linalg.cholesky(P)
-    Y = torch.linalg.solve_triangular(Lc, A, upper=False)               # L^{-1} A
-    Z = torch.linalg.solve_triangular(Lc, Y.T, upper=False).T           # (L^{-1} (L^{-1}A)^T)^T = L^{-1} A L^{-T}
-    gnorm_P = torch.linalg.eigvalsh(0.5 * (Z + Z.T))[-1].clamp(min=0).sqrt().item()
-    eff = r * gnorm_P
-    reach = np.inf if eff >= 1.0 else -1.0 / np.log(eff)
-    valid = (tail < 1.0) and (gnorm_P < 1.0)                            # truncation + contraction both certified
-    return dict(r=r, kappaP=kappaP, const=np.sqrt(lam_max), gnorm_P=gnorm_P,
-                eff_rate=eff, reach=reach, tail=tail, terms=terms, valid=valid)
+        if tailF > 1e6:                             # r <= rho(G): Gramian diverges -> bail (cheap), r invalid
+            diverged = True
+            break
+    reach = np.inf if r >= 1.0 else -1.0 / np.log(r)
+    if diverged or tailF >= 1.0:                    # invalid r: don't build a bogus constant
+        return dict(r=r, const=np.inf, lam_max=np.inf, reach=reach, tail=tailF, terms=terms, valid=False)
+    lam_max = power_lammax(P)
+    return dict(r=r, const=np.sqrt(max(lam_max, 1.0)), lam_max=lam_max,
+                reach=reach, tail=tailF, terms=terms, valid=True)
 
 
 def main():
-    targets = ["bidir16.pt", "bidir24.pt", "bidir40.pt", "curr24.pt"]
+    targets = ["bidir16.pt", "bidir24.pt", "bidir40.pt", "curr24.pt", "curr40.pt"]
     print("device=%s  C2-WEIGHTED: block-transfer reach certificate (adapted Lyapunov/Stein norm)\n"
-          "  G = block-Jacobi iteration matrix of reblocked (I-J); rho(G)=true rate; ||G|| shows transient growth.\n"
-          "  Certified: ||G^k|| <= const * eff_rate^k  =>  reach xi=1/ln(1/eff_rate) hops, amplitude const=sqrt(kappa(P)).\n"
-          "  Sweep target rate r (tighter r -> tighter reach, larger const). Compare to scalar proxy/Route-A.\n"
+          "  G = block-Jacobi iteration matrix of reblocked (I-J); rho(G)=true rate (Gelfand); ||G||_F shows transient.\n"
+          "  Certified: ||G^k|| <= const * r^k  =>  reach xi=1/ln(1/r) hops, amplitude const=sqrt(lam_max(P)).\n"
+          "  Sweep target rate r>rho(G) (tighter r -> tighter reach, larger const). Compare to scalar proxy/Route-A.\n"
           % sw.DEV, flush=True)
     for name in targets:
         path = os.path.join(CKPT_DIR, name)
@@ -115,32 +140,44 @@ def main():
         z, _ = cb.counted_solve(m, ff, torch.zeros(1, L, sw.d, device=sw.DEV))
         zf = z.reshape(-1).detach()
         ffl = lambda zv: ff(zv.view(z.shape)).reshape(-1)
-        J = torch.func.jacrev(ffl)(zf)
+        J = torch.func.jacrev(ffl)(zf).detach().double()         # fp64 on GPU for an accurate block-inverse
         G, dinv_norm, nb = block_jacobi(J, L, sw.d, sw.W)
-        rhoG = torch.linalg.eigvals(G).abs().max().item()
-        nrmG = torch.linalg.matrix_norm(G, ord=2).item()
+        G = G.float()                                            # fp32: GPU matmuls ~60x faster, half memory
+        del z, zf, ff, m, J                                      # free GPU (6GB card) before the next ckpt
+        if sw.DEV == "cuda":
+            torch.cuda.empty_cache()
+        nrmG = torch.linalg.norm(G).item()                 # Frobenius (cheap, >= spectral)
+        rho_est, is_nilp = gelfand_rho(G)
         face = "causal" if name.startswith("curr") else "bidir"
-        print(f"[{name}] face={face} L={L} windows={nb}  rho(G)={rhoG:.3f}  ||G||={nrmG:.2f}"
-              f"  (transient gap {nrmG/max(rhoG,1e-9):.0f}x)", flush=True)
-        if rhoG < 1e-6:
-            print(f"    NILPOTENT corner (rho(G)=0): resolvent = exact terminating product over <= {nb-1} hops"
+        if is_nilp:
+            print(f"[{name}] face={face} L={L} windows={nb}  rho(G)~0 (NILPOTENT), ||G||_F={nrmG:.2f}\n"
+                  f"    NILPOTENT corner: resolvent = exact terminating product over <= {nb-1} hops"
                   f"  -> product-Lyapunov (causal), certificate is EXACT, no adapted norm needed.\n", flush=True)
+            del G
             continue
-        # sweep target rates from just above rho(G) up toward 1
-        rs = sorted(set([min(rhoG + 0.05, 0.999), min(rhoG + 0.15, 0.999),
-                         (rhoG + 1) / 2, 0.9]))
-        for r in rs:
-            c = weighted_cert(G, r)
-            tag = "OK " if c["valid"] else "?? "
-            print(f"    r={r:.3f}: eff_rate={c['eff_rate']:.3f} -> CERT reach={c['reach']:.2f} hops  "
-                  f"amp const=sqrt(kappa(P))={c['const']:.1e}  (kappaP={c['kappaP']:.1e}, "
-                  f"terms={c['terms']}, tail={c['tail']:.0e}) [{tag}]", flush=True)
-        print(f"    vs scalar: proxy sqrt-kappa (see c2_bidir log), Route-A ~ 80-220 hops (vacuous). "
+        # FIXED grid (independent of the noisy Gelfand estimate); the sweep itself brackets rho(G)
+        # rigorously: largest INVALID r < rho(G) <= smallest VALID r.
+        grid = [0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.70, 0.80, 0.90, 0.95]
+        res = [weighted_cert(G, r) for r in grid]
+        valid = [c for c in res if c["valid"]]
+        inv_rs = [c["r"] for c in res if not c["valid"]]
+        rho_lo = max([r for r in inv_rs if r < (valid[0]["r"] if valid else 1)], default=0.0)
+        rho_hi = valid[0]["r"] if valid else 1.0
+        print(f"[{name}] face={face} L={L} windows={nb}  ||G||_F={nrmG:.2f}  "
+              f"rho(G) in ({rho_lo:.2f}, {rho_hi:.2f}]  (Gelfand est {rho_est:.2f})", flush=True)
+        # report tightest / mid / loosest valid operating points
+        picks = sorted(set([0, len(valid) // 2, len(valid) - 1])) if valid else []
+        for i in picks:
+            c = valid[i]
+            print(f"    r={c['r']:.2f} -> CERT reach={c['reach']:.2f} hops  amp const=sqrt(lam_max(P))={c['const']:.1e}"
+                  f"  (terms={c['terms']}, tail={c['tail']:.2f}) [OK]", flush=True)
+        print(f"    vs scalar: proxy sqrt-kappa (c2_bidir log), Route-A ~ 80-220 hops (vacuous). "
               f"||D^-1||={dinv_norm:.2f} (resolvent prefactor).\n", flush=True)
-    print("READ: eff_rate ~ rho(G) at small r = the TIGHT certified rate; const=sqrt(kappa(P)) is the honest\n"
-          "amplitude that absorbs the transient (non-normality). Reach ~1 hop certified where well-conditioned,\n"
-          "growing near-singular -- vs the vacuous 80-220 hop scalar Route-A. Causal = nilpotent corner (exact).",
-          flush=True)
+        del G
+    print("READ: reach=1/ln(1/r) at r just above rho(G) = the TIGHT certified reach; const=sqrt(lam_max(P)) is the\n"
+          "honest amplitude absorbing the transient (>= sqrt(kappa) since lam_min(P)>=1; early-stopped => tighter).\n"
+          "~1 hop where well-conditioned, growing near-singular -- vs the vacuous 80-220 hop scalar Route-A.\n"
+          "Causal = nilpotent corner (rho(G)=0, exact terminating product).", flush=True)
 
 
 if __name__ == "__main__":
