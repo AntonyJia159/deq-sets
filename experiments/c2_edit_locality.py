@@ -36,6 +36,15 @@ sw.H, sw.dh = 4, sw.d // 4
 
 def load_checkpoint(path):
     ck = torch.load(path, map_location=sw.DEV, weights_only=False)
+    # Restore substrate flags from the checkpoint BEFORE building the model -- the relb table and posw
+    # existence depend on them, so a relative-PE checkpoint (currnp: no_posw/rel_bias/readonly_q) must be
+    # built with those set or load_state_dict mismatches and the forward is wrong. Defaults = the causal+
+    # absolute curr* config, so curr*.pt (which don't save these keys) are byte-for-byte unaffected.
+    sw.BIDIR = ck.get("bidir", False)
+    sw.REL_BIAS = ck.get("rel_bias", False)
+    sw.READONLY_Q = ck.get("readonly_q", False)
+    sw.NO_POSW = ck.get("no_posw", False)
+    sw.QUERY_FULL = ck.get("query_full", False)
     m = sw.SeqDEQ("softmax", "deq").to(sw.DEV)
     m.load_state_dict(ck["state_dict"])
     m.eval()
