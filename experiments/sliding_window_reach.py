@@ -90,6 +90,12 @@ NO_POSW = False                          # module flag: drop the learned ABSOLUT
                                          # with it; this flag tests whether a PURE-relative substrate can relay
                                          # at all — the viability premise of the insert/delete (aligned-frame)
                                          # application story.
+QK_NORM = False                          # module flag: cosine attention. L2-normalize q,k over the head dim and
+                                         # scale logits by a LEARNED temperature (replacing 1/sqrt(dh)). Decouples
+                                         # attention SHARPNESS (the learned tau) from logit MAGNITUDE (unbounded
+                                         # q.k) -> caps saturation, so I-J stays off singular (sigma_min up) while
+                                         # tau still lets attention peak for recall. Tests the conditioning fix on
+                                         # the relative substrate (currnp was 2-8x more ill-conditioned than curr).
 
 
 def band_causal_mask(L, device):
@@ -116,6 +122,8 @@ class SeqDEQ(nn.Module):
         self.Wv = nn.Linear(d, d, bias=False)
         self.Wo = nn.Linear(d, d, bias=False)
         self.s_raw = nn.Parameter(torch.tensor(0.4))
+        if QK_NORM:                                          # learned cosine-attention temperature (per head);
+            self.qk_tau = nn.Parameter(torch.full((H,), 2.0 * dh ** 0.5))   # init gives peaking headroom
         if REL_BIAS:
             self.relb = nn.Parameter(0.01 * torch.randn(H, 2 * W + 1))   # b[h, (j-i)+W]
         self.head = nn.Linear(d, NVAL)
@@ -154,7 +162,12 @@ class SeqDEQ(nn.Module):
         k = (z @ Wk.t()).view(B, L, H, dh).transpose(1, 2)
         v = (z @ Wv.t()).view(B, L, H, dh).transpose(1, 2)
         if self.kind == "softmax":
-            sc = (q @ k.transpose(-1, -2)) / (dh ** 0.5) + maskp   # additive bias (0 / -1e30)
+            if QK_NORM:                                       # cosine attention: unit q,k * learned per-head tau
+                q = F.normalize(q, dim=-1)
+                k = F.normalize(k, dim=-1)
+                sc = self.qk_tau.view(1, H, 1, 1) * (q @ k.transpose(-1, -2)) + maskp
+            else:
+                sc = (q @ k.transpose(-1, -2)) / (dh ** 0.5) + maskp   # additive bias (0 / -1e30)
             a = torch.softmax(sc, -1)
         else:                                                # linear-kernel attention (Mamba/SSM analog)
             qf, kf = F.elu(q) + 1.0, F.elu(k) + 1.0

@@ -45,6 +45,7 @@ def load_checkpoint(path):
     sw.READONLY_Q = ck.get("readonly_q", False)
     sw.NO_POSW = ck.get("no_posw", False)
     sw.QUERY_FULL = ck.get("query_full", False)
+    sw.QK_NORM = ck.get("qk_norm", False)
     m = sw.SeqDEQ("softmax", "deq").to(sw.DEV)
     m.load_state_dict(ck["state_dict"])
     m.eval()
