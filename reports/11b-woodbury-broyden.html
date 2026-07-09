@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set-DEQ Notes #11½ — The Woodbury Prior and the Anderson→Broyden Swap</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$', '$']], displayMath: [['$$', '$$']] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --ink:#1a1a1a; --muted:#666; --rule:#e2e2e2; --accent:#2b6cb0; --good:#1a7f4b; --bad:#b02a2a; --warn:#b07a1a; --bg:#fafafa; --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 48px 24px 96px; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 32px; }
+  .kicker { font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
+  h1 { font-size: 1.7rem; line-height:1.25; margin:.1em 0 .35em; }
+  .byline { color:var(--muted); font-size:.92rem; }
+  h2 { font-size:1.2rem; margin:2.2em 0 .6em; padding-bottom:.25em; border-bottom:1px solid var(--rule); }
+  h3 { font-size:1.02rem; margin:1.6em 0 .4em; }
+  p { margin:.7em 0; }
+  code { background:#f0f0f3; padding:.08em .35em; border-radius:4px; font-size:.9em;
+         font-family: "SF Mono", Consolas, "Liberation Mono", monospace; }
+  table { width:100%; border-collapse:collapse; margin:1.1em 0; font-size:.88rem; background:var(--card); }
+  th, td { padding:7px 9px; text-align:center; border-bottom:1px solid var(--rule); }
+  th { background:#f3f5f8; font-weight:600; }
+  td:first-child, th:first-child { text-align:left; }
+  .good { color:var(--good); font-weight:600; }
+  .bad  { color:var(--bad);  font-weight:600; }
+  .warn { color:var(--warn); font-weight:600; }
+  .callout { background:#eef4fb; border:1px solid #cfe0f3; border-radius:8px; padding:14px 18px; margin:1.2em 0; }
+  .callout.warn { background:#fdf3ee; border-color:#f3d8c8; }
+  .callout.key { background:#eaf6ee; border-color:#bfe3cb; }
+  .muted { color:var(--muted); }
+  ul, ol { margin:.5em 0; padding-left:1.3em; }
+  li { margin:.35em 0; }
+  footer { margin-top:48px; padding-top:18px; border-top:1px solid var(--rule); color:var(--muted); font-size:.85rem; }
+  .win { background:#eaf6ee; font-weight:600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="kicker">Set-DEQ Notes · #11½ · the constructive corollary — and a solver lesson</p>
+  <h1>The Woodbury Prior and the Anderson→Broyden Swap</h1>
+  <p class="byline">Zhibai Jia · 9 July 2026 · what the low-rank corridor buys you at solve time — predict the new equilibrium, certify it, and (crucially) pick the solver that can cash a good init</p>
+</header>
+
+<div class="callout">
+  <strong>Scope.</strong> This is the <em>efficiency spin-off</em>, not the paper's spine. The spine is a
+  characterization (two invariants, the reach envelope, the residual certificate, the reader-set). This note
+  records the one <em>constructive</em> payoff of the low-rank corridor — a predict→certify→correct maintenance
+  loop — and the solver fact we bumped into on the way. Everything here is toy-scale; wall-clock is disclaimed.
+</div>
+
+<h2>1. The idea: edit the resolvent, predict the equilibrium</h2>
+
+<p>An in-context edit changes one token, hence the injection $h\to h+\delta h$ ($\delta h$ localized). We do
+<strong>not</strong> edit the equilibrium state directly — it is a derived fixed point. We <em>predict where it
+moves</em>. Differentiating the fixed-point condition $z^\star=f(z^\star,h)$ gives the linear response through the
+<strong>resolvent</strong> $M^{-1}=(I-J)^{-1}$:</p>
+$$ \delta z^{\star} = (I-J)^{-1}\,\delta h, \qquad
+   z_{\text{init}} = z^{\star}_{\text{old}} + (I-J)^{-1}\delta h. $$
+<p>That "warmer-than-warm" start is the old equilibrium plus its predicted first-order move — <em>exact if $f$ were
+affine</em>, then residual-certified (Note #11, §4) and corrected only if needed. Kantorovich in three beats:
+<strong>resolvent = predictor, residual bound = the "do I even iterate?" test, solver = corrector</strong>.</p>
+
+<h2>2. Why Woodbury, and how it avoids materializing $M^{-1}$</h2>
+
+<p>Two low-rank objects hide here; keep them apart. The <em>displacement field</em> $\delta z$ over the $(L,d)$
+grid is itself rank $\sim8$ (the carry subspace, C2d-V4) — you can truncate it. Separately, the <em>operator</em>
+change $\delta J = UV^{\top}$ is low-rank because the edit is localized, and <strong>Woodbury updates the
+inverse</strong>:</p>
+$$ M_{\text{new}}^{-1} = M_{\text{old}}^{-1} + M_{\text{old}}^{-1}U\,(I - V^{\top}M_{\text{old}}^{-1}U)^{-1}\,V^{\top}M_{\text{old}}^{-1}. $$
+<p>You never form $M^{-1}$ as a matrix. You need its <em>action</em> on $r{+}1$ vectors:</p>
+<ul>
+  <li>$a = M_{\text{old}}^{-1}\delta h$ &nbsp;(one solve), and $W = M_{\text{old}}^{-1}U$ &nbsp;($r\approx8$ solves →
+      a tall-skinny $N\times r$, not $N\times N$);</li>
+  <li>each solve of $(I-J_{\text{old}})x=b$ is <strong>matrix-free</strong> — $(I-J)$ applied as a JVP through $f$,
+      and it is <em>exactly the linear system DEQ implicit-diff already solves for the backward pass</em>, so the
+      machinery exists (<code>torchdeq</code>'s <code>b_solver</code>);</li>
+  <li>the only inverse you <em>form</em> is the tiny $r\times r$ block $(I-V^{\top}W)$.</li>
+</ul>
+<div class="callout key">
+  <strong>Blocked structure makes it contiguous.</strong> The band structure of $J$ gives (Demko–Moss–Smith) a
+  resolvent whose blocks <em>decay</em> with distance, so the cached $M^{-1}$ is low-bandwidth and its action is a
+  banded op; the edit footprint is a few contiguous windows; the correction decays and truncates to the reach ball.
+  Everything is block/window-contiguous and low-rank — dense BLAS, never per-token gather. Cost per edit is
+  $O(\text{ball}\times r)$, independent of sequence length. It transfers to any DEQ with (i) a cheap $M^{-1}$ action
+  (banded / hierarchical / block-sparse) and (ii) a <em>low-rank</em> edit — i.e. a <em>spatially local</em> edit.
+  A diffuse-but-sparse $\delta J$ is sparse-but-high-rank and gets no help. (Deployable form not yet built — our
+  toy runs used the dense oracle $R$ for exactness.)
+</div>
+
+<h2>3. What it buys — measured</h2>
+
+<p><strong>Accuracy: a clean win.</strong> The Woodbury init lands strictly closer than plain warm-start —
+14/15 cells, <strong>1.8–65× lower residual</strong> (C5), and the low-rank truncation keeps it. On the real
+post-edit residuals it cut $\|r\|$ by <strong>18–39×</strong> (e.g. curr08 filler $5.47\to0.31$).</p>
+
+<p><strong>Efficiency: the solver decides whether the win cashes.</strong> Under <em>Anderson</em>, a lower-residual
+init did <em>not</em> mean fewer iterations — residual $\ne$ iterations (curr16 filler: 8× lower residual, yet
+<em>more</em> Anderson iters). Anderson's convergence tracks the slow/stiff-mode content, not the initial residual.
+The fix is the corrector: swap to <strong>Broyden</strong>.</p>
+
+<h2>4. The solver lesson: Anderson vs Broyden</h2>
+
+<p>Both are quasi-Newton (Anderson acceleration is a multi-secant Broyden-type method — so this is <em>not</em> a
+Picard-vs-Newton story). They differ in <strong>stability near stiff fixed points</strong>: Anderson's internal
+least-squares ill-conditions as $\sigma_{\min}\to0$ (a known failure mode; the textbook remedy is to regularize the
+least-squares), and in practice it <em>floors</em> around $10^{-4}$. At an <em>achievable</em> tolerance the swap
+pays decisively on exactly the near-singular operators that are our subject:</p>
+
+<table>
+<thead><tr><th>cell (filler)</th><th>Anderson-warm</th><th>Broyden + Woodbury</th></tr></thead>
+<tbody>
+  <tr><td>curr40</td><td class="bad">201 evals @ 0% conv (failed)</td><td class="win">20.8 @ 100%</td></tr>
+  <tr><td>currnp08</td><td>115 @ 75%</td><td class="win">15.5 @ 100%</td></tr>
+  <tr><td>currnp40</td><td>62 @ 100%</td><td class="win">10.5 @ 100%</td></tr>
+</tbody>
+</table>
+
+<p>Broyden converges <strong>100% everywhere</strong>, including the near-singular cells where Anderson stalls —
+~5–10× fewer f-evals <em>and</em> actual convergence. And within Broyden the Woodbury init then trims a further
+~15–30% (up to 2×), so the prior finally <em>converts</em> to iterations.</p>
+
+<div class="callout warn">
+  <strong>It is regime-dependent — our own two datapoints straddle it.</strong> Earlier this campaign Broyden
+  <em>NaN'd</em> on our set/graph DEQs — but those <em>forced</em> strong contraction ($\rho$ pinned $\sim0.9$),
+  giving a degenerate residual history for the quasi-Newton update. The transformer substrate here is
+  noncontractive-but-well-conditioned — the regime we advocate ("conditioning, not contraction") — and it is
+  exactly the regime where Broyden shines and solver choice bites hardest. So: <em>no universal winner</em>; the
+  design philosophy and the solver are coupled. The field default is actually Anderson (cheaper) — our preference
+  for Broyden is specific to stiff/near-singular operators at tight tolerance.
+</div>
+
+<div class="callout key">
+  <strong>What it does not touch.</strong> The <em>characterization</em> — $\sigma_{\min}$, $\rho(G)$, the reach
+  envelope, the noncontractive witnesses — is computed from the Jacobian at a Newton-polished fixed point via dense
+  linear algebra, so it is <strong>solver-independent</strong>. We checked: Broyden and Anderson land on the same
+  fixed point and reproduce $\sigma_{\min}$, $\rho(J)$, and the resolvent to 6+ digits on the witness cells (one
+  exception, curr40, is genuinely <em>multistable</em> — two branches, and each is independently well-posed, which
+  is fine for a <em>local</em> maintenance certificate).
+</div>
+
+<h2>5. Novelty and honest placement</h2>
+<p>The Woodbury/Sherman–Morrison identity is generic (Kalman, K-FAC, ROME's key-covariance edit, influence
+functions, delta-rule state updates). What is DEQ-native is the <em>target</em>: Woodbury updates an <em>inverse</em>,
+and the edit-response is an inverse — the resolvent $(I-J)^{-1}$ — <em>only</em> because there is a fixed point. A
+feedforward stack pushes a perturbation <em>forward</em> (a JVP); there is no inverse to update and no iterate to
+warm. The specific cross-edit prior (measure the low-rank footprint → update the resolvent → predict → residual-
+certify) we did not find in the DEQ literature (verify with Geng before any novelty claim). Placement: a
+<strong>constructive corollary</strong> of the low-rank corridor — an appendix that shows the characterization is
+exploitable — pitched at the efficiency spin-off, <em>not</em> the paper's spine.</p>
+
+<footer>
+  Set-DEQ Notes&nbsp;#11½ · companion to <a href="11-block-transfer-certificate-machinery.html">#11</a> (the
+  certificate machinery). Code: <code>experiments/c5_woodbury_prior.py</code>,
+  <code>experiments/c5_woodbury_broyden.py</code>, <code>experiments/c2_witness_solver_check.py</code>.
+</footer>
+</div>
+</body>
+</html>

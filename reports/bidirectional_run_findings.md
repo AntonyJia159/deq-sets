@@ -634,17 +634,90 @@ MLM-objective hypothesis and the local-decomposability limit are the two open ed
   AND per-window early-stop are both SAFE-BUT-MODEST on this toy → the certificate's value is the **guarantee**
   (provably-correct partial recompute), not a toy-scale compute win. Test 2 (real masked solve) DEFERRED — would
   confirm the same modest number. Verdict: appendix-level "certified, safe, scales with length," NOT a headline.
+- **WOODBURY + BROYDEN — POSITIVE (2026-07-09, `c5_woodbury_broyden.py`). Corrects a prior mis-read.** Smoke
+  test (2 seqs × 2 edits/mode over ALL 15 curr*/currnp*/currnpqk* ckpts; off-the-shelf torchdeq Broyden,
+  Woodbury only as init; NO custom solver / NO Jacobian seeding — an earlier over-engineered B0-seeding design
+  was scrapped as out-of-scope). **First read at tol=1e-6 looked like a NULL ("Broyden saves nothing") — that
+  was a CAPPING ARTIFACT** (neither solver reaches 1e-6, all pinned at MAXIT). Re-run at an ACHIEVABLE tol=1e-4
+  (Anderson's floor) flips it. TWO wins: **(A) the SOLVER SWAP is the big one** — Broyden converges 100%
+  EVERYWHERE incl. near-singular curr40/currnp40/currnp08 where **Anderson STALLS** (curr40 filler: Anderson-warm
+  201 evals @0% conv = failed → Broyden-Woodbury 20.8 @100%; currnp08 filler 115@75% → 15.5@100%; ~5–10× fewer
+  f-evals AND actual convergence). **(B) the Woodbury init pays WITHIN Broyden** (fair same-solver): Broyden-Woodbury
+  ≤ Broyden-warm almost everywhere, ~15–30% typical (curr24 filler 6.2→5.2), up to 2× (curr40 relevant 70→29);
+  one mild inversion (curr08 relevant 15→16.5, an overshoot — c5_woodbury nonlinear-overshoot note). **The prior
+  now CONVERTS to iters** (under Anderson it didn't). **THEORY CORRECTION:** the earlier "residual≠iterations, init
+  doesn't help" (c5_woodbury) is ANDERSON-SPECIFIC, not a law — fixed-point iteration is spectral-gap-limited so a
+  stiff (small-σ_min) operator stalls it; **quasi-Newton is affine-invariant** (local convergence ~conditioning-
+  independent) so Broyden takes the stiff mode in stride. My "no solver escapes the conditioning" was too strong.
+  CAVEATS: cross-solver f-eval counts not strictly comparable (Broyden line-search evals ARE counted → its
+  advantage is if anything understated); n=4 edits/cell so magnitudes noisy though direction consistent across all
+  15 ckpts. **SCOPE:** this is the EFFICIENCY SPIN-OFF's result (Geng's area), not this paper's headline — but it
+  UPGRADES the Woodbury rung from "safe-but-modest appendix" to "cross-edit prior + quasi-Newton solver = a real
+  incremental-inference win on stiff DEQ operators." Records file `c5_woodbury_broyden_records.npz`. Next if
+  pursued: scale to more seqs/edits for firm magnitudes; L2 (low-rank Woodbury update of R_old, the deployable
+  cheap prior) now clearly worth building since L1 pays.
 - **NONCONTRACTIVE-BUT-LOCAL WITNESSES — the "conditioning, not contraction" evidence, on record (2026-07-09).**
   The claim that edit-locality is governed by σ_min(I−J), not by contraction ρ(J)<1, is DIRECTLY witnessed, and
   we've been underplaying it: **curr40 has ρ(J)=8.37 (strongly NONcontractive) yet the filler envelope HOLDS**
   (ξ_meas≈0.97 hop, ENVELOPE OK, σ_min=0.026, recall 0.83); **currnp is noncontractive at gaps 0/16/24/40**
   (ρ(J) 1.69/1.26/2.11/4.44) with C2 + C2d holding on it. So the noncontractive regime is real AND edit-local —
-  the old angle is empirically supported, not folklore; **feature curr40 as the poster child.** IMPORTANT
+  the old angle is empirically supported, not folklore. IMPORTANT
   ASYMMETRY: the ρ>1 witnesses are all on the **CAUSAL face** — the trained *bidir* face landed contractive
   (ρ<1 throughout, 0.43→0.87), and the pointer-chase / QK-norm runs also landed contractive. So the
   noncontractive evidence lives on the causal face. FRAMING UPGRADE: "conditioning, not contraction" is demoted
   from thesis to HOOK; the crown went from a single invariant (σ_min over ρ(J)) to **TWO invariants — {ρ(G)
   reach, σ_min amplitude} over ρ(J)** — with ρ(M)=ρ(I−J) a non-participant (a red herring, not the contrast).
+- **WITNESS SOLVER-INDEPENDENCE CHECK + POSTER-CHILD SWAP (2026-07-09, `c2_witness_solver_check.py`).** Solved
+  each stiff cell TWO ways (Anderson+Newton vs Broyden+Newton, same zero init) to answer "is ρ>1-yet-local a
+  solver artifact?" **4/5: CONFIRMED solver-independent** — currnp16/24/40 (ρ=1.26/2.11/**4.44**) + currnpqk40
+  agree on z*, σ_min, ρ(J), far-field R to 6+ digits (‖zA−zB‖~1e-7). So the noncontractive witness is a property
+  of the OPERATOR, not the solver — and we now have a clean TREND (ρ 1.26→4.44, all edit-local, solver-checked),
+  stronger than any single point. **SURPRISE: curr40 (the old poster child) is MULTISTABLE** — the two solvers
+  land on DIFFERENT fixed points from the same init (‖zA−zB‖=0.14, both polished to ~1e-7 = both legitimate),
+  with σ_min differing by branch (0.026 vs 0.040) and R blocks disagreeing 34×; ρ(J)=8.37 at both. Quantifies the
+  near-multistability we'd flagged in the Test-1 target bug. **DOES NOT refute the thesis:** claim holds at BOTH
+  branches (both noncontractive + edit-local); σ_min DIFFERS by branch = exactly "reach governed by σ_min"; and
+  our certificate is LOCAL (a-posteriori, around a given z*) so each branch is independently well-posed —
+  multistability only bites a COLD solve expecting a canonical answer, NOT the maintenance regime (warm-start from
+  the cached branch = branch well-defined). It even reinforces the maintenance framing / the Test-1 warm-branch
+  fix. **ACTION: poster child → currnp40 (ρ=4.44, single fixed point, solver-checked); currnp16/24/40 = the
+  trend.** curr40 REFRAMED: kept as "strong non-contraction can bring multistability, and the local/maintenance
+  certificate is robust to it" — a point in our favor, not a clean-witness example. (Reporting nit: the script's
+  `(B matches)` on the far-field line is hardcoded text, not a computed check — the `rel_R`/`dz` numbers are the
+  real signal; label to be fixed.)
+- **POST-EDIT TIER-2 CERTIFICATE — SOBERING, deflates "tight deployable" (2026-07-09, `c2_postedit_certify.py`).**
+  Measured the DEPLOYABLE residual (real post-edit warm residual `r=f_new(z*_old)−z*_old`, 6 edits/class × 4 cells
+  curr08/16, currnp16/40; z*_new = warm-branch target) vs the true error. **(1) scalar bound LOOSE for real edits:
+  ratio_lin=(‖r‖/σ_min)/‖Δz*‖ = 7–34×** (curr08 filler 17.5; currnp40 filler 34). **(2) WHY — refutes my mechanism
+  hypothesis:** cos_stiff (alignment of r with top-8 stiff left-sing dirs) = **0.01–0.14** → real edit residuals are
+  NOT stiff-dominated; they're broadband/fast-mode-dominated (the INITIAL edit residual, before iterating — residuals
+  only go stiff-dominated AFTER fast modes decay). So the scalar σ_min bound (worst-case-over-stiff) over-charges by
+  ~1/cos. **(3) RIGOR — NK NEVER fires: 0% in-TR every edit** (h=β²L‖r‖>½; ratio_NK=nan). β=18–41 ⇒ needs ‖r‖≲1e-3–
+  1e-4 = near-convergence; real ‖r‖=O(1–10), 3–4 orders too far. So NK = a "you've nearly converged" cert = a
+  certified STOPPING rule (iterate the re-solve until h≤½, THEN certify), NOT one-shot "certify-the-reuse-without-
+  solving." Robust to L (β² exact; local L if anything under-estimates). **(4) Woodbury still an accuracy win**
+  (‖r_wood‖≪‖r‖, 18–39×: curr08 filler 5.47→0.31; currnp40 filler 0.29→0.010) but does NOT reach the NK TR in one
+  shot (0%). **CONSTRUCTIVE REFRAME:** the TIGHT deployable object is the DIRECTIONAL `‖R·r‖` (= first-order actual
+  error z−z*≈M⁻¹r, the C2d/Woodbury resolvent-action machinery), NOT scalar ‖r‖/σ_min — the scalar is loose
+  precisely because it assumes stiff alignment the real residual lacks. So: **scalar σ_min = cheap LOOSE screen;
+  directional R·r (resolvent-needing, Woodbury-updatable) = the tight estimate; NK = rigorous stopping rule
+  (conservative on ill-cond).** **PAPER IMPACT:** soften tier-2 "tight and deployable" → "SOUND; scalar = conservative
+  screen, directional/resolvent = tight, NK = certified stopping rule." CORE (characterization, invariants,
+  witnesses) untouched; consistent w/ the honest "don't oversell deployment" positioning. OWED: measure ‖R·r‖/actual
+  directly to confirm the directional-tight claim (have R,r in the script — quick add).
+  **DIRECTIONAL MEASURED (2026-07-09, same script +ratio_dir=‖R·r‖/actual): the IMPOSSIBLE TRIANGLE, empirically.**
+  `‖R·r‖` is TIGHT — **0.98–1.01 (exact) on small (filler) edits across ALL cells incl. near-singular; 10–34×
+  tighter than scalar.** BUT on LARGE edits (irrelevant/relevant) it **UNDER-predicts** (ratio_dir 0.66–0.81 on
+  currnp16/40; 1.12–1.17 slight-over on well-cond curr08/16) → `‖R·r‖<actual` ⇒ NOT a rigorous upper bound there
+  (nonlinearity + cached-resolvent drift R_old≠R_new; degrades with edit size AND κ). So the three certs each give
+  up ONE corner: **scalar ‖r‖/σ_min = sound+cheap, NOT tight (7–34×); directional ‖R·r‖ = tight+cheap-ish, NOT
+  rigorous (optimistic, under-predicts 0.66× on big/near-singular edits); NK R₋ = rigorous+tight, NOT cheap/wide
+  (near-convergence only, 0% in-TR).** PICK TWO — measured, not asserted. Deployment upshot: the TIGHT deployable
+  object is effectively a HEURISTIC (directional estimate, excellent predictor ~1.3× either way, no guarantee) —
+  matches ZJ's intuition that past the loose-sound bound it's good heuristics. The one open PRINCIPLED escape is a
+  DIFFERENT axis: reader-set / goal-oriented (adjoint / dual-weighted-residual) bound — bound only the OUTPUT at
+  reader positions, drop the far-field slack → sound-AND-tighter than scalar (still an over-estimate). Orthogonal
+  to the linear-vs-nonlinear axis these 3 live on = the genuine "do better and stay rigorous" lever.
 
 ---
 

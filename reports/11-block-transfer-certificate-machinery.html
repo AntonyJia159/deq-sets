@@ -48,7 +48,7 @@
 <header>
   <p class="kicker">Set-DEQ Notes · #11 · the certificate machinery, end to end</p>
   <h1>The Block-Transfer Certificate: How the Reach Bound Is Actually Computed</h1>
-  <p class="byline">Zhibai Jia · 8 July 2026 · a short reference note — the arc from the resolvent to a certified reach, one scalar mnemonic that carries the whole shape, and the subtle three-way play of $d$, $r$, and eff_rate</p>
+  <p class="byline">Zhibai Jia · 8 July 2026 · <em>updated 9 Jul: §4 now carries the measured tightness trilemma — scalar / directional / Newton–Kantorovich</em> · a short reference note — the arc from the resolvent to a certified reach, one scalar mnemonic that carries the whole shape, and the subtle three-way play of $d$, $r$, and eff_rate</p>
 </header>
 
 <div class="callout">
@@ -312,13 +312,49 @@ spectrum:</p>
       rigorous <em>and</em> toy-feasible; the honest "real theorem" path.</li>
 </ul>
 <div class="callout key">
-  <strong>Why a crude $L$ is fine where we deploy.</strong> $L$ enters only through $h=\beta L\eta$, and $\eta$
-  (the residual-scaled error) is tiny near convergence — so even a loose $L$ clears $h\le\tfrac12$ comfortably in
-  exactly the warm-start re-solve regime we certify. $\eta$ does the work; $L$ only has to be finite.
+  <strong>Why a crude $L$ is fine — but only near convergence.</strong> $L$ enters only through $h=\beta L\eta$,
+  and $\eta$ (the residual-scaled error) is tiny <em>near convergence</em> — so even a loose $L$ clears
+  $h\le\tfrac12$ comfortably there; $\eta$ does the work, $L$ only has to be finite. The catch we since measured:
+  the one-shot warm-start (or even Woodbury-predicted) init is <em>not</em> near convergence on ill-conditioned
+  substrates ($h\gg\tfrac12$; see the trilemma below), so NK is a certified <em>stopping rule</em> — iterate the
+  re-solve, then certify — <em>not</em> a certificate on the warm init itself.
 </div>
 <p class="muted"><strong>Note.</strong> This replaces the earlier hand-wave ("an $\inf$ of $\sigma_{\min}$ over a
 Kantorovich-type neighborhood"): $R_-$ is that neighborhood, made concrete. It remains an owed <em>experiment</em>
 (measure $L$, report $h$ and $R_-$ on the trained substrates), not a gap in the argument.</p>
+
+<h3>What we measured — and the tightness trilemma</h3>
+<p>Run this on the trained substrates with <em>real</em> post-edit residuals ($r=f_{\text{new}}(z^{\star}_{\text{old}})-z^{\star}_{\text{old}}$, the residual a warm re-solve actually starts from) and the clean story sharpens into an honest one. The residual bound is not one object but <strong>three</strong>, and each surrenders exactly one of {cheap, tight, rigorous}:</p>
+
+<table>
+<thead><tr><th>object</th><th>what it is</th><th>cheap?</th><th>tight (real edits)?</th><th>rigorous?</th></tr></thead>
+<tbody>
+  <tr><td>scalar $\;\|r\|/\sigma_{\min}$</td><td>worst-case amplification</td><td class="good">✓</td><td class="bad">✗ &nbsp;loose 7–34×</td><td class="good">✓ over-estimate</td></tr>
+  <tr><td>directional $\;\|R\,r\|$</td><td>first-order actual error $M^{-1}r$</td><td class="warn">~ needs resolvent</td><td class="good">✓ ~1× (small edits)</td><td class="bad">✗ under-predicts 0.66×</td></tr>
+  <tr><td>Newton–Kantorovich $R_-$</td><td>curvature-corrected</td><td class="good">✓</td><td class="good">✓</td><td class="warn">✓ but 0% in-TR here</td></tr>
+</tbody>
+</table>
+
+<p><strong>Why the scalar is loose.</strong> The real post-edit residual lives in the <em>fast</em> modes — its
+measured alignment with the stiff subspace (the small-$\sigma$ directions $M^{-1}$ amplifies) is only
+$\approx0.05$. Charging <em>every</em> residual the worst-case $1/\sigma_{\min}$ therefore over-counts by the
+stiff/fast spread — here <strong>7–34×</strong>. <strong>Why the directional is tight but not safe.</strong>
+$\|R\,r\|$ uses the true per-mode amplification and is essentially <em>exact</em> on small edits ($0.98$–$1.01$,
+10–34× tighter than scalar) — but on large edits it turns <em>optimistic</em>, under-predicting to $0.66\times$ as
+nonlinearity and cached-resolvent drift ($R_{\text{old}}\ne R_{\text{new}}$) bite. It is a tight <em>estimate</em>,
+not a guaranteed bound. <strong>Why NK is narrow.</strong> $h=\beta^{2}L\|r\|\le\tfrac12$ needs
+$\|r\|\lesssim1/(2\beta^{2}L)$; with $\beta=1/\sigma_{\min}\approx18$–$41$ that is near-convergence, and
+<em>none</em> of the one-shot post-edit (or Woodbury-predicted) residuals cleared it.</p>
+
+<div class="callout key">
+  <strong>The impossible triangle — cheap + tight + rigorous, pick two</strong> (measured, not asserted). The tight
+  deployable object (directional) is effectively a <em>heuristic</em>; the rigorous one (NK) fires only near
+  convergence, as a stopping rule. The one principled route to <em>sound-and-tighter</em> is on a different axis: a
+  <strong>reader-set / goal-oriented</strong> bound (adjoint / dual-weighted-residual) that measures the residual's
+  effect only on the <em>output at reader positions</em>, dropping the far-field slack that makes the scalar loose —
+  still an over-estimate (sound), but tighter. That is the reader-set principle in a-posteriori-estimation clothing,
+  and the open lever for a certificate that is both rigorous and not loose.
+</div>
 
 <h2>5. Two invariants, kept straight</h2>
 <p>The certificate touches two <em>distinct</em> pseudospectral facts, and the paper's title lives on keeping

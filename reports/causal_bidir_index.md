@@ -25,7 +25,11 @@ faces. Balance decision at the bottom.
 - **Noncontractive-but-local witnesses** (the "conditioning, not contraction" evidence): curr40 ρ(J)=8.37 yet
   edit-local (envelope OK); currnp ρ(J)>1 at gaps 0/16/24/40. The claim is shared-spine/PE-agnostic, but the
   ρ>1 **witnesses are CAUSAL-face** (the trained bidir face landed contractive ρ<1). Crowned invariants =
-  {ρ(G) reach, σ_min amplitude} over ρ(J); ρ(M)=ρ(I−J) is a non-participant. Poster child = curr40.
+  {ρ(G) reach, σ_min amplitude} over ρ(J); ρ(M)=ρ(I−J) is a non-participant. **Poster child = currnp40**
+  (ρ=4.44, single fixed point, solver-checked Anderson≡Broyden); currnp16/24/40 = the ρ 1.26→4.44 trend.
+  curr40 REFRAMED (was the poster child): it is MULTISTABLE (two branches 0.14 apart, σ_min 0.026/0.040, both
+  ρ=8.37) → now the "strong non-contraction ⇒ multistability, local certificate robust to it" datapoint, not
+  the clean witness. See digest §11 witness-solver-check.
 
 ## Causal-face contributions (theory depth + field connections)
 

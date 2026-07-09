@@ -1,9 +1,11 @@
 # Paper skeleton — working title, abstract, spine (draft, 2026-07-09)
 
-STATUS: working draft. Pending before finalizing — a simple conditioning fix for the relative substrate (RoPE
-is the un-ruled-out option after the QK-norm null). C6 (pointer-chase reader-set test) is now FUTURE WORK —
-capacity-ceilinged at toy scale (digest §11c); the reader-set ships as a discussion-level *principle* (already
-evidenced by must-carry + C2t on both faces), not a headline experiment. Title/abstract firm up after RoPE.
+STATUS: working draft. The RoPE conditioning fix is **SCHEDULED / PARKED, not blocking** — spec in
+`experiment_rope_spec.md`; it is a tightening + modernity experiment, NOT load-bearing (certificate already
+holds PE-agnostically on the ill-conditioned `currnp`; C2 + C2d passed). Title/abstract can firm up now; RoPE
+result only *tightens* tier-1 or pairs with the QK-norm null. C6 (pointer-chase reader-set test) is FUTURE
+WORK — capacity-ceilinged at toy scale (digest §11c); the reader-set ships as a discussion-level *principle*
+(evidenced by must-carry + C2t on both faces), not a headline experiment.
 
 ---
 
@@ -42,9 +44,22 @@ instance) — honest (no system claimed) and it gives the reader a stake. Do NOT
 
 Two-tier naming discipline (fixes an earlier conflation — the abstract must not backslide): tier-1 = the
 **geometric / Stein reach envelope** (rate `ρ(G)`) = *how far*, sound-but-loose (screening/characterization);
-tier-2 = the **residual bound** `resid/σ_min` = *how much / did I recompute enough*, tight and deployable.
+tier-2 = the **residual bound** = *how much / did I recompute enough*, **sound and deployable**.
 "Conditioning" is a tier-2 (σ_min) word — do NOT use it to describe the a-priori reach. "Conditioning, not
 contraction" is a **corollary** (noncontractive witnesses), not the throughline.
+
+TIER-2 TIGHTNESS DISCIPLINE (fixes an over-claim; `c2_postedit_certify`, 2026-07-09): do NOT call the SCALAR
+`resid/σ_min` "tight" — for REAL edits it is LOOSE 7–34× (real edit residuals are fast-mode/broadband, cos with
+the stiff subspace 0.01–0.14, so the worst-case-over-stiff scalar over-charges). The IMPOSSIBLE TRIANGLE (measured, `ratio_dir`): the three
+certs each give up ONE corner. SCALAR `resid/σ_min` = SOUND + cheap, NOT tight (7–34× on real edits). DIRECTIONAL
+`‖R·r‖` (resolvent action, C2d/Woodbury-updatable) = TIGHT + cheap (0.98–1.01 exact on small edits, 10–34×
+tighter than scalar) but NOT rigorous — it UNDER-predicts on large/near-singular edits (ratio_dir 0.66), so it's
+a tight *estimate/heuristic*, not a guaranteed bound. NK `R₋` = RIGOROUS + tight but NOT cheap/wide (a certified
+*stopping rule*, near-convergence only — 0% of one-shot post-edit residuals are in its trust region on ill-cond
+cells). PICK TWO. Deployment upshot: the tight deployable object is effectively a heuristic; the one PRINCIPLED
+route to sound-AND-tighter is a different axis — the **reader-set / goal-oriented (adjoint / DWR) bound** (bound
+only the OUTPUT at reader positions, drop far-field slack). Deployment claim scoped accordingly (matches "don't
+oversell"); reader-set bound = flagged open direction.
 
 ## Maintenance-regime framing (the trust-region view-shift, 2026-07-09)
 
@@ -78,13 +93,16 @@ safe-but-modest).
 1. **Hook** — certificates vs heuristics: which downstream computation an edit invalidates, made a theorem
    (KV-cache as the concrete instance). Scoped as a **maintenance** certificate (warm-start neighborhood).
 2. **Certificate (spine), two tiers** — tier-1 **geometric/Stein reach envelope** (rate `ρ(G)`) = *how far*,
-   sound-but-loose (screens the recompute ball); tier-2 **residual bound** `resid/σ_min` (+ Newton–Kantorovich)
-   = *did I recompute enough*, tight and deployable. PE-agnostic (proved on both `curr` and `currnp`).
+   sound-but-loose (screens the recompute ball); tier-2 **residual bound** = *did I recompute enough*, **sound
+   and deployable** (scalar `resid/σ_min` = loose screen; directional `‖R·r‖` = tight; Newton–Kantorovich = a
+   certified *stopping rule*, near-convergence). PE-agnostic (proved on both `curr` and `currnp`).
 3. **Two faces** — nilpotent *causal* (directional certificate) | geometric *bidirectional* (Stein/adapted-norm,
    clean metering; the KV-cache use case). One operator `G`, two regimes.
 4. **Reader-set principle** — which edits must propagate; unifies must-carry across faces.
 5. **Corollary** — reach set by `ρ(G)`, error by `σ_min`, not by contraction `ρ(J)` → edit-local even when
-   noncontractive (curr40, ρ(J)=8.37 yet ξ≈1 hop). *A corollary, not the throughline.*
+   noncontractive (poster child **currnp40, ρ(J)=4.44**, single fixed point, solver-checked; currnp16/24/40 =
+   the ρ 1.26→4.44 trend). *A corollary, not the throughline.* (curr40 ρ=8.37 is MULTISTABLE — reframed as the
+   "strong non-contraction ⇒ multistability, local certificate robust" datapoint, not the clean witness.)
 6. **Motivation** — editable context / certified KV-cache invalidation (bidir). (Reader-set as a principle;
    hub/spoke task = future work, capacity-ceilinged at toy scale.)
 
@@ -92,12 +110,14 @@ safe-but-modest).
 
 - Hook via **certificates-vs-heuristics** (not "conditioning, not contraction" — that's now a corollary).
 - **Two-tier naming discipline:** tier-1 = geometric/Stein reach envelope (ρ(G), *how far*, loose); tier-2 =
-  residual bound resid/σ_min (*how much*, tight, deployable). "Conditioning" is a σ_min/tier-2 word — never
-  use it for the a-priori reach.
+  residual bound (*how much*, **sound & deployable** — scalar loose screen / directional tight / NK stopping
+  rule; NOT "tight" for the scalar). "Conditioning" is a σ_min/tier-2 word — never use it for the a-priori reach.
 - **Maintenance-regime framing:** the bounds live near z*, which = the warm-start neighborhood = the use case,
   NOT a limitation. Frame as a maintenance certificate for local edits; value = the guarantee, not big speedups.
 - Crown = **two** invariants `{ρ(G), σ_min}` over `ρ(J)`; `ρ(M)=ρ(I−J)` is a non-participant (don't feature it).
-- Feature the **noncontractive witnesses** (curr40; ρ>1 currnp) as explicit evidence — they are causal-face.
+- Feature the **noncontractive witnesses** — poster child **currnp40 (ρ=4.44)**, trend currnp16/24/40
+  (ρ 1.26→4.44), all solver-checked (Anderson≡Broyden); causal-face. curr40 (ρ=8.37) is MULTISTABLE → the
+  "strong non-contraction ⇒ multistability, local certificate robust to it" datapoint, not the clean witness.
 - **Do NOT name Mamba / SSMs casually.** Too overengineered; drags in discretization / scan lineages that are
   not ours; and no one does editability on them anyway. If a linear limit is worth naming at all, say "linear
   recurrences" / "linear sequence models" generically — or omit. See `feedback_naming` memory.
