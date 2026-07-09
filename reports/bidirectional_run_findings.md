@@ -634,6 +634,17 @@ MLM-objective hypothesis and the local-decomposability limit are the two open ed
   AND per-window early-stop are both SAFE-BUT-MODEST on this toy → the certificate's value is the **guarantee**
   (provably-correct partial recompute), not a toy-scale compute win. Test 2 (real masked solve) DEFERRED — would
   confirm the same modest number. Verdict: appendix-level "certified, safe, scales with length," NOT a headline.
+- **NONCONTRACTIVE-BUT-LOCAL WITNESSES — the "conditioning, not contraction" evidence, on record (2026-07-09).**
+  The claim that edit-locality is governed by σ_min(I−J), not by contraction ρ(J)<1, is DIRECTLY witnessed, and
+  we've been underplaying it: **curr40 has ρ(J)=8.37 (strongly NONcontractive) yet the filler envelope HOLDS**
+  (ξ_meas≈0.97 hop, ENVELOPE OK, σ_min=0.026, recall 0.83); **currnp is noncontractive at gaps 0/16/24/40**
+  (ρ(J) 1.69/1.26/2.11/4.44) with C2 + C2d holding on it. So the noncontractive regime is real AND edit-local —
+  the old angle is empirically supported, not folklore; **feature curr40 as the poster child.** IMPORTANT
+  ASYMMETRY: the ρ>1 witnesses are all on the **CAUSAL face** — the trained *bidir* face landed contractive
+  (ρ<1 throughout, 0.43→0.87), and the pointer-chase / QK-norm runs also landed contractive. So the
+  noncontractive evidence lives on the causal face. FRAMING UPGRADE: "conditioning, not contraction" is demoted
+  from thesis to HOOK; the crown went from a single invariant (σ_min over ρ(J)) to **TWO invariants — {ρ(G)
+  reach, σ_min amplitude} over ρ(J)** — with ρ(M)=ρ(I−J) a non-participant (a red herring, not the contrast).
 
 ---
 

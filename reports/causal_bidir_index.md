@@ -22,6 +22,10 @@ faces. Balance decision at the bottom.
   unifies must-carry across faces.
 - **rank-r carry / Woodbury prior** (C2d-V4, rank ~8 both faces); **conditioning↔recall tension** (QK-norm null);
   **Lyapunov / dynamical-systems lineage** (bidir joined causal's).
+- **Noncontractive-but-local witnesses** (the "conditioning, not contraction" evidence): curr40 ρ(J)=8.37 yet
+  edit-local (envelope OK); currnp ρ(J)>1 at gaps 0/16/24/40. The claim is shared-spine/PE-agnostic, but the
+  ρ>1 **witnesses are CAUSAL-face** (the trained bidir face landed contractive ρ<1). Crowned invariants =
+  {ρ(G) reach, σ_min amplitude} over ρ(J); ρ(M)=ρ(I−J) is a non-participant. Poster child = curr40.
 
 ## Causal-face contributions (theory depth + field connections)
 
