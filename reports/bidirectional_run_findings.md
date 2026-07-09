@@ -604,6 +604,19 @@ MLM-objective hypothesis and the local-decomposability limit are the two open ed
   is a bit harder-conditioned AND makes structural edits local (aligned-frame)* — a stronger, more general claim
   than picking one. **Relative = PRIMARY substrate; absolute = pedagogical intro + PE-agnosticism ablation.**
   Build C6 (hub/spoke) on relative from birth.
+- **QK-NORM (cosine attention) — NULL: conditioning ↑ but recall ↓, net loss (2026-07-09, `curriculum_currnp_qk.py`).**
+  Simple modern drop-in to fix currnp's ill-conditioning: L2-normalize q,k over the head dim + a learned
+  per-head temperature τ (replacing 1/√dh), decoupling attention SHARPNESS from logit MAGNITUDE.
+  RESULT — σ_min ~**DOUBLED** (currnp 0.030/0.040/0.036/0.024 → currnpqk 0.067/0.076/0.080/0.042) but recall
+  **COLLAPSED 15–24 pts** (currnp 1.0/0.974/0.893/0.810 → currnpqk 0.853/0.681/0.589/0.568), and training loss
+  stayed high (gap16/24 0.73/1.02 vs currnp 0.21/0.47 — HARDER to fit). τ settled ~5–8/head (head 0 stayed
+  highest, ~8). Mechanism: capping logit magnitude starves the peaky (near one-hot) attention that long-gap
+  retrieval needs — **the peaking↔contraction tension is real and TIGHT.** VERDICT: net loss → keep plain
+  relative currnp primary; QK_NORM stays an opt-in flag (default off, curr*/currnp* unaffected).
+  **SILVER LINING: σ_min↑ / recall↓ moved in LOCKSTEP = a clean empirical demonstration of the conditioning↔recall
+  tension** (the paper's "conditioning, not contraction" core) — the failed fix is *evidence for* the mechanism.
+  Also rules QK-norm OUT and points at **RoPE** (orthogonal rotation, leaves logit magnitude/sharpness alone)
+  as the one un-ruled-out simple conditioning option.
 
 ---
 
