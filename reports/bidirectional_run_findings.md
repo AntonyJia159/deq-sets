@@ -617,6 +617,23 @@ MLM-objective hypothesis and the local-decomposability limit are the two open ed
   tension** (the paper's "conditioning, not contraction" core) — the failed fix is *evidence for* the mechanism.
   Also rules QK-norm OUT and points at **RoPE** (orthogonal rotation, leaves logit magnitude/sharpness alone)
   as the one un-ruled-out simple conditioning option.
+- **Per-WINDOW residual early-stop — TEST 1 (retrospective): SAFE but MODEST (2026-07-09, `c5_window_earlystop.py`).**
+  Freeze a window once its certified error bound `Σ_j‖R[i,j]‖‖res_j‖ < 1%·‖z*_i‖` during a warm post-edit
+  re-solve; the active set shrinks toward the edit. **v1 was unsafe** (rampant false-freezes) from a TARGET BUG:
+  near-singular ckpts are near-multistable, so the WARM re-solve lands on a different branch than a COLD solve —
+  scored against the wrong fixed point. **Fixes:** target = Newton-polished WARM-branch fixed point (+ R there);
+  freeze gated on the linear regime (bound only holds near z*, Kantorovich) + PATIENCE=3 consecutive (Anderson
+  residual is non-monotone). **RESULT: SAFE — 0 false-freezes everywhere, final_err ~3–5e-3 ≤ tol.** But COMPUTE
+  savings are MODEST: global-gate 59–99% of full window-iters; a per-WINDOW local gate (freeze once window i is
+  locally converged, not waiting for the ball) gave only MARGINAL gains (58–95%; one 8-pt win curr24 filler
+  79→71%). Two limiters: (1) sequences too short (3–5 windows, ~no far field past the ball); (2) the NORM bound
+  is LOOSE — `‖R[i,ball]‖‖res_ball‖` over-counts the true directional influence `R[i,ball]·res_ball` (the C2d
+  norm-vs-directional slack, 7.5–764×), so far windows stay active until the ball settles. It WOULD scale with
+  sequence length (far field ≫ ball) → the owed longer-context (gap≥60) substrate; a directional bound is the
+  tightness ceiling (but that's the oracle predictor). **META (both efficiency ingredients):** Woodbury prior
+  AND per-window early-stop are both SAFE-BUT-MODEST on this toy → the certificate's value is the **guarantee**
+  (provably-correct partial recompute), not a toy-scale compute win. Test 2 (real masked solve) DEFERRED — would
+  confirm the same modest number. Verdict: appendix-level "certified, safe, scales with length," NOT a headline.
 
 ---
 
