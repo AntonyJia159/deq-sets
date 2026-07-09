@@ -33,7 +33,9 @@ faces. Balance decision at the bottom.
   `σ_min` ball is *vacuous* causally (σ_min = the carry direction) → **direction is the entire content**.
 - **Product-Lyapunov / nilpotent structure:** causal `J` block-lower-triangular → `G` strictly-lower →
   nilpotent → Neumann series terminates → exact product form (V5 reconstructs the resolvent to 1e-15).
-- **Mamba = the linear/scalar corner** of this face.
+- **Scalar/linear-recurrence limit** of this face (a plain linear recurrence: our σ_min certificate generalizes
+  its edit-decay rate). NOTE: describe generically as "linear recurrences / linear sequence models" — do NOT
+  name Mamba/SSMs (discretization/scan lineage baggage that isn't ours; see `feedback_naming`).
 - **Must-carry impossibility** (availability argument, architecture-level, theorem-flavored): a causal relay
   can't condition on future queries → forced to carry every binding.
 - **C2m metering weak / mode-confounded** here (negative partials at near-singular).
@@ -86,12 +88,13 @@ regimes*:
   local readout, selective forgetting, clean metering, and now the pointer-chase task. This is where the
   application story lives.
 - **Causal = the theory-depth / field-connections face** — carries *why it's rigorous and connected*: the
-  Mamba corner, the RNN-Lyapunov lineage, the must-carry impossibility theorem, the directional certificate.
-  After the theory rework this is **substantial, not a sideshow** — it is the theoretical anchor.
+  linear-recurrence limit, the RNN-Lyapunov lineage, the must-carry impossibility theorem, the directional certificate.
+  After the theory rework this is **substantial, not a sideshow** — it is the theoretical anchor. (The
+  linear-recurrence limit is a light generic hook, not a Mamba/SSM comparison — see `feedback_naming`.)
 
 So bidir carries motivation, causal carries theoretical weight, and the **block-transfer `G` unification is the
 keystone** that makes them one story. Suggested writing order: motivate via the bidir use-case → develop the
-unified certificate → a two-faces section (nilpotent + Mamba + directional | geometric + Stein + metering) →
+unified certificate → a two-faces section (nilpotent + directional | geometric + Stein + metering) →
 close with the reader-set unification. Reviewers who want rigor get the causal depth; reviewers who want
 relevance get the bidir use-case; the keystone stops it reading as two half-papers.
 
