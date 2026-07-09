@@ -648,6 +648,30 @@ MLM-objective hypothesis and the local-decomposability limit are the two open ed
 
 ---
 
+## 11c. C6 pointer-chase — substrate capacity ceiling; reader-set stays a principle (2026-07-09)
+
+Built a **pointer-chase-to-root** task (`pointer_chase.py`) with a known ground-truth dependency graph (each
+query's start→root path = its dependency lane; subtree size = hub-ness) to test the reader-set machinery beyond
+planted-uniform MQAR. Chose chase-to-**root** because fixed-k chase isn't equilibrium-computable (a DEQ can't
+count hops); root-label propagation `root(i)=root(ptr(i))` is the equilibrium-natural fixed point.
+- **Directionality REFUTED as the ceiling:** causal and bidirectional relative-PE DEQs both cap at ~0.68 (final
+  by depth d1/d2/d3/d5: causal 0.69/0.69/0.70/0.66, bidir 0.69/0.68/0.65/0.65 — essentially identical). So the
+  earlier hypothesis "pointer-chase is bidir-natured" is wrong; the mask doesn't matter here. (Aliasing also
+  ruled out: the disjoint value-vocab fix moved depth-1 0.711→0.710.)
+- **It's a CAPACITY ceiling, N-dependent:** recall vs node count — N=8/2roots ~0.68, N=6/2roots ~0.77,
+  N=4/1root 1.0 (degenerate: single root = "find the root", no chase). No sweet spot that is both learnable
+  (~0.9) AND a non-trivial multi-hop chase at d=64/single-tied-layer. Content-based *iterated* associative
+  lookup (iterated-MQAR + terminal detection) compounds per-hop error; MQAR (1 hop) trains to ~1.0, the chase
+  doesn't. Conditioning stayed HEALTHY throughout (σ_min 0.05–0.18, ρ<0.84) — the substrate is well-behaved;
+  the model just can't learn the task to high accuracy.
+- **DECISION (pre-committed):** since a ~0.9 non-trivial substrate didn't materialize, **demote the reader-set
+  to a discussion-level PRINCIPLE** (already evidenced by must-carry + C2t on both faces) and mark
+  **pointer-chase / C6 = FUTURE WORK** (needs a larger or multi-layer/multi-head substrate). The paper stands
+  on its core: two-tier certificate, two faces, PE-agnosticism, noncontractive witnesses. Don't rabbit-hole the
+  substrate. Code kept: `pointer_chase.py`, `pointer_chase_train.py`(+`_bidir`), `pointer_chase_min.py`.
+
+---
+
 ## 12. Scale path — everything survives losing the dense Jacobian (ZJ's practicality question)
 
 The dense J / exact resolvent is the toy-scale **oracle we validate estimators against**, not the method.

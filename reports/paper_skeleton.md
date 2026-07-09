@@ -1,8 +1,9 @@
 # Paper skeleton — working title, abstract, spine (draft, 2026-07-09)
 
-STATUS: working draft. Pending before finalizing — (a) a simple conditioning fix for the relative substrate
-(RoPE is the un-ruled-out option after the QK-norm null); (b) C6 (bidirectional pointer-chase reader-set test).
-Title/abstract will firm up once those land.
+STATUS: working draft. Pending before finalizing — a simple conditioning fix for the relative substrate (RoPE
+is the un-ruled-out option after the QK-norm null). C6 (pointer-chase reader-set test) is now FUTURE WORK —
+capacity-ceilinged at toy scale (digest §11c); the reader-set ships as a discussion-level *principle* (already
+evidenced by must-carry + C2t on both faces), not a headline experiment. Title/abstract firm up after RoPE.
 
 ---
 
@@ -84,7 +85,8 @@ safe-but-modest).
 4. **Reader-set principle** — which edits must propagate; unifies must-carry across faces.
 5. **Corollary** — reach set by `ρ(G)`, error by `σ_min`, not by contraction `ρ(J)` → edit-local even when
    noncontractive (curr40, ρ(J)=8.37 yet ξ≈1 hop). *A corollary, not the throughline.*
-6. **Motivation** — editable context / certified KV-cache invalidation (bidir); pointer-chase task (C6).
+6. **Motivation** — editable context / certified KV-cache invalidation (bidir). (Reader-set as a principle;
+   hub/spoke task = future work, capacity-ceilinged at toy scale.)
 
 ## Framing decisions (locked)
 

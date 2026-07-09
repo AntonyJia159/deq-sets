@@ -41,8 +41,8 @@ faces. Balance decision at the bottom.
 - **C2m metering weak / mode-confounded** here (negative partials at near-singular).
 - **RNN-Lyapunov lineage anchor** (Lyapunov spectrum; the general *non-autonomous* / time-varying case).
 - `currnp` checkpoint (causal + relative PE); PE-agnosticism validated on it.
-- **NEW (2026-07-09):** pointer-chase-to-root causal relay caps at ~1 hop for a content-random layout — a causal
-  *limit* that motivates the bidirectional face (see divergence #4).
+- ~~pointer-chase-to-root as a causal limit~~ **RETRACTED (2026-07-09):** it is NOT a directionality effect —
+  causal ≈ bidir (both ~0.68), it's a model-capacity ceiling. C6 demoted to future work; see digest §11c.
 
 ## Bidirectional-face contributions (use case + application motivation)
 
@@ -53,8 +53,8 @@ faces. Balance decision at the bottom.
 - **Selective forgetting** (readers in context) — but must-carry returns for edit-now/query-later.
 - **`ν(J)` less non-normal**; **insert/delete aligned-frame** (bidir + relative PE; 70×→2× positional-shadow).
 - **KV-cache serving framing** (editable context; the sound CacheBlend).
-- **NEW (2026-07-09):** pointer-chase-to-root is a **bidirectional-face task** (content-random multi-hop chase
-  needs two-sided label propagation) → C6 substrate is bidirectional.
+- ~~pointer-chase-to-root is a bidirectional-face task~~ **RETRACTED (2026-07-09):** refuted — bidir ≈ causal
+  (~0.68), the cap is model capacity, not directionality. C6/reader-set = discussion principle + future work.
 
 ---
 
@@ -71,7 +71,8 @@ faces. Balance decision at the bottom.
    *σ_min-envelope works* (bidir).
 2. **Billing legibility:** causal mode-confounded vs bidir clean metering law.
 3. **Selectivity:** causal *forced-carry* vs bidir *can-forget*.
-4. **Task fit:** MQAR is causal-friendly (one backward lookup); **pointer-chase-to-root is bidir-natured**
+4. **Task fit:** MQAR is causal-friendly (one backward lookup). ~~pointer-chase-to-root is bidir-natured~~
+   RETRACTED — it's directionality-INDEPENDENT (causal≈bidir), capacity-bound; not a face-divergence example.
    (content-random multi-hop) — a concrete task that *motivates* the bidirectional face.
 5. **Lens duality:** causal = the general *non-autonomous* case (time-varying Riccati, owed); bidir = the
    *autonomous* special case where the clean scalar object exists.
@@ -85,7 +86,7 @@ regimes*:
 
 - **Spine** = the PE-/face-agnostic certificate (σ_min + block-transfer `G` + residual bound).
 - **Bidirectional = the motivation / "home turf" face** — carries *why you'd want this*: KV-cache, edit-heavy
-  local readout, selective forgetting, clean metering, and now the pointer-chase task. This is where the
+  local readout, selective forgetting, clean metering. This is where the
   application story lives.
 - **Causal = the theory-depth / field-connections face** — carries *why it's rigorous and connected*: the
   linear-recurrence limit, the RNN-Lyapunov lineage, the must-carry impossibility theorem, the directional certificate.

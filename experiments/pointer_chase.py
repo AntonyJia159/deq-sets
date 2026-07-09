@@ -29,14 +29,14 @@ N = sw.NKEY                      # nodes = 8 (answer head has NVAL=8 outputs, N<
 FILLER0 = sw.NKEY + sw.NVAL      # filler token base (disjoint from node ids 0..N-1)
 
 
-def _build_forest(batch, gen, depth, n_roots):
-    """ptr (batch,N): n_roots self-loop terminals; every other node -> a random strictly-smaller-level node."""
-    levels = torch.randint(1, depth + 1, (batch, N), generator=gen)
-    root_idx = torch.rand(batch, N, generator=gen).argsort(1)[:, :n_roots]      # distinct roots per row
+def _build_forest(batch, gen, depth, n_roots, n_nodes):
+    """ptr (batch,n_nodes): n_roots self-loop terminals; others -> a random strictly-smaller-level node."""
+    levels = torch.randint(1, depth + 1, (batch, n_nodes), generator=gen)
+    root_idx = torch.rand(batch, n_nodes, generator=gen).argsort(1)[:, :n_roots]  # distinct roots per row
     levels.scatter_(1, root_idx, 0)
-    ptr = torch.arange(N).repeat(batch, 1)                                       # default self (roots)
+    ptr = torch.arange(n_nodes).repeat(batch, 1)                                 # default self (roots)
     for b in range(batch):
-        for i in range(N):
+        for i in range(n_nodes):
             if levels[b, i] == 0:
                 continue
             cand = (levels[b] < levels[b, i]).nonzero().flatten()               # strictly shallower nodes
@@ -44,15 +44,15 @@ def _build_forest(batch, gen, depth, n_roots):
     return ptr
 
 
-def gen_pointer_chase(batch, Fill, gen, depth=3, n_roots=2):
+def gen_pointer_chase(batch, Fill, gen, depth=3, n_roots=2, n_nodes=N):
     """Returns toks (B,L), qmask (B,L), targ (B,L), deps (B x NQ list of start->root value-token positions),
-    ptr (B,N)."""
-    ptr = _build_forest(batch, gen, depth, n_roots)
-    order = torch.rand(batch, N, generator=gen).argsort(1)
-    L = 2 * N + Fill + sw.NQ
+    ptr (B,n_nodes). n_nodes<=NKEY (default 8) so node ids fit the key vocab."""
+    ptr = _build_forest(batch, gen, depth, n_roots, n_nodes)
+    order = torch.rand(batch, n_nodes, generator=gen).argsort(1)
+    L = 2 * n_nodes + Fill + sw.NQ
     toks = torch.zeros(batch, L, dtype=torch.long)
-    valpos = torch.zeros(batch, N, dtype=torch.long)
-    for slot in range(N):
+    valpos = torch.zeros(batch, n_nodes, dtype=torch.long)
+    for slot in range(n_nodes):
         node = order[:, slot]
         toks[:, 2 * slot] = node                                             # key token: node id (0..N-1)
         toks[:, 2 * slot + 1] = sw.NKEY + ptr.gather(1, node[:, None])[:, 0]  # value token: NKEY+target (its
@@ -60,12 +60,12 @@ def gen_pointer_chase(batch, Fill, gen, depth=3, n_roots=2):
         #   of that node. Chaining survives via a learned value->key offset (value NKEY+x aligns to key x).
         valpos.scatter_(1, node[:, None], torch.full((batch, 1), 2 * slot + 1))
     if Fill > 0:
-        toks[:, 2 * N:2 * N + Fill] = FILLER0 + torch.randint(sw.NFILL, (batch, Fill), generator=gen)
-    starts = torch.randint(N, (batch, sw.NQ), generator=gen)
+        toks[:, 2 * n_nodes:2 * n_nodes + Fill] = FILLER0 + torch.randint(sw.NFILL, (batch, Fill), generator=gen)
+    starts = torch.randint(n_nodes, (batch, sw.NQ), generator=gen)
     ans = starts.clone()
-    for _ in range(N):                                                          # <=N hops reaches the root
+    for _ in range(n_nodes):                                                    # <=n_nodes hops reaches the root
         ans = ptr.gather(1, ans)
-    qbase = 2 * N + Fill
+    qbase = 2 * n_nodes + Fill
     toks[:, qbase:] = starts
     qmask = torch.zeros(batch, L, dtype=torch.bool); qmask[:, qbase:] = True
     targ = torch.zeros(batch, L, dtype=torch.long); targ[:, qbase:] = ans
@@ -74,7 +74,7 @@ def gen_pointer_chase(batch, Fill, gen, depth=3, n_roots=2):
         dq = []
         for q in range(sw.NQ):
             cur = int(starts[b, q]); path = []
-            for _ in range(N):
+            for _ in range(n_nodes):
                 path.append(cur)
                 nxt = int(ptr[b, cur])
                 if nxt == cur:
@@ -87,7 +87,7 @@ def gen_pointer_chase(batch, Fill, gen, depth=3, n_roots=2):
 
 def _root(ptr_row, s):
     cur = int(s)
-    for _ in range(N):
+    for _ in range(len(ptr_row)):
         nxt = int(ptr_row[cur])
         if nxt == cur:
             return cur
