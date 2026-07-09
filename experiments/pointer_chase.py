@@ -1,23 +1,23 @@
-"""POINTER-CHASE task -- C6 hub/spoke substrate with a KNOWN dependency graph.
+"""POINTER-CHASE-TO-ROOT task -- C6 hub/spoke substrate with a KNOWN dependency graph.
 
-The point of C6: MQAR's dependency structure is planted and near-uniform. Pointer-chase gives positions
-GENUINELY heterogeneous influence footprints AND a ground-truth dependency graph, so we can test whether the
-certified reader-set (resolvent influence cone) contains and tightly tracks the TRUE set -- and whether the
-recompute "zigzags in narrow lanes" (permutation) or fills the cone (random-function = shared-tail hubs).
+WHY chase-to-ROOT (not fixed-k): a DEQ settles to a k-INDEPENDENT fixed point, so it can't count "exactly 3
+hops" (the query carries no hop marker). What an equilibrium DOES compute naturally is a fixed point of the
+chase: follow pointers until a TERMINAL. So the task is "find the root your chain reaches" = fixed-point
+root-label propagation root(i)=root(ptr(i)), root(r)=r -- exactly what a DEQ relaxes into.
 
-ENCODING (fits SeqDEQ's vocab; N=NKEY nodes, values live in NODE space so a value can be chased as a key --
-that is what makes it multi-hop, unlike MQAR where values are a disjoint range):
-  [ n , ptr(n) ] x N pairs in random order   (key at even pos, its pointer-target at odd pos; both node ids)
+STRUCTURE: a forest. n_roots terminals (self-loops); every other node points to a random node of strictly
+SMALLER level (so chains strictly descend to a root in <= depth hops; no non-terminal cycles). Answer(start) =
+the root its chain reaches. Editing ptr(j) reroutes j's WHOLE SUBTREE -> a node near a root is a HUB (big
+subtree, many queries affected), a leaf affects only itself = genuinely heterogeneous footprints. The
+ground-truth dependency lane of a query = the value tokens of the nodes on its start->root path.
+
+ENCODING (fits SeqDEQ's vocab; N=NKEY nodes; values live in NODE space so a value is chased as the next key):
+  [ n , ptr(n) ] x N pairs (random order; key even pos, pointer-target odd pos; both node ids)
   [ filler ] x Fill
-  [ start ] x NQ queries                      answer = ptr^chain_len(start), read out at the query position
-Editing the VALUE token of node j's pair = re-pointing j. A query's answer depends on EXACTLY the value tokens
-of the chain nodes {start, ptr(start), ..., ptr^{k-1}(start)} -> that set is the ground-truth dependency lane.
+  [ start ] x NQ queries      answer = root(start), read out at the query position (head over N<=NVAL classes)
 
-  perm mode  : ptr is a permutation -> disjoint cycles -> each chain is a narrow lane (the sparse ideal).
-  random mode: ptr is a random function -> rho-shaped graphs with SHARED TAILS = super-hubs (heterogeneous).
-
-Self-test (__main__): verifies ans==ptr^k(start), that editing a dependency value FLIPS the answer, and that
-editing a NON-dependency value does NOT -> the ground-truth graph is correct (C6 hinges on this).
+Self-test (__main__): answer is a root (ptr(ans)==ans); editing an ON-PATH value can change the root; editing
+an OFF-PATH value never does (soundness of the true lane). depth curriculum knob for the trainer.
 
 Run:  D:\\deq-venv\\Scripts\\python.exe -u -m experiments.pointer_chase
 """
@@ -25,98 +25,105 @@ import torch
 
 import experiments.sliding_window_reach as sw
 
-N = sw.NKEY                      # nodes = 8 (reuse key vocab; answer head has NVAL=8 outputs, N<=NVAL)
+N = sw.NKEY                      # nodes = 8 (answer head has NVAL=8 outputs, N<=NVAL)
 FILLER0 = sw.NKEY + sw.NVAL      # filler token base (disjoint from node ids 0..N-1)
 
 
-def gen_pointer_chase(batch, Fill, gen, chain_len=3, mode="perm"):
-    """Returns toks (B,L), qmask (B,L) bool, targ (B,L) long, deps (list len B of list len NQ of value-token
-    positions the query depends on), ptr (B,N). Node ids 0..N-1; value tokens are also node ids (chainable)."""
-    if mode == "perm":
-        ptr = torch.rand(batch, N, generator=gen).argsort(1)                 # permutation per row
-    else:
-        ptr = torch.randint(N, (batch, N), generator=gen)                    # random function
-    order = torch.rand(batch, N, generator=gen).argsort(1)                   # layout order of the pairs
+def _build_forest(batch, gen, depth, n_roots):
+    """ptr (batch,N): n_roots self-loop terminals; every other node -> a random strictly-smaller-level node."""
+    levels = torch.randint(1, depth + 1, (batch, N), generator=gen)
+    root_idx = torch.rand(batch, N, generator=gen).argsort(1)[:, :n_roots]      # distinct roots per row
+    levels.scatter_(1, root_idx, 0)
+    ptr = torch.arange(N).repeat(batch, 1)                                       # default self (roots)
+    for b in range(batch):
+        for i in range(N):
+            if levels[b, i] == 0:
+                continue
+            cand = (levels[b] < levels[b, i]).nonzero().flatten()               # strictly shallower nodes
+            ptr[b, i] = cand[torch.randint(len(cand), (1,), generator=gen)]
+    return ptr
+
+
+def gen_pointer_chase(batch, Fill, gen, depth=3, n_roots=2):
+    """Returns toks (B,L), qmask (B,L), targ (B,L), deps (B x NQ list of start->root value-token positions),
+    ptr (B,N)."""
+    ptr = _build_forest(batch, gen, depth, n_roots)
+    order = torch.rand(batch, N, generator=gen).argsort(1)
     L = 2 * N + Fill + sw.NQ
     toks = torch.zeros(batch, L, dtype=torch.long)
-    valpos = torch.zeros(batch, N, dtype=torch.long)                         # node -> position of its value tok
+    valpos = torch.zeros(batch, N, dtype=torch.long)
     for slot in range(N):
-        node = order[:, slot]                                               # (B,)
-        tgt = ptr.gather(1, node[:, None])[:, 0]                            # ptr(node)
-        toks[:, 2 * slot] = node                                            # key token = node id
-        toks[:, 2 * slot + 1] = tgt                                         # value token = ptr(node), a node id
+        node = order[:, slot]
+        toks[:, 2 * slot] = node                                             # key token: node id (0..N-1)
+        toks[:, 2 * slot + 1] = sw.NKEY + ptr.gather(1, node[:, None])[:, 0]  # value token: NKEY+target (its
+        #   OWN vocab range 8..15, disjoint from keys 0..7 -- so a query key matches only keys, not value copies
+        #   of that node. Chaining survives via a learned value->key offset (value NKEY+x aligns to key x).
         valpos.scatter_(1, node[:, None], torch.full((batch, 1), 2 * slot + 1))
     if Fill > 0:
         toks[:, 2 * N:2 * N + Fill] = FILLER0 + torch.randint(sw.NFILL, (batch, Fill), generator=gen)
-    starts = torch.randint(N, (batch, sw.NQ), generator=gen)                 # query = start node
+    starts = torch.randint(N, (batch, sw.NQ), generator=gen)
     ans = starts.clone()
-    for _ in range(chain_len):
-        ans = ptr.gather(1, ans)                                            # ptr^k(start)
+    for _ in range(N):                                                          # <=N hops reaches the root
+        ans = ptr.gather(1, ans)
     qbase = 2 * N + Fill
     toks[:, qbase:] = starts
-    qmask = torch.zeros(batch, L, dtype=torch.bool)
-    qmask[:, qbase:] = True
-    targ = torch.zeros(batch, L, dtype=torch.long)
-    targ[:, qbase:] = ans
-    # ground-truth dependency lane per query: value-token positions of the chain nodes
+    qmask = torch.zeros(batch, L, dtype=torch.bool); qmask[:, qbase:] = True
+    targ = torch.zeros(batch, L, dtype=torch.long); targ[:, qbase:] = ans
     deps = []
     for b in range(batch):
         dq = []
         for q in range(sw.NQ):
-            cur = int(starts[b, q]); chain = []
-            for _ in range(chain_len):
-                chain.append(cur); cur = int(ptr[b, cur])
-            dq.append([int(valpos[b, c]) for c in chain])
-            dq[-1].append(int(qbase + q))                                   # the query token itself
+            cur = int(starts[b, q]); path = []
+            for _ in range(N):
+                path.append(cur)
+                nxt = int(ptr[b, cur])
+                if nxt == cur:
+                    break
+                cur = nxt
+            dq.append([int(valpos[b, c]) for c in path] + [int(qbase + q)])
         deps.append(dq)
-    return toks, qmask, targ, deps, ptr
+    return toks.to(sw.DEV), qmask.to(sw.DEV), targ.to(sw.DEV), deps, ptr
 
 
-def _follow(ptr_row, s, k):
+def _root(ptr_row, s):
     cur = int(s)
-    for _ in range(k):
-        cur = int(ptr_row[cur])
+    for _ in range(N):
+        nxt = int(ptr_row[cur])
+        if nxt == cur:
+            return cur
+        cur = nxt
     return cur
 
 
 def main():
     g = torch.Generator().manual_seed(0)
-    for mode in ["perm", "random"]:
-        toks, qmask, targ, deps, ptr = gen_pointer_chase(1, Fill=6, gen=g, chain_len=3, mode=mode)
+    for depth, n_roots in [(3, 2), (5, 1)]:
+        toks, qmask, targ, deps, ptr = gen_pointer_chase(1, Fill=6, gen=g, depth=depth, n_roots=n_roots)
         L = toks.shape[1]
-        print(f"\n=== mode={mode}  N={N} chain_len=3  L={L} ===", flush=True)
-        print("ptr:      ", ptr[0].tolist(), flush=True)
-        print("tokens:   ", toks[0].tolist(), flush=True)
+        print(f"\n=== depth={depth} n_roots={n_roots}  L={L} ===", flush=True)
+        print("ptr:    ", ptr[0].tolist(), "  roots:", [i for i in range(N) if int(ptr[0, i]) == i], flush=True)
+        print("tokens: ", toks[0].tolist(), flush=True)
         qpos = qmask[0].nonzero().flatten().tolist()
-        # 1) answers correct
-        ok_ans = all(int(targ[0, p]) == _follow(ptr[0], toks[0, p], 3) for p in qpos)
-        print(f"answers == ptr^3(start): {ok_ans}", flush=True)
-        # 2) dependency graph: edit a dep value flips the answer; edit a non-dep value does not
-        flips_on_dep, noflip_on_nondep = [], []
+        ok_root = all(int(ptr[0, int(targ[0, p])]) == int(targ[0, p]) for p in qpos)        # answer is a root
+        ok_ans = all(int(targ[0, p]) == _root(ptr[0], toks[0, p]) for p in qpos)
+        print(f"answer is a root: {ok_root}   answer == root(start): {ok_ans}", flush=True)
+        onpath_flip, offpath_same = [], []
         for qi, p in enumerate(qpos):
-            base_ans = int(targ[0, p])
-            dep_valpos = [d for d in deps[0][qi] if d < 2 * N]              # value-token positions on the lane
-            # edit each dependency: repoint that node -> re-derive answer
-            for vp in dep_valpos:
-                node = int(toks[0, vp - 1])                                 # key of this pair
-                newtgt = (int(toks[0, vp]) + 1) % N
-                pr = ptr[0].clone(); pr[node] = newtgt
-                flips_on_dep.append(_follow(pr, toks[0, p], 3) != base_ans)
-            # edit a value NOT on the lane -> answer must be unchanged
-            nondep = [2 * s + 1 for s in range(N) if (2 * s + 1) not in dep_valpos]
-            for vp in nondep[:3]:
-                node = int(toks[0, vp - 1])
-                newtgt = (int(toks[0, vp]) + 1) % N
-                pr = ptr[0].clone(); pr[node] = newtgt
-                noflip_on_nondep.append(_follow(pr, toks[0, p], 3) == base_ans)
-        print(f"editing a DEPENDENCY value changes the answer: {sum(flips_on_dep)}/{len(flips_on_dep)} "
-              f"(note: a repoint can coincidentally re-land, so <100% is OK)", flush=True)
-        print(f"editing a NON-dependency value leaves it UNCHANGED: {sum(noflip_on_nondep)}/"
-              f"{len(noflip_on_nondep)} (must be all)", flush=True)
-        print(f"example lane (q0 dep positions): {deps[0][0]}", flush=True)
-    print("\nREAD: ground-truth graph is correct if non-dependency edits NEVER change the answer (soundness of\n"
-          "the true lane) and dependency edits usually do. This lane is what the certified reader-set must cover.",
-          flush=True)
+            base = int(targ[0, p])
+            path_vp = [d for d in deps[0][qi] if d < 2 * N]
+            for vp in path_vp:
+                node = int(toks[0, vp - 1]); pr = ptr[0].clone(); pr[node] = (int(pr[node]) + 1) % N
+                onpath_flip.append(_root(pr, toks[0, p]) != base)
+            offpath = [2 * s + 1 for s in range(N) if (2 * s + 1) not in path_vp]
+            for vp in offpath[:3]:
+                node = int(toks[0, vp - 1]); pr = ptr[0].clone(); pr[node] = (int(pr[node]) + 1) % N
+                offpath_same.append(_root(pr, toks[0, p]) == base)
+        print(f"editing ON-PATH value can change the root: {sum(onpath_flip)}/{len(onpath_flip)}", flush=True)
+        print(f"editing OFF-PATH value never changes it:   {sum(offpath_same)}/{len(offpath_same)} (must be all)",
+              flush=True)
+        print(f"example lane (q0): {deps[0][0]}", flush=True)
+    print("\nREAD: sound ground-truth graph = OFF-PATH edits never move the answer. The start->root path is the\n"
+          "TRUE dependency lane the certified reader-set must cover; subtree size = hub-ness.", flush=True)
 
 
 if __name__ == "__main__":
