@@ -113,6 +113,16 @@ MLP = False                              # module flag: add a per-position MLP (
                                          # MLP). Opt-in; curr/currnp/bidir substrates leave it off (pure
                                          # attention, as studied). Output-normed + s-scaled so DEQ contraction
                                          # control is unchanged; enters J as an extra per-position block.
+FACTORED = False                         # module flag: FACTORED embedding for real-valued tasks. h0 becomes
+                                         # concat(mode_emb(toks), values): the first (d - D_VALUE) dims are a
+                                         # MODE lookup (role/boundary, from token ids), the last D_VALUE dims are
+                                         # a real VALUE payload passed in alongside toks. Readout uses a linear
+                                         # REGRESSION head (d -> D_VALUE) with MSE, not the classifier. f() and
+                                         # solve() are unchanged (they act on the d-dim state); only h0 build +
+                                         # readout differ, so spectrum()/resolvent probes still apply. Opt-in;
+                                         # off for every token-classification substrate.
+D_VALUE = 0                              # value-subspace width when FACTORED (d_mode = d - D_VALUE)
+N_MODES = 4                              # number of mode tokens (filler / value-carrier / boundary / spare)
 
 
 def band_causal_mask(L, device):
@@ -147,6 +157,9 @@ class SeqDEQ(nn.Module):
             self.mlp_in = nn.Linear(d, 4 * d, bias=False)
             self.mlp_out = nn.Linear(4 * d, d, bias=False)
         self.head = nn.Linear(d, NVAL)
+        if FACTORED:                                             # real-valued factored substrate
+            self.mode_emb = nn.Embedding(N_MODES, d - D_VALUE)   # mode/role/boundary (d_mode dims)
+            self.head_reg = nn.Linear(d, D_VALUE)                # regression readout over the value subspace
         if mode == "deq":
             self.deq = get_deq(f_solver="anderson", f_max_iter=60, f_tol=1e-4,
                                ift=True, b_solver="anderson", b_max_iter=30)
@@ -155,7 +168,9 @@ class SeqDEQ(nn.Module):
     def s(self):
         return S_MAX * torch.sigmoid(self.s_raw)
 
-    def h0(self, toks):
+    def h0(self, toks, values=None):
+        if FACTORED:                                             # [ mode(d-D_VALUE) | value(D_VALUE) ]
+            return torch.cat([self.mode_emb(toks), values], dim=-1)
         if NO_POSW:
             return self.emb(toks)
         return self.emb(toks) + self.posw[:toks.shape[1]]
@@ -231,14 +246,15 @@ class SeqDEQ(nn.Module):
             z = ff(z)
         return z
 
-    def run(self, toks):
-        h0 = self.h0(toks)
+    def run(self, toks, values=None):
+        h0 = self.h0(toks, values)
         mask = band_causal_mask(toks.shape[1], toks.device)
-        return self.head(self.solve(h0, mask))
+        z = self.solve(h0, mask)
+        return self.head_reg(z) if FACTORED else self.head(z)
 
-    def spectrum(self, toks1):
+    def spectrum(self, toks1, values=None):
         """Exact rho(J), sigma_min(I-J), and residual at the fixed point on a single small example."""
-        h0 = self.h0(toks1)
+        h0 = self.h0(toks1, values)
         mask = band_causal_mask(toks1.shape[1], toks1.device)
         wn = self.wn()
         maskp = self._maskp(mask)
