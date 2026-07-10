@@ -96,6 +96,15 @@ QK_NORM = False                          # module flag: cosine attention. L2-nor
                                          # q.k) -> caps saturation, so I-J stays off singular (sigma_min up) while
                                          # tau still lets attention peak for recall. Tests the conditioning fix on
                                          # the relative substrate (currnp was 2-8x more ill-conditioned than curr).
+ROPE = False                             # module flag: rotary position embedding on q,k (head dim). The
+                                         # UN-RULED-OUT conditioning option after QK_NORM (cosine attn) failed:
+                                         # QK_NORM capped logit MAGNITUDE and collapsed recall (peaking<->contraction
+                                         # tension). RoPE is a pure ROTATION -- norm-preserving, ORTHOGONAL, doesn't
+                                         # touch attention sharpness -- so it can't cap peaking. It supplies
+                                         # relative position via q,k rotation (dot product depends on j-i), a clean
+                                         # single-var swap for currnp's learned additive rel-bias. Hypothesis: a
+                                         # cleaner positional signal lets the relay form with LESS saturation ->
+                                         # sigma_min up WITHOUT the recall cost QK_NORM paid. RoPE base = 1e4.
 
 
 def band_causal_mask(L, device):
@@ -155,12 +164,31 @@ class SeqDEQ(nn.Module):
             return base + self.relb[:, delta]
         return base
 
+    def _rope_cs(self, L, device):                           # rotary cos/sin, cached per (L, device);
+        cache = getattr(self, "_rope_cache", None)           # constant across solve iters and across z
+        if cache is None:
+            cache = {}; self._rope_cache = cache
+        key = (L, str(device))
+        if key not in cache:
+            half = dh // 2
+            inv_freq = 10000.0 ** (-torch.arange(half, device=device).float() / half)   # (half,)
+            ang = torch.arange(L, device=device).float()[:, None] * inv_freq[None, :]    # (L, half)
+            cache[key] = (torch.cos(ang)[None, None], torch.sin(ang)[None, None])        # (1,1,L,half)
+        return cache[key]
+
     def f(self, z, h0, wn, maskp):
         Wq, Wk, Wv, Wo = wn
         B, L, _ = z.shape
         q = (z @ Wq.t()).view(B, L, H, dh).transpose(1, 2)   # B,H,L,dh
         k = (z @ Wk.t()).view(B, L, H, dh).transpose(1, 2)
         v = (z @ Wv.t()).view(B, L, H, dh).transpose(1, 2)
+        if ROPE:                                             # rotate q,k -> dot product carries relative pos
+            cos, sin = self._rope_cs(L, z.device)
+            half = dh // 2
+            def _rot(x):
+                x1, x2 = x[..., :half], x[..., half:]
+                return torch.cat([x1 * cos - x2 * sin, x1 * sin + x2 * cos], dim=-1)
+            q, k = _rot(q), _rot(k)
         if self.kind == "softmax":
             if QK_NORM:                                       # cosine attention: unit q,k * learned per-head tau
                 q = F.normalize(q, dim=-1)
