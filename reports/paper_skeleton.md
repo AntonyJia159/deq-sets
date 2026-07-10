@@ -106,6 +106,32 @@ safe-but-modest).
 6. **Motivation** — editable context / certified KV-cache invalidation (bidir). (Reader-set as a principle;
    hub/spoke task = future work, capacity-ceilinged at toy scale.)
 
+## Where the certificate lands — outlook pointers (one hook + three unequal gestures)
+
+Framing levels, kept separate (resolves the KV-cache-vs-honesty tension): **identity** = core-ML (the
+characterization + certificate primitive; portfolio wants this, TMLR fits it) — this is what the paper *is*.
+**Hook** = KV-cache, as Geng advises, but scoped as a *running illustration* of the primitive, NOT a deployment/
+speed claim (the only failure mode is claiming a serving benchmark — don't). **Pointers** = a *breadth* of honest
+gestures — breadth is itself the core-ML "general primitive" signal (lands in serving + verification + science =
+generality, the opposite of an applied paper). AI4Science is the truest *deployment* home but stays a POINTER,
+not the frame (ZJ already has two applied works; this one's identity is core-ML by choice).
+
+A short **"Where the certificate lands"** discussion paragraph, unequal weight, each 1–3 sentences:
+1. **Serving — certified KV-cache invalidation** (the hook, carried through). The certificate = which cached
+   computation an edit invalidates, made a theorem. Illustration of the primitive; not an adoption claim
+   (no one switches to DEQ-LMs for this soon — say so implicitly by scoping, don't oversell).
+2. **Robustness certification** (α,β-CROWN / IBP / monDEQ lineage). Input-robustness = our edit-response, same
+   resolvent `(I−J)⁻¹∂f/∂x`. We add what black-box-Lipschitz lacks: `σ_min` = a *local* Lipschitz at the operating
+   point, and *position-resolved* decay `C·ρ(G)^{d}` (tight for ℓ0 / patch / token attacks). The reframe: our
+   worst-case scalar bound — "loose" for typical edits — is the certifier's *tight* bound (adversary picks the
+   stiff direction). Honest limit: we're local/first-order; a sound over-the-ball enclosure needs the interval-
+   Newton / Krawczyk extension of NK (conservative). Niche = structured local cert, not "first DEQ robustness cert."
+3. **Scientific / continuation UQ** (the truest deployment home; a pointer). "Editing" → parametric re-solves
+   (continuation, sweeps, adjoint sensitivity) — a small perturbation to a cached equilibrium = our maintenance
+   regime. The residual bound is the *verification* half of V&V (numerical error to the model's fixed point, not
+   model-vs-reality); compose with classical/Bayesian calibration (Kennedy–O'Hagan) → a genuine total error bar.
+   "Certified numerical error you can drop into a UQ stack" is native currency there.
+
 ## Framing decisions (locked)
 
 - Hook via **certificates-vs-heuristics** (not "conditioning, not contraction" — that's now a corollary).
