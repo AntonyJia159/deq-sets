@@ -38,9 +38,12 @@ def transform():
     return _TPERM
 
 
-def gen_colored_recall(batch, n_items, gen, fill=0, C=C, V=V):
+def gen_colored_recall(batch, n_items, gen, fill=0, C=C, V=V, mode="latest"):
     """Returns toks (B,L), qmask (B,L), targ (B,L), deps (B x NQ dicts with the ground-truth stripe).
-    Each reader asks a color present in its row; target = T[latest value written to that color]."""
+    Each reader asks a color present in its row; target = T[SELECTED value written to that color].
+      mode='latest'   -> the LAST same-color write (recency/induction; SHORT-range, easy).
+      mode='earliest' -> the FIRST same-color write (write-once register; LONG-range dependency, confounds
+                         recency -> a stronger reach-certificate test + a whole-suffix stripe)."""
     T = _TPERM
     colors = torch.randint(C, (batch, n_items), generator=gen)          # repeated keys
     values = torch.randint(V, (batch, n_items), generator=gen)
@@ -60,7 +63,7 @@ def gen_colored_recall(batch, n_items, gen, fill=0, C=C, V=V):
         for q in range(sw.NQ):
             c = int(present[torch.randint(len(present), (1,), generator=gen)])
             idxs = (colors[b] == c).nonzero().flatten()
-            t = int(idxs[-1])                                           # latest write of color c
+            t = int(idxs[-1]) if mode == "latest" else int(idxs[0])     # last (recency) vs first (write-once)
             v = int(values[b, t])
             qp = qbase + q
             toks[b, qp] = c                                            # query token = the color id
@@ -82,35 +85,40 @@ def main():
     g = torch.Generator().manual_seed(0)
     T = _TPERM
     print(f"transform T (value -> T[value]): {T.tolist()}  (C={C} colors, V={V} values)\n", flush=True)
-    for n_items, fill in [(4, 0), (6, 4)]:
-        toks, qmask, targ, deps = gen_colored_recall(1, n_items, g, fill=fill)
-        L = toks.shape[1]
-        colors = toks[0, 0:2 * n_items:2]; values = toks[0, 1:2 * n_items:2] - VAL0
-        print(f"=== n_items={n_items} fill={fill} L={L} ===", flush=True)
-        print("colors:", colors.tolist(), " values:", values.tolist(), flush=True)
-        qpos = qmask[0].nonzero().flatten().tolist()
-        ok = True
-        for q, p in enumerate(qpos):
-            c = int(toks[0, p]); lv = _latest_val(colors, values, c)
-            ok &= int(targ[0, p]) == int(T[lv])
-        print(f"targets = T[latest same-color value]: {ok}  (queries ask colors {[int(toks[0,p]) for p in qpos]})",
-              flush=True)
-        # striped edit: perturb the value at the first query's latest-write; only that stripe should move
-        d0 = deps[0][0]; vp = d0["valpos"]; c = d0["color"]
-        moved_same, moved_other = 0, 0
-        for q, p in enumerate(qpos):
-            cc = int(toks[0, p]); lv = _latest_val(colors, values, cc)
-            base = int(T[lv])
-            v2 = values.clone(); v2[(vp - 1) // 2] = (v2[(vp - 1) // 2] + 1) % V
-            lv2 = _latest_val(colors, v2, cc); new = int(T[lv2])
-            if cc == c:
-                moved_same += int(new != base)
-            else:
-                moved_other += int(new != base)
-        print(f"edit value at pos {vp} (color {c}): changes SAME-color reads ({moved_same}), "
-              f"OTHER-color reads unchanged ({moved_other}==0 must hold) -> striped ground-truth\n", flush=True)
-    print("READ: each reader depends on exactly ONE upstream write (its latest same-color value); an edit\n"
-          "paints a color-stripe. Known reader-set + stripe = the reach/reader-set certificate's target.", flush=True)
+    for mode in ("latest", "earliest"):
+        print(f"########## mode = {mode} ##########", flush=True)
+        for n_items, fill in [(8, 4)]:
+            toks, qmask, targ, deps = gen_colored_recall(1, n_items, g, fill=fill, mode=mode)
+            L = toks.shape[1]
+            colors = toks[0, 0:2 * n_items:2]; values = toks[0, 1:2 * n_items:2] - VAL0
+            print(f"n_items={n_items} fill={fill} L={L}  colors={colors.tolist()} values={values.tolist()}",
+                  flush=True)
+            qpos = qmask[0].nonzero().flatten().tolist()
+            ok = True
+            dists = []
+            for q, p in enumerate(qpos):
+                d = deps[0][q]
+                idxs = [i for i in range(n_items) if int(colors[i]) == d["color"]]
+                t = idxs[-1] if mode == "latest" else idxs[0]
+                ok &= int(targ[0, p]) == int(T[int(values[t])])
+                dists.append(p - d["valpos"])                          # query-to-dependency distance
+            print(f"  targets correct: {ok}  | query->dependency distance: {dists}  "
+                  f"({'SHORT (recency)' if mode == 'latest' else 'LONG (first occurrence)'})", flush=True)
+            # soundness: perturb a NON-selected same-color write -> reader must NOT move (shadowed)
+            c0 = deps[0][0]["color"]; sel = deps[0][0]["valpos"]
+            same_writes = [w + 1 for w in deps[0][0]["writes"]]        # value positions of that color
+            nonsel = [w for w in same_writes if w != sel]
+            base = int(targ[0, qpos[0]])
+            moved = 0
+            for w in nonsel:
+                v2 = values.clone(); ti = (w - 1) // 2; v2[ti] = (v2[ti] + 1) % V
+                idxs = [i for i in range(n_items) if int(colors[i]) == c0]
+                t = idxs[-1] if mode == "latest" else idxs[0]
+                moved += int(int(T[int(v2[t])]) != base)
+            print(f"  editing a NON-selected same-color write ({len(nonsel)} of them) moves the reader: "
+                  f"{moved} (must be 0 = shadowed) -> sharp relevant/irrelevant taxonomy\n", flush=True)
+    print("READ: 'earliest' makes the reader depend on a FAR first-occurrence (long-range) and shadows all\n"
+          "later same-color writes -> a stronger reach test + whole-suffix stripe than 'latest' (recency).", flush=True)
 
 
 if __name__ == "__main__":
