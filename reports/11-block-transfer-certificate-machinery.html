@@ -48,7 +48,7 @@
 <header>
   <p class="kicker">Set-DEQ Notes · #11 · the certificate machinery, end to end</p>
   <h1>The Block-Transfer Certificate: How the Reach Bound Is Actually Computed</h1>
-  <p class="byline">Zhibai Jia · 8 July 2026 · <em>updated 9 Jul: §4 now carries the measured tightness trilemma — scalar / directional / Newton–Kantorovich</em> · a short reference note — the arc from the resolvent to a certified reach, one scalar mnemonic that carries the whole shape, and the subtle three-way play of $d$, $r$, and eff_rate</p>
+  <p class="byline">Zhibai Jia · 8 July 2026 · <em>updated 9 Jul: §4 now carries the measured tightness trilemma — scalar / directional / Newton–Kantorovich; 10 Jul: new §0 recaps the $\sigma_{\min}$ saga — approximation-theory origin → response height → two failed conditioning fixes</em> · a short reference note — the arc from the resolvent to a certified reach, one scalar mnemonic that carries the whole shape, and the subtle three-way play of $d$, $r$, and eff_rate</p>
 </header>
 
 <div class="callout">
@@ -58,6 +58,74 @@
   vacuous / abstain); this one records <em>how</em> the working certificate runs, so the derivation is in one
   place before drafting.
 </div>
+
+<h2>0. Why $\sigma_{\min}(I-J)$? — the saga, from approximation theory to response height</h2>
+
+<p>$\sigma_{\min}(I-J)$ has been in the campaign from the start, but what it <em>means</em> has changed twice.
+Worth one section before the machinery, because the whole point of this note is that $\sigma_{\min}$ is
+<strong>not</strong> the reach rate — and learning that took two turns.</p>
+
+<p><strong>(a) Origin — approximation theory (the decay of a banded inverse).</strong> $\sigma_{\min}$ first
+entered as a <em>conditioning number</em>. Classical results on off-diagonal decay of matrix inverses —
+Demko–Moss–Smith for banded matrices, Benzi–Golub for the symmetric case — bound
+$\big\|[M^{-1}]_{ij}\big\|\le C\,q^{|i-j|}$ with a rate $q$ read straight off the conditioning: for
+symmetric-positive $M$, $q=(\sqrt\kappa-1)/(\sqrt\kappa+1)$ with $\kappa=\sigma_{\max}/\sigma_{\min}$. So a
+near-singular $M$ (small $\sigma_{\min}$) means large $\kappa$, slow decay, and long edit-reach. That gave the
+<em>first</em> reach envelope — the "$\sqrt\kappa$ Faber number." $\sigma_{\min}$ sat squarely <em>in the
+rate</em>.</p>
+
+<p><strong>(b) The crisis — the approximation-theory rate abstains (Notes&nbsp;#9–#10).</strong> The
+$\sqrt\kappa$ number turned out to be a <em>heuristic</em>: a Hermitian theorem applied to a non-Hermitian $J$.
+Its sharp non-normal generalization (Faber on the <em>field of values</em> / Crouzeix) <strong>abstains on both
+faces</strong>, because $0\in W(I-J)$ — the numerical range straddles the singularity even though
+$\rho(J)<1$ ($+1\in W(J)$; $W$ huge, $\mathrm{Re}\,W\approx3.1$, despite $\rho\approx0.74$). No field-of-values
+rate is certifiable, and the crude normal-equations fallback (Route&nbsp;A) certifies but is <em>vacuous</em>
+(~222 hops on five windows). Verdict: <strong>$\sigma_{\min}$ cannot carry the reach rate</strong> (measured,
+<code>c2_bidir</code> / <code>c2_weighted_cert</code>; the full autopsy is in&nbsp;#9–#10).</p>
+
+<p><strong>(c) The pivot — rate&nbsp;$\to\rho(G)$, $\sigma_{\min}\to$ height.</strong> The reach rate moved off
+approximation theory onto <em>dynamical systems / Lyapunov</em> — the block-transfer $\rho(G)$ plus the Stein
+adapted-norm of §§1–3. That <em>freed</em> $\sigma_{\min}$ from a job it could not do and revealed its true one:
+not a rate but an <strong>amplitude</strong>. $\|M^{-1}\|=1/\sigma_{\min}$ is the peak <em>gain</em> of the
+resolvent — how tall the edit-response $\delta z = M^{-1}\delta h$ can stand per unit edit. Near-singular =
+near-resonance = a tall response that rings; well-conditioned = a short, quiet one. $\sigma_{\min}$ is the
+reciprocal <strong>response height</strong>, $\rho(G)$ is the reach, and §5 keeps the two apart.</p>
+
+<div class="callout key">
+  <strong>The one-line reframe.</strong> $\sigma_{\min}$ stopped being "the conditioning number in a
+  decay-of-inverse bound" (approximation theory, which <em>abstains</em> here) and became "the height of the
+  edit-response" (the amplitude/gain of the resolvent $M^{-1}$). It sets <strong>scale, not shape</strong>. Both
+  it and $\sqrt{\kappa(P)}$ are "heights," but of <em>different</em> operators: $1/\sigma_{\min}$ is the height of
+  the response itself; $\sqrt{\kappa(P)}$ (§1e) is the transient hump of the reach operator $G$. Do not conflate
+  them.
+</div>
+
+<p><strong>(d) $\sigma_{\min}$ today — three jobs, all measured.</strong></p>
+<ul>
+  <li><strong>Positivity gate.</strong> $\sigma_{\min}>0 \Leftrightarrow I-J$ invertible $\Leftrightarrow$ the
+      fixed point is <em>locally</em> well-posed $\Leftrightarrow$ the resolvent exists — upstream of everything.
+      <em>Local</em>, not global: <code>curr40</code> has $\sigma_{\min}>0$ at each branch yet is globally
+      <strong>multistable</strong> (two solvers → two distinct fixed points, solver-checked), so $\sigma_{\min}$
+      certifies a <em>branch</em>, not uniqueness of the world.</li>
+  <li><strong>Response height / a-posteriori amplifier.</strong> The deployable bound
+      $\|z-z^{\star}\|\le\|f(z)-z\|/\sigma_{\min}$ (§4) <em>is</em> $\sigma_{\min}$-as-height: the residual,
+      amplified by the gain. The pre-solve forecast $\|R\,\delta h\|\to\|\Delta z\|$ (Spearman 0.96–1.00 on both
+      faces — the campaign's most robust relationship) is the same height read <em>directionally</em>; the
+      tightness trilemma (§4) is where the <em>scalar</em> height over-charges.</li>
+  <li><strong>The height you cannot wish away (conditioning↔recall).</strong> Two independent architectural
+      attempts to <em>lift</em> $\sigma_{\min}$ on the near-singular <code>currnp</code> substrate both failed by
+      <em>collapsing recall</em>: <strong>QK-norm</strong> (cosine attention) doubled $\sigma_{\min}$ but dropped
+      recall 15–24 pts (capping logit <em>magnitude</em> starves the peaky attention long-range recall needs);
+      <strong>RoPE</strong> — the orthogonal, norm-preserving alternative that <em>cannot</em> cap peaking —
+      instead disrupts the cross-window relay outright, present or absent the learned relative bias (recall
+      plateaus ~0.80 vs a clean 1.0). The near-singularity is <strong>intrinsic</strong> to a model that actually
+      remembers: <em>edit-locality is dual to forgetting</em>, and $\sigma_{\min}$ is load-bearing, not an artifact
+      to engineer away.</li>
+</ul>
+
+<p class="muted">The rest of this note is the <em>other</em> invariant — the reach rate $\rho(G)$ and the machine
+that certifies it — with $\sigma_{\min}$ returning in §4 as the deployable residual amplifier and in §5 as its
+sibling.</p>
 
 <h2>1. The arc, in one pass</h2>
 

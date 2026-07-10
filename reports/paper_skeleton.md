@@ -1,11 +1,12 @@
 # Paper skeleton — working title, abstract, spine (draft, 2026-07-09)
 
-STATUS: working draft. The RoPE conditioning fix is **SCHEDULED / PARKED, not blocking** — spec in
-`experiment_rope_spec.md`; it is a tightening + modernity experiment, NOT load-bearing (certificate already
-holds PE-agnostically on the ill-conditioned `currnp`; C2 + C2d passed). Title/abstract can firm up now; RoPE
-result only *tightens* tier-1 or pairs with the QK-norm null. C6 (pointer-chase reader-set test) is FUTURE
-WORK — capacity-ceilinged at toy scale (digest §11c); the reader-set ships as a discussion-level *principle*
-(evidenced by must-carry + C2t on both faces), not a headline experiment.
+STATUS: working draft. The RoPE conditioning fix is **DONE — NEGATIVE** (2026-07-10): RoPE both *replacing*
+and *on top of* the learned relative bias COLLAPSES recall (the cross-window relay plateaus ~0.80 vs currnp's
+clean 1.0), so it joins QK-norm as a *second* failed attempt to lift `σ_min` → the **conditioning↔recall
+tension has no cheap architectural escape** (see the "two failed fixes" subsection below). The certificate is
+untouched — PE-agnostic, C2 + C2d hold on the ill-conditioned `currnp`. C6 (pointer-chase reader-set test) is
+FUTURE WORK — capacity-ceilinged at toy scale (digest §11c); the reader-set ships as a discussion-level
+*principle* (evidenced by must-carry + C2t on both faces), not a headline experiment.
 
 ---
 
@@ -72,6 +73,26 @@ edit-locality" claim. Honest division of labor: tier-1 envelope *plans* the reco
 loose), tier-2 residual *verifies* it (tight). Value = the **guarantee** in the maintenance regime, not big
 speedups (consistent with the modest-efficiency finding: Woodbury prior + per-window early-stop both
 safe-but-modest).
+
+## Conditioning↔recall tension — the near-singularity is intrinsic (two failed fixes, 2026-07)
+
+The ill-conditioning our certificate operates around is **not an artifact to engineer away** — it is *dual to
+the model doing its job*. Two independent, simple architectural attempts to **lift `σ_min`** on the near-singular
+`currnp` substrate both **failed by collapsing recall**:
+- **QK-norm (cosine attention, 2026-07-09):** `σ_min` ~doubled (0.03–0.04 → 0.07–0.08) but recall dropped
+  **15–24 pts** — capping logit *magnitude* starves the peaky attention long-range recall needs.
+- **RoPE (2026-07-10):** the orthogonal, norm-preserving alternative (can't cap peaking, so a-priori expected
+  harmless) instead **disrupts cross-window relay formation outright** — present *or* absent the learned relative
+  bias, recall plateaus ~0.80 vs currnp's clean 1.0 (stable, not under-training; extra steps don't move it).
+
+So `σ_min` and recall move in **lockstep**: you cannot buy conditioning without paying recall, by *two* orthogonal
+mechanisms (magnitude-capping vs relay-disruption). This is the empirical face of **edit-locality is dual to
+forgetting** — a model with long memory *must* sit near-singular, which is exactly why the certificate is needed
+(the near-singularity is **load-bearing**, not fixable). Use as a **robustness / motivation** point: the two nulls
+are *evidence for* the tension, not failures to hide. Scope caveat: small single-tied-layer substrate; a tuned/
+multi-layer RoPE isn't formally excluded, but the *simple drop-in fix* is ruled out (don't rabbit-hole). The
+certificate itself is untouched — PE-agnostic (Jacobian-level), holds on `curr` and `currnp`. Full saga (from the
+approximation-theory origin of `σ_min` to its response-height role) recapped in report §0 of Note #11.
 
 ## Logical DAG (do NOT collapse to "downstream of σ_min")
 
