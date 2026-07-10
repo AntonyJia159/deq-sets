@@ -30,13 +30,23 @@ DV = 32                            # value-subspace width (set sw.D_VALUE = DV i
 TAU = 3.0                          # exp-decay length of the locality kernel
 
 
-def gen_segment_average(batch, L, gen, n_bnd=3, dv=DV, tau=TAU):
+# segment widths deliberately span TIGHT (1-2, isolates a value -> sharp boundary cutoff) to WIDE (8-12,
+# long-range averaging that must relay across the window) so training + validation stress the SELECTIVE
+# (boundary-detection) and reach properties, not just a typical spacing.
+WIDTHS = torch.tensor([1, 1, 2, 2, 3, 4, 6, 9, 12])
+
+
+def gen_segment_average(batch, L, gen, dv=DV, tau=TAU, widths=WIDTHS):
     """Returns toks (B,L mode ids), values (B,L,dv real), target (B,L,dv), tmask (B,L bool value positions),
-    seg_id (B,L) segment index. Boundaries carry zero value and get no target."""
+    seg_id (B,L) segment index. Segment widths are sampled to SPAN tight..wide; boundaries carry zero value."""
     is_bnd = torch.zeros(batch, L, dtype=torch.bool)
-    for b in range(batch):                                              # place n_bnd distinct interior boundaries
-        pos = 1 + torch.randperm(L - 2, generator=gen)[:n_bnd]
-        is_bnd[b, pos] = True
+    for b in range(batch):                                              # value-runs of varied width, boundary between
+        p = torch.randint(0, 3, (1,), generator=gen).item()
+        while p < L - 1:
+            p += int(widths[torch.randint(len(widths), (1,), generator=gen)])
+            if p < L - 1:
+                is_bnd[b, p] = True
+                p += 1
     toks = torch.where(is_bnd, BOUNDARY_MODE, VALUE_MODE)               # (B,L) mode ids
     val_mask = ~is_bnd
     values = torch.randn(batch, L, dv, generator=gen) * val_mask[..., None]
@@ -64,10 +74,12 @@ def _true_target(values_row, is_bnd_row, tau=TAU):
 
 def main():
     g = torch.Generator().manual_seed(0)
-    L, n_bnd = 16, 3
-    toks, values, target, tmask, seg_id = gen_segment_average(1, L, g, n_bnd=n_bnd)
+    L = 24
+    toks, values, target, tmask, seg_id = gen_segment_average(1, L, g)
     is_bnd = (toks[0] == BOUNDARY_MODE).cpu()
-    print(f"L={L}  boundaries at {is_bnd.nonzero().flatten().tolist()}  seg_id={seg_id[0].cpu().tolist()}",
+    bpos = is_bnd.nonzero().flatten().tolist()
+    widths = [bpos[0]] + [bpos[i] - bpos[i - 1] - 1 for i in range(1, len(bpos))]
+    print(f"L={L}  boundaries at {bpos}  segment widths (tight..wide) {widths}  seg_id={seg_id[0].cpu().tolist()}",
           flush=True)
     ref = _true_target(values[0].cpu(), is_bnd)
     err = (ref.to(sw.DEV) - target[0]).abs().max().item()

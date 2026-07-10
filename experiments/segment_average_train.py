@@ -31,12 +31,11 @@ CKPT_DIR = "checkpoints"
 CKPT_NAME = "segment_average.pt"
 
 
-def sa_eval(m, L, gen, reps=4, n_bnd=None):
+def sa_eval(m, L, gen, reps=4):
     """MSE and relative error on value positions."""
-    nb = max(2, L // 6) if n_bnd is None else n_bnd
     mses, rels = [], []
     for _ in range(reps):
-        toks, values, target, tmask, _ = gen_segment_average(128, L, gen, n_bnd=nb)
+        toks, values, target, tmask, _ = gen_segment_average(128, L, gen)
         with torch.no_grad():
             pred = m.run(toks, values)
         d = (pred - target)[tmask]
@@ -45,11 +44,10 @@ def sa_eval(m, L, gen, reps=4, n_bnd=None):
     return float(np.mean(mses)), float(np.mean(rels))
 
 
-def sa_train(m, L, steps, gen, bs=64, lr=2e-3, n_bnd=None):
-    nb = max(2, L // 6) if n_bnd is None else n_bnd
+def sa_train(m, L, steps, gen, bs=64, lr=2e-3):
     opt = torch.optim.Adam(m.parameters(), lr=lr, weight_decay=1e-4)
     for st in range(steps):
-        toks, values, target, tmask, _ = gen_segment_average(bs, L, gen, n_bnd=nb)
+        toks, values, target, tmask, _ = gen_segment_average(bs, L, gen)
         m.train(); opt.zero_grad()
         pred = m.run(toks, values)
         loss = ((pred - target)[tmask] ** 2).mean()
@@ -79,7 +77,7 @@ def main():
         sa_train(m, L, steps, gen)
         m.eval()
         mse, rel = sa_eval(m, L, gen)
-        tk, vv = gen_segment_average(1, L, torch.Generator().manual_seed(7), n_bnd=max(2, L // 6))[:2]
+        tk, vv = gen_segment_average(1, L, torch.Generator().manual_seed(7))[:2]
         r, smin, rs = m.spectrum(tk, vv)
         m.train()
         print(f"  L={L:>2}: mse={mse:.4f} rel_err={rel:.3f}  rho={r:.3f} sigma_min={smin:.3f} resid={rs:.1e}"
