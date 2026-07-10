@@ -105,6 +105,14 @@ ROPE = False                             # module flag: rotary position embeddin
                                          # single-var swap for currnp's learned additive rel-bias. Hypothesis: a
                                          # cleaner positional signal lets the relay form with LESS saturation ->
                                          # sigma_min up WITHOUT the recall cost QK_NORM paid. RoPE base = 1e4.
+MLP = False                              # module flag: add a per-position MLP (GELU, 4x) to the cell, making it
+                                         # a full transformer block (attention + MLP) instead of pure attention.
+                                         # Needed for ARITHMETIC tasks: pure attention AVERAGES value embeddings
+                                         # and a linear head can't recover a content-dependent sum (mod P) from
+                                         # an average -> the modular-addition nonlinearity (grokking needs the
+                                         # MLP). Opt-in; curr/currnp/bidir substrates leave it off (pure
+                                         # attention, as studied). Output-normed + s-scaled so DEQ contraction
+                                         # control is unchanged; enters J as an extra per-position block.
 
 
 def band_causal_mask(L, device):
@@ -135,6 +143,9 @@ class SeqDEQ(nn.Module):
             self.qk_tau = nn.Parameter(torch.full((H,), 2.0 * dh ** 0.5))   # init gives peaking headroom
         if REL_BIAS:
             self.relb = nn.Parameter(0.01 * torch.randn(H, 2 * W + 1))   # b[h, (j-i)+W]
+        if MLP:                                                  # per-position transformer MLP (arithmetic cell)
+            self.mlp_in = nn.Linear(d, 4 * d, bias=False)
+            self.mlp_out = nn.Linear(4 * d, d, bias=False)
         self.head = nn.Linear(d, NVAL)
         if mode == "deq":
             self.deq = get_deq(f_solver="anderson", f_max_iter=60, f_tol=1e-4,
@@ -202,7 +213,11 @@ class SeqDEQ(nn.Module):
             sc = (qf @ kf.transpose(-1, -2)) * maskp          # 0/1 multiplicative mask
             a = sc / (sc.sum(-1, keepdim=True) + 1e-6)
         o = (a @ v).transpose(1, 2).reshape(B, L, d)
-        return h0 + self.s * (o @ Wo.t())
+        out = h0 + self.s * (o @ Wo.t())
+        if MLP:                                                  # transformer MLP sub-block (normed + s-scaled)
+            hm = F.gelu(out @ _sn(self.mlp_in.weight).t()) @ _sn(self.mlp_out.weight).t()
+            out = out + self.s * hm
+        return out
 
     def solve(self, h0, mask):
         wn = self.wn()
