@@ -48,7 +48,7 @@
 <header>
   <p class="kicker">Set-DEQ Notes · #11 · the certificate machinery, end to end</p>
   <h1>The Block-Transfer Certificate: How the Reach Bound Is Actually Computed</h1>
-  <p class="byline">Zhibai Jia · 8 July 2026 · <em>updated 9 Jul: §4 now carries the measured tightness trilemma — scalar / directional / Newton–Kantorovich; 10 Jul: new §0 recaps the $\sigma_{\min}$ saga — approximation-theory origin → response height → two failed conditioning fixes</em> · a short reference note — the arc from the resolvent to a certified reach, one scalar mnemonic that carries the whole shape, and the subtle three-way play of $d$, $r$, and eff_rate</p>
+  <p class="byline">Zhibai Jia · 8 July 2026 · <em>updated 9 Jul: §4 now carries the measured tightness trilemma — scalar / directional / Newton–Kantorovich; 10 Jul: new §0 recaps the $\sigma_{\min}$ saga — approximation-theory origin → response height → two failed conditioning fixes; 12 Jul: certificate-map figure in §4 (trilemma × granularity × two faces)</em> · a short reference note — the arc from the resolvent to a certified reach, one scalar mnemonic that carries the whole shape, and the subtle three-way play of $d$, $r$, and eff_rate</p>
 </header>
 
 <div class="callout">
@@ -423,6 +423,63 @@ $\|r\|\lesssim1/(2\beta^{2}L)$; with $\beta=1/\sigma_{\min}\approx18$–$41$ tha
   still an over-estimate (sound), but tighter. That is the reader-set principle in a-posteriori-estimation clothing,
   and the open lever for a certificate that is both rigorous and not loose.
 </div>
+
+<figure style="margin:1.8em 0;">
+<svg viewBox="0 0 880 478" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto; font-family:inherit;">
+  <style>
+    .vtx{ font-size:14px; font-weight:600; fill:var(--ink); }
+    .lbl{ font-size:12.5px; fill:var(--ink); }
+    .frm{ font-size:11.5px; fill:var(--muted); font-family:'SF Mono',Consolas,monospace; }
+    .hd { font-size:12.5px; font-weight:700; fill:var(--ink); letter-spacing:.04em; }
+    .mut{ font-size:11.5px; fill:var(--muted); }
+    .pill{ font-size:12px; font-weight:600; }
+  </style>
+  <text x="18" y="24" class="hd">THE CERTIFICATE MAP — trilemma &#183; granularity &#183; two faces</text>
+  <!-- trilemma triangle -->
+  <polygon points="240,92 68,372 412,372" fill="none" stroke="var(--rule)" stroke-width="2"/>
+  <text x="240" y="80" text-anchor="middle" class="vtx">SOUND &#183; rigorous</text>
+  <text x="60"  y="392" text-anchor="middle" class="vtx">CHEAP</text>
+  <text x="412" y="392" text-anchor="middle" class="vtx">TIGHT</text>
+  <text x="240" y="252" text-anchor="middle" class="mut" font-style="italic">pick two</text>
+  <!-- edge pills = the three families -->
+  <rect x="66" y="196" width="98" height="26" rx="13" fill="var(--accent)" fill-opacity="0.13" stroke="var(--accent)"/>
+  <text x="115" y="213" text-anchor="middle" class="pill" fill="var(--accent)">undirected</text>
+  <rect x="300" y="196" width="140" height="26" rx="13" fill="var(--good)" fill-opacity="0.13" stroke="var(--good)"/>
+  <text x="370" y="213" text-anchor="middle" class="pill" fill="var(--good)">Newton&#8211;Kantorovich</text>
+  <rect x="184" y="320" width="112" height="26" rx="13" fill="var(--warn)" fill-opacity="0.15" stroke="var(--warn)"/>
+  <text x="240" y="337" text-anchor="middle" class="pill" fill="var(--warn)">directional</text>
+  <!-- escape strip -->
+  <rect x="18" y="410" width="404" height="44" rx="8" fill="var(--card)" stroke="var(--accent)" stroke-dasharray="5 3"/>
+  <text x="30" y="428" class="lbl"><tspan font-weight="700">reader-set / DWR</tspan> breaks the trilemma &#8594;</text>
+  <text x="30" y="445" class="lbl">SOUND + TIGHT (bounds only reader outputs; drops far-field slack)</text>
+  <!-- right column -->
+  <line x1="448" y1="66" x2="448" y2="404" stroke="var(--rule)" stroke-width="1"/>
+  <text x="466" y="90" class="hd">GRANULARITY</text>
+  <text x="466" y="111" class="lbl">global &#160;&#8594;&#160; per-position</text>
+  <text x="466" y="129" class="mut">a per-token verdict; localizes any bound</text>
+  <text x="466" y="145" class="mut">&#8594; early-stop &amp; limited-position edits</text>
+  <text x="466" y="184" class="hd">TWO FACES</text>
+  <text x="466" y="206" class="lbl"><tspan font-weight="700">IVP &#183; causal</tspan> — J block-lower-&#916; (G nilpotent)</text>
+  <text x="466" y="223" class="mut">directional is the whole content; undirected ball &#8776; suffix.</text>
+  <text x="466" y="239" class="mut">reader-set works when readers are KNOWN (colored-recall 83%);</text>
+  <text x="466" y="255" class="mut">denied only for unknown future readers (open gen = must-carry).</text>
+  <text x="466" y="282" class="lbl"><tspan font-weight="700">BVP &#183; bidir</tspan> — J two-sided band (near-normal)</text>
+  <text x="466" y="299" class="mut">reach envelope = screening length; reader-set native</text>
+  <text x="466" y="315" class="mut">(segment-average tightened to the segment).</text>
+  <text x="466" y="352" class="hd">FORMULAS</text>
+  <text x="466" y="373" class="frm"><tspan fill="var(--accent)">undirected</tspan> &#8211; &#8214;r&#8214;/&#963;_min &#183; &#931;&#8214;R[i,j]&#8214;&#8214;r_j&#8214; (loose 7&#8211;34&#215;)</text>
+  <text x="466" y="390" class="frm"><tspan fill="var(--warn)">directional</tspan> &#8211; &#8214;R&#183;r&#8214; &#183; &#8214;[R&#183;r]_i&#8214; (tight; &#8594;0.66&#215;, not sound)</text>
+  <text x="466" y="407" class="frm"><tspan fill="var(--good)">NK</tspan> &#8211; R_- = (1&#8722;&#8730;(1&#8722;2h))/&#946;L (rigorous; needs L; narrow)</text>
+</svg>
+<figcaption class="muted" style="font-size:.85rem; margin-top:.6em;">
+  <strong>The certificate map.</strong> Five objects on two axes — granularity (global &#8594; per-position) &#215;
+  direction (undirected &#8594; directional) — with Newton&#8211;Kantorovich as the curvature-rigorous cap. The
+  trilemma is a <em>pick-two</em> over {cheap, tight, sound}; per-position <em>localizes</em> within a corner
+  (enabling early-stop / limited-position edits); the reader-set / dual-weighted-residual bound is the one move
+  that regains soundness without giving up tightness — native to the bidirectional (BVP) face, and available on
+  the causal (IVP) face whenever the readers are known (measured on colored-recall).
+</figcaption>
+</figure>
 
 <h2>5. Two invariants, kept straight</h2>
 <p>The certificate touches two <em>distinct</em> pseudospectral facts, and the paper's title lives on keeping
