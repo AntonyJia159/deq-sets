@@ -381,6 +381,19 @@ load-bearing assignment:**
 - **Mechanism = ν, a third time:** near-normal J (bidir) has uniform per-mode convergence rates → magnitude
   metering; maximally non-normal causal J has wildly varying mode rates (per-hop ‖T_k‖ up to 25) → raw ‖Δz‖
   under-determines cost. The faces differ in proof family, trainability, and now **billing legibility**.
+- **SOLVER-INDEPENDENCE CONFIRMED (2026-07-12, `c2m_metering_broyden.py`, n=126/face) — a predicted deflation that
+  DIED on measurement.** Hypothesis (mine): the causal weakness is Anderson's spectral gap, so the affine-invariant
+  Broyden solver should clean it up → "metering is bidirectional" would be a 2nd Anderson artifact (after "init
+  doesn't help"). MEASURED opposite: **causal Spearman(n_warm,‖Δz‖)≈0.70 vs bidir≈0.90 under BOTH Anderson AND
+  Broyden** (per-ckpt 0.68–0.77 causal, 0.88–0.92 bidir); causal partial-corr(n,‖dh‖|‖Δz‖) stays negative (−0.51
+  Anderson → −0.35 Broyden), bidir ~0 both; cold flat both. So the **billing-legibility divergence is a genuine ν
+  property, solver-independent** — it stands. MECHANISM REFINED (spectral-gap was wrong): Broyden is affine-invariant,
+  so its iteration count tracks the operator's *intrinsic* difficulty, NOT ‖Δz‖ in the standard norm; ‖Δz‖ is a
+  faithful cost proxy only when standard norm ≈ the operator's natural geometry (= near-normal = bidir). On the
+  non-normal causal face ‖Δz‖ under-determines cost for ANY solver. (Broyden DID soften the causal partial and halve
+  cold cost 34→19 evals, so a *small* mode-confounding component was spectral-gap; the Spearman gap is untouched.)
+  Records `checkpoints/c2m_broyden_records.npz`, log `c2m_broyden_log.txt`. Same face-split root as ν → reinforces,
+  not complicates, the two-faces story.
 - **CLAW-BACK LADDER REVISION (honest):** tier-3 emergent metering is a **bidirectional** property, not the
   causal consolation prize I claimed. The causal face's reliable instruments are tier-1 (directional
   classification, C2d) and tier-2 (a-posteriori bound) only.

@@ -8,6 +8,15 @@ untouched — PE-agnostic, C2 + C2d hold on the ill-conditioned `currnp`. C6 (po
 FUTURE WORK — capacity-ceilinged at toy scale (digest §11c); the reader-set ships as a discussion-level
 *principle* (evidenced by must-carry + C2t on both faces), not a headline experiment.
 
+UPDATE (2026-07-12): folded in the new material since the RoPE note — (1) a **deployment recalibration**
+(revise the deployment claim *down*, keep the scientific claim; the two faces become **two registers** —
+causal = a *diagnostic* for the big ecosystem, bidir = a *clean certificate* for the small equilibrium/science
+one); (2) the **semantic validation** (colored-recall near-singular causal, segment-average well-conditioned
+bidir Green's tent) + the **entity-tracking program** that unifies them on one substrate with an **MLP knob**;
+(3) **positioning** vs the entity-tracking/binding literature and the bidir-in-mech-interp gap; (4) the
+**emergent-reach / iterated-map (NCA)** framing that answers "you just built in locality with the window."
+See the four dated sections below.
+
 ---
 
 ## Title (working)
@@ -94,6 +103,138 @@ multi-layer RoPE isn't formally excluded, but the *simple drop-in fix* is ruled 
 certificate itself is untouched — PE-agnostic (Jacobian-level), holds on `curr` and `currnp`. Full saga (from the
 approximation-theory origin of `σ_min` to its response-height role) recapped in report §0 of Note #11.
 
+## Deployment recalibration — two registers, honest sizing (2026-07-12)
+
+Revise the **deployment** claim pessimistically; do **not** revise the scientific one; relocate where each face
+earns its keep rather than dropping bidir.
+
+- **Own the scope limitation up front.** Decoder-only is the frontier; knowledge editing (ROME/MEMIT) runs on
+  *causal* decoders; the bidir encoders that survive (RAG, ModernBERT) edit the **corpus**, not the transformer
+  state. "Bidir-edit transformers are a big/rising market" would not survive review — do NOT let the intro lean
+  on market size. The clean certificate sits on the face today's ecosystem uses *least*; state that as scope.
+- **The contribution is the characterization, not the use-case.** "*When* is a local edit certifiable, and why"
+  *requires both poles*: the causal face is exactly where the clean certificate **fails** (near-singular, ξ=∞,
+  reader-set-must-be-known); the bidir face is where it is **non-vacuous** (the Green's tent). You cannot state
+  the taxonomy with one face. TMLR rewards this scoping result independent of market size (venue-fit, not pitch).
+- **Two registers — the reframe that makes both faces pull weight, each matched to where its ecosystem is:**
+  - **Causal = a *diagnostic* for the big ecosystem.** Where knowledge-editing actually happens we do not hand a
+    clean certificate — we hand a **warning**: the near-singular carry subspace *is* the ripple channel, so the
+    certificate degrades to the residual bound and needs a *known* reader. A useful negative for MEMIT-style
+    editors (tells them *when an edit is not certifiably local*).
+  - **Bidir = a *clean certificate* for the small-but-real equilibrium/science ecosystem.** Where fixed-point
+    models genuinely live, the certificate is tight and deployable (the Green's-function result).
+- **Honest sizing (tiered):** (a) bidir DEQ transformer as a deployed edit-target — *small, flat*; (b)
+  fixed-point / equilibrium reasoning in perception/science/control (optical flow, MPC, physics-informed,
+  graph/structure equilibria) — *real but modest*, undirected/bidir, and IS edit-sensitivity (perturb a boundary
+  condition → certify local response = literally our Green's tent); **the one niche where the clean certificate
+  is both tight and wanted**; (c) iterative-refinement / diffusion denoisers (full-attention, bidir) — the
+  genuinely *large* iterative ecosystem, **if** the conditioning/reach analysis ports to a denoiser's
+  edit-response = **big-if-true, currently unearned → speculative bridge, labeled as such**.
+- **One-line pitch (replaces any market pitch):** *"a taxonomy of when local edits are certifiable in
+  equilibrium transformers — a **tight certificate** on the well-conditioned (equilibrium/science) face, a
+  locality **diagnostic** on the ill-conditioned (generative) face — and the clean result sits on the face
+  today's ecosystem uses least."* Smaller claim, actually true, limitation owned not hidden.
+
+## Semantic validation & the entity-tracking program (2026-07-12)
+
+Beyond MQAR, two semantic substrates now exercise both faces × both conditioning regimes; a *unified* successor
+task is spec'd (**not yet built**).
+
+- **colored-recall (causal, selection) → near-singular.** Latest/earliest same-color value; σ_min small, ξ=∞
+  (resolvent blocks don't decay). Learns + length-generalizes on *latest* (recency); *earliest* (write-once,
+  long-range) does NOT length-generalize — governed by a **nonlinear retrieval horizon, not the linear reach**
+  (honest scope: linear certificate reach ξ ≠ nonlinear task memory). Reader-set from *known* query positions
+  recovered the true dependency ~83% → **corrects** "reader-set escape impossible on the causal face": it is
+  denied only for *unknown future* readers (open generation), not for the causal mask per se (reader-KNOWABILITY
+  is the condition).
+- **segment-average (bidir, aggregation) → well-conditioned.** Exp-distance-weighted mean within content-marked
+  segments, factored `[mode|value]` + regression head; ρ~0.8, σ_min~0.06–0.12; length-generalizes (rel_err~0.27
+  flat to L=64 untrained). Edit validation = **the clean payoff colored-recall could not give**: the resolvent
+  certifies a compact two-sided **Green's tent** (corr 0.955, ξ=3.1 *finite*, 91% energy inside segment,
+  linear≈nonlinear) — edit-locality demonstrated on the well-conditioned BVP face.
+- **Why the pair is patchy (the confound to fix):** the two co-vary **four** axes at once — face (causal/bidir),
+  operation (select/aggregate), output-head (classification/regression), input-encoding (discrete/real). So
+  "conditioning drives it" is not cleanly isolated; a reviewer will want a *motivated* pair, not two ad-hoc tasks.
+- **Successor — the entity-tracking family (SPEC).** One domain (records of entities whose states update, then
+  are queried), the contrasts as **controlled knobs on ONE real-valued/regression substrate** (kills the head +
+  encoding confound: select copies one real value-part, aggregate means the value-parts — the **only** difference
+  is peaked vs flat attention, so any σ_min flip is attributable to conditioning alone; the tightest form of the
+  thesis). Controlled **2×2**: conditioning axis = select (peaked → near-singular) vs aggregate (smooth →
+  well-conditioned); face axis = causal state-tracking vs bidir cloze. **Ground-truth reader-sets = the entity
+  bindings** (sparse for select, dense for aggregate, cluster for cloze) = the object the certificate's reach is
+  checked against. Edit-locality = the **knowledge-editing ripple** (edit an entity's state → which readers
+  change) → *the task IS the application*. Subsumes colored-recall (causal,select) and segment-average's regime
+  (aggregate) inside one family — the fix for "non-comparable and patchy."
+  - **Honest asymmetry (surfaced while spec'ing — state it, don't paper over it):** genuine two-sided
+    *constraint* is intrinsically a smoothing/aggregation phenomenon; selection is intrinsically *disjunctive*
+    (pick-one). So bidir+aggregate is a real both-sides BVP, but bidir+select can only be coref/redundancy fill
+    ("any mention, possibly future" = bidirectional *access*, not both-sided *constraint*); and a *mutable-state*
+    stream admits **no** cloze at all (a later overwrite doesn't constrain an earlier value — future evidence
+    exists only if the attribute is a *constant fact* redundantly asserted, or a *smoothing* field). The face and
+    conditioning axes are therefore **not perfectly orthogonal** — bidir-select's value is testing whether R's
+    reader-set correctly reaches a *future* position when the mask permits (a known masked reader → knowable →
+    certificate applies), not two-sided constraint.
+  - **The MLP knob (per ZJ: MLPs are not inert; pure attention is too unrealistic).** An MLP is per-position →
+    **block-diagonal Jacobian** → adds to the diagonal `D` of `J` → **predicted to move σ_min (conditioning) but
+    leave ρ(G) (reach) and the nilpotent/geometric two-face split invariant.** Sharp falsifiable test: run each
+    near-singular (select) cell with MLP off/on; σ_min *should* lift (a Lipschitz-nice MLP regularizes the
+    peaking, softening the tension) while reach-structure holds — if σ_min doesn't move or ρ(G) does, the
+    block-diagonal picture is wrong (informative either way). And **multi-attribute** `(entity,attribute)→value`
+    is a *conjunctive* bind (match both keys) — the classic thing attention does poorly and an MLP rescues — so
+    the realistic enrichment is exactly where the MLP *earns its place* (answers "pure attention is unrealistic").
+    Residual connections = a separate, sharper knob (they change `I−J` **structurally**, not just `D`).
+
+## Positioning — entity tracking, binding, and the bidir gap (2026-07-12)
+
+- **The recognized task is only our (causal, select) cell.** Entity/state tracking in the literature = *discrete
+  retrieval of one entity's final state, queried at the end, read by classification*: bAbI (Weston 2015), the
+  "boxes" task (Kim & Schuster 2023), world-state probing on Alchemy/TextWorld (Li, Nye & Andreas 2021), and the
+  mech-interp binding line — Prakash et al. 2024 (binding *heads*) and Feng & Steinhardt 2023 (abstract
+  *binding-ID* vectors, binding by position/order). **Aggregate and bidir cells are OUR extensions** manufacturing
+  the conditioning/face axes — do NOT dress them as canonical. (Verify exact venues/years before citing.)
+- **The mech-interp binding finding corroborates our σ_min prediction:** binding = positional/order selection = a
+  peaked pick onto one position = a near-unit-gain soft mode of `I−J` = **near-singular**. We give a
+  *conditioning-theoretic* account of the same phenomenon they characterize circuit-wise — and none of them
+  measure *edit-response / knowledge-editing ripple* on the tracking task (they probe / read accuracy / trace
+  circuits). That's genuinely our angle. **Adopt the recognizable dress:** anchor on (causal,select) in
+  boxes-style *move*-operation framing; cite binding results as external support for the near-singularity.
+- **Why bidir is under-studied — pre-empt the reviewer.** Mech-interp grew up *after* the pivot to decoder-only
+  (~2020+), so its whole toolkit (induction heads, MQAR, patching) is *causal*, and the canonical synthetic tasks
+  are intrinsically sequential (unnatural to pose bidirectionally). Bidir's own tradition is **probing, not
+  circuits** (BERTology — Rogers et al. 2020; structural probes — Hewitt & Manning 2019; head analysis — Clark et
+  al. 2019). Our resolvent reader-set is the *Jacobian-of-the-equilibrium* version of input-attribution — which
+  is why it is a real contribution on the bidir face AND why nobody checked (the community that would have wasn't
+  looking at bidir).
+
+## Emergent reach, not imposed locality — the iterated-map framing (2026-07-12)
+
+Sharpens *why the certificate is non-vacuous* and heads off the "you just built in locality with the window"
+objection.
+
+- **The window imposes the per-hop *granularity* (J banded), not the *reach*.** The resolvent `(I−J)⁻¹` of a
+  banded `J` is generically **full** — solving to equilibrium propagates influence across arbitrarily many hops;
+  the band does not survive the inverse. What is *emergent* (learned, conditioning-set) is the **decay rate** of
+  the resolvent's blocks = the actual edit-reach ξ, governed by ρ(G), σ_min — NOT by the window. (Causal mask
+  imposes the exact *upstream* zeros; the window imposes granularity; conditioning imposes decay.)
+- **Our own two tasks prove reach is emergent:** same windowed architecture, same `W` — colored-recall came out
+  ξ=∞ (blocks don't decay, non-local), segment-average ξ=3.1 (decaying, local). A factor of ∞ apart under one
+  architecture ⇒ the window sets the *grid*, the *conditioning* sets the *reach*.
+- **The real contrast is finite-depth vs iterated-to-steady-state (NOT conv-vs-attention).** Finite-depth local
+  nets have reach = depth×kernel (capped, structural, *tautological to certify*) — the only genuinely trivial
+  bucket. Iterated/equilibrium maps (DEQ, **NCA**, diffusion denoisers) have no depth cap: a still-local kernel
+  reaches globally through the resolvent, and only conditioning re-caps it. **NCA is not a trivial foil** — it is
+  iterated indefinitely, so it must be read through *powers* of its update map, and `(I−J)⁻¹ = Σ Jⁿ` is exactly
+  the Neumann/geometric sum of those powers (NCA studies the *transient* `Jⁿ`; we study the *accumulated* `Σ Jⁿ`
+  — same operator spectrum, transient vs. return-to-attractor). NCA is a **crude, under-formalized cousin** whose
+  headline result (local regeneration) is *uncertified* emergent edit-locality; our σ_min/reach machinery is the
+  rigorous instrument it lacks — a motivating precedent, not a foil to dismiss.
+- **Scope boundary this draws:** stay on attention transformers + (opt-in) MLP — the regime where reach is
+  emergent and the certificate has content. Convolutional *finite-depth* vision is the trivial slice (imposed,
+  capped). The one non-trivial slice of vision is *attention-based generative* (DiT / diffusion-transformer
+  inpainting = "generative fill / iterative local regeneration") — the **same** emergent-reach object on 2D
+  tokens, and the honest bridge to the large use-case (ties to the speculative diffusion pointer above). Note it
+  once; do not become a vision paper.
+
 ## Logical DAG (do NOT collapse to "downstream of σ_min")
 
 - **ROOT:** the resolvent `M⁻¹ = (I−J)⁻¹` — the linear edit-response; exists *because* we're at a fixed point.
@@ -117,8 +258,11 @@ approximation-theory origin of `σ_min` to its response-height role) recapped in
    sound-but-loose (screens the recompute ball); tier-2 **residual bound** = *did I recompute enough*, **sound
    and deployable** (scalar `resid/σ_min` = loose screen; directional `‖R·r‖` = tight; Newton–Kantorovich = a
    certified *stopping rule*, near-convergence). PE-agnostic (proved on both `curr` and `currnp`).
-3. **Two faces** — nilpotent *causal* (directional certificate) | geometric *bidirectional* (Stein/adapted-norm,
-   clean metering; the KV-cache use case). One operator `G`, two regimes.
+3. **Two faces = two registers** — nilpotent *causal* (directional certificate; where the clean certificate
+   *fails* → ships as a **diagnostic/warning** for the big generative ecosystem) | geometric *bidirectional*
+   (Stein/adapted-norm, clean metering; where the certificate is **non-vacuous** → the clean certificate for the
+   small equilibrium/science ecosystem). One operator `G`, two regimes; the register split matches where each
+   ecosystem actually is (see 2026-07-12 recalibration).
 4. **Reader-set principle** — which edits must propagate; unifies must-carry across faces.
 5. **Corollary** — reach set by `ρ(G)`, error by `σ_min`, not by contraction `ρ(J)` → edit-local even when
    noncontractive (poster child **currnp40, ρ(J)=4.44**, single fixed point, solver-checked; currnp16/24/40 =
@@ -128,6 +272,11 @@ approximation-theory origin of `σ_min` to its response-height role) recapped in
    hub/spoke task = future work, capacity-ceilinged at toy scale.)
 
 ## Where the certificate lands — outlook pointers (one hook + three unequal gestures)
+
+READ WITH the **2026-07-12 deployment recalibration** above: these pointers stand, but the *framing* is now
+"two registers" (causal = diagnostic, bidir = clean certificate) and the sizing is explicitly tiered/owned — do
+not let this section drift back into a market pitch. A fourth, **speculative** gesture (diffusion denoisers) is
+added below and labeled unearned.
 
 Framing levels, kept separate (resolves the KV-cache-vs-honesty tension): **identity** = core-ML (the
 characterization + certificate primitive; portfolio wants this, TMLR fits it) — this is what the paper *is*.
@@ -152,6 +301,11 @@ A short **"Where the certificate lands"** discussion paragraph, unequal weight, 
    regime. The residual bound is the *verification* half of V&V (numerical error to the model's fixed point, not
    model-vs-reality); compose with classical/Bayesian calibration (Kennedy–O'Hagan) → a genuine total error bar.
    "Certified numerical error you can drop into a UQ stack" is native currency there.
+4. **Iterative-refinement / diffusion denoisers** (SPECULATIVE, unearned — flag as such). Full-attention
+   denoisers are the *large* iterative ecosystem, and "regenerate this region → does it ripple?" (DiT/diffusion
+   inpainting, generative fill) is the *same emergent-reach object* on 2D tokens (§emergent-reach). IF the
+   conditioning/reach analysis ports to a denoiser's edit-response, this is the big use-case — big-if-true only;
+   do NOT claim it, gesture once. This is the honest bridge from "small equilibrium/science niche" to scale.
 
 ## Framing decisions (locked)
 
@@ -168,5 +322,15 @@ A short **"Where the certificate lands"** discussion paragraph, unequal weight, 
 - **Do NOT name Mamba / SSMs casually.** Too overengineered; drags in discretization / scan lineages that are
   not ours; and no one does editability on them anyway. If a linear limit is worth naming at all, say "linear
   recurrences" / "linear sequence models" generically — or omit. See `feedback_naming` memory.
-- Balance: don't pick a face; bidir = motivation/use-case, causal = theory-depth/connections, block-transfer
-  `G` unification = keystone.
+- Balance: don't pick a face; **two registers** — bidir = the *clean certificate* (equilibrium/science niche) +
+  theory-clean pole, causal = the *diagnostic/warning* for the big generative ecosystem + theory-depth/connections;
+  block-transfer `G` unification = keystone. (Supersedes the earlier "bidir=use-case, causal=theory" split, which
+  oversold bidir as a market — see 2026-07-12 recalibration; deployment claim revised *down*, scientific claim kept.)
+- **Emergent reach is the non-vacuity argument** (pre-empt "you built in locality with the window"): the window
+  imposes per-hop granularity, the *equilibrium* uncaps reach, *conditioning* re-caps it (colored-recall ξ=∞ vs
+  segment-average ξ=3.1, same architecture). Stay on attention + opt-in MLP; conv/finite-depth vision is the
+  trivial (imposed-capped) slice; NCA is a crude *cousin* (iterated, powers ≈ our Neumann-sum resolvent), not a foil.
+- **Semantic tasks:** the colored-recall/segment-average pair is a *confounded* demo (co-varies 4 axes); the
+  entity-tracking family (one real-valued substrate, controlled 2×2, reader-sets = entity bindings, MLP knob) is
+  the motivated successor — SPEC only, not built. Anchor on the recognized (causal,select) cell; aggregate + bidir
+  are our extensions, not canonical entity-tracking.
