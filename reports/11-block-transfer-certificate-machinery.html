@@ -48,7 +48,7 @@
 <header>
   <p class="kicker">Set-DEQ Notes · #11 · the certificate machinery, end to end</p>
   <h1>The Block-Transfer Certificate: How the Reach Bound Is Actually Computed</h1>
-  <p class="byline">Zhibai Jia · 8 July 2026 · <em>updated 9 Jul: §4 now carries the measured tightness trilemma — scalar / directional / Newton–Kantorovich; 10 Jul: new §0 recaps the $\sigma_{\min}$ saga — approximation-theory origin → response height → two failed conditioning fixes; 12 Jul: certificate-map figure in §4 (trilemma × granularity × two faces)</em> · a short reference note — the arc from the resolvent to a certified reach, one scalar mnemonic that carries the whole shape, and the subtle three-way play of $d$, $r$, and eff_rate</p>
+  <p class="byline">Zhibai Jia · 8 July 2026 · <em>updated 9 Jul: §4 now carries the measured tightness trilemma — scalar / directional / Newton–Kantorovich; 10 Jul: new §0 recaps the $\sigma_{\min}$ saga — approximation-theory origin → response height → two failed conditioning fixes; 12 Jul: certificate-map table in §4 (granularity × direction, + NK and the reader-set escape)</em> · a short reference note — the arc from the resolvent to a certified reach, one scalar mnemonic that carries the whole shape, and the subtle three-way play of $d$, $r$, and eff_rate</p>
 </header>
 
 <div class="callout">
@@ -425,60 +425,45 @@ $\|r\|\lesssim1/(2\beta^{2}L)$; with $\beta=1/\sigma_{\min}\approx18$–$41$ tha
 </div>
 
 <figure style="margin:1.8em 0;">
-<svg viewBox="0 0 880 478" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto; font-family:inherit;">
-  <style>
-    .vtx{ font-size:14px; font-weight:600; fill:var(--ink); }
-    .lbl{ font-size:12.5px; fill:var(--ink); }
-    .frm{ font-size:11.5px; fill:var(--muted); font-family:'SF Mono',Consolas,monospace; }
-    .hd { font-size:12.5px; font-weight:700; fill:var(--ink); letter-spacing:.04em; }
-    .mut{ font-size:11.5px; fill:var(--muted); }
-    .pill{ font-size:12px; font-weight:600; }
-  </style>
-  <text x="18" y="24" class="hd">THE CERTIFICATE MAP — trilemma &#183; granularity &#183; two faces</text>
-  <!-- trilemma triangle -->
-  <polygon points="240,92 68,372 412,372" fill="none" stroke="var(--rule)" stroke-width="2"/>
-  <text x="240" y="80" text-anchor="middle" class="vtx">SOUND &#183; rigorous</text>
-  <text x="60"  y="392" text-anchor="middle" class="vtx">CHEAP</text>
-  <text x="412" y="392" text-anchor="middle" class="vtx">TIGHT</text>
-  <text x="240" y="252" text-anchor="middle" class="mut" font-style="italic">pick two</text>
-  <!-- edge pills = the three families -->
-  <rect x="66" y="196" width="98" height="26" rx="13" fill="var(--accent)" fill-opacity="0.13" stroke="var(--accent)"/>
-  <text x="115" y="213" text-anchor="middle" class="pill" fill="var(--accent)">undirected</text>
-  <rect x="300" y="196" width="140" height="26" rx="13" fill="var(--good)" fill-opacity="0.13" stroke="var(--good)"/>
-  <text x="370" y="213" text-anchor="middle" class="pill" fill="var(--good)">Newton&#8211;Kantorovich</text>
-  <rect x="184" y="320" width="112" height="26" rx="13" fill="var(--warn)" fill-opacity="0.15" stroke="var(--warn)"/>
-  <text x="240" y="337" text-anchor="middle" class="pill" fill="var(--warn)">directional</text>
-  <!-- escape strip -->
-  <rect x="18" y="410" width="404" height="44" rx="8" fill="var(--card)" stroke="var(--accent)" stroke-dasharray="5 3"/>
-  <text x="30" y="428" class="lbl"><tspan font-weight="700">reader-set / DWR</tspan> breaks the trilemma &#8594;</text>
-  <text x="30" y="445" class="lbl">SOUND + TIGHT (bounds only reader outputs; drops far-field slack)</text>
-  <!-- right column -->
-  <line x1="448" y1="66" x2="448" y2="404" stroke="var(--rule)" stroke-width="1"/>
-  <text x="466" y="90" class="hd">GRANULARITY</text>
-  <text x="466" y="111" class="lbl">global &#160;&#8594;&#160; per-position</text>
-  <text x="466" y="129" class="mut">a per-token verdict; localizes any bound</text>
-  <text x="466" y="145" class="mut">&#8594; early-stop &amp; limited-position edits</text>
-  <text x="466" y="184" class="hd">TWO FACES</text>
-  <text x="466" y="206" class="lbl"><tspan font-weight="700">IVP &#183; causal</tspan> — J block-lower-&#916; (G nilpotent)</text>
-  <text x="466" y="223" class="mut">directional is the whole content; undirected ball &#8776; suffix.</text>
-  <text x="466" y="239" class="mut">reader-set works when readers are KNOWN (colored-recall 83%);</text>
-  <text x="466" y="255" class="mut">denied only for unknown future readers (open gen = must-carry).</text>
-  <text x="466" y="282" class="lbl"><tspan font-weight="700">BVP &#183; bidir</tspan> — J two-sided band (near-normal)</text>
-  <text x="466" y="299" class="mut">reach envelope = screening length; reader-set native</text>
-  <text x="466" y="315" class="mut">(segment-average tightened to the segment).</text>
-  <text x="466" y="352" class="hd">FORMULAS</text>
-  <text x="466" y="373" class="frm"><tspan fill="var(--accent)">undirected</tspan> &#8211; &#8214;r&#8214;/&#963;_min &#183; &#931;&#8214;R[i,j]&#8214;&#8214;r_j&#8214; (loose 7&#8211;34&#215;)</text>
-  <text x="466" y="390" class="frm"><tspan fill="var(--warn)">directional</tspan> &#8211; &#8214;R&#183;r&#8214; &#183; &#8214;[R&#183;r]_i&#8214; (tight; &#8594;0.66&#215;, not sound)</text>
-  <text x="466" y="407" class="frm"><tspan fill="var(--good)">NK</tspan> &#8211; R_- = (1&#8722;&#8730;(1&#8722;2h))/&#946;L (rigorous; needs L; narrow)</text>
-</svg>
-<figcaption class="muted" style="font-size:.85rem; margin-top:.6em;">
-  <strong>The certificate map.</strong> Five objects on two axes — granularity (global &#8594; per-position) &#215;
-  direction (undirected &#8594; directional) — with Newton&#8211;Kantorovich as the curvature-rigorous cap. The
-  trilemma is a <em>pick-two</em> over {cheap, tight, sound}; per-position <em>localizes</em> within a corner
-  (enabling early-stop / limited-position edits); the reader-set / dual-weighted-residual bound is the one move
-  that regains soundness without giving up tightness — native to the bidirectional (BVP) face, and available on
-  the causal (IVP) face whenever the readers are known (measured on colored-recall).
+<figcaption class="muted" style="font-size:.85rem; margin:0 0 .6em;">
+  <strong>The certificate map.</strong> Every object on two axes — granularity (global &#8594; per-position) and
+  direction (undirected &#8594; directional) — with Newton&#8211;Kantorovich as the curvature-rigorous cap and the
+  reader-set as the one escape. &ldquo;Sound&rdquo; for the linear rows means sound <em>first-order</em>; only NK
+  is rigorous at finite curvature.
 </figcaption>
+<div style="overflow-x:auto;">
+<table>
+<thead><tr>
+  <th>certificate</th><th>formula</th><th>gran.</th><th>direction</th><th>uses</th>
+  <th>cheap</th><th>tight</th><th>sound</th>
+</tr></thead>
+<tbody>
+  <tr><td>reach envelope (tier-1)</td><td>C&#183;&#961;(G)<sup>d</sup></td><td>global</td><td>undirected</td>
+      <td>op</td><td class="good">&#10003;</td><td class="bad">loose</td><td class="good">&#10003;*</td></tr>
+  <tr><td>scalar residual</td><td>&#8214;r&#8214;/&#963;<sub>min</sub></td><td>global</td><td>undirected</td>
+      <td>r</td><td class="good">&#10003;</td><td class="bad">7&#8211;34&#215;</td><td class="good">&#10003;</td></tr>
+  <tr><td>directional</td><td>&#8214;R&#183;r&#8214;</td><td>global</td><td>directional</td>
+      <td>r</td><td class="good">&#10003;</td><td class="good">&#10003; ~1&#215;</td><td class="bad">&#10007; 0.66&#215;</td></tr>
+  <tr><td>per-position undirected</td><td>&#931;<sub>j</sub>&#8214;R[i,j]&#8214;&#8214;r<sub>j</sub>&#8214;</td><td>per-token</td><td>undirected</td>
+      <td>r</td><td class="warn">~</td><td class="bad">norm-loose</td><td class="good">&#10003;</td></tr>
+  <tr><td>per-position directional</td><td>&#8214;[R&#183;r]<sub>i</sub>&#8214;</td><td>per-token</td><td>directional</td>
+      <td>r</td><td class="warn">~</td><td class="good">&#10003; tightest</td><td class="bad">&#10007;</td></tr>
+  <tr><td>Newton&#8211;Kantorovich</td><td>R<sub>&#8722;</sub>=(1&#8722;&#8730;(1&#8722;2h))/&#946;L</td><td>global / per-token</td><td>either</td>
+      <td>r&#8202;+&#8202;L</td><td class="bad">&#10007;</td><td class="good">&#10003; &#8594;&#951;</td><td class="good">&#10003;&#10003; theorem</td></tr>
+  <tr class="win"><td>reader-set / DWR (escape)</td><td>adjoint-weighted, readers only</td><td>any</td><td>goal-oriented</td>
+      <td>r</td><td class="warn">~</td><td class="good">&#10003;</td><td class="good">&#10003;</td></tr>
+</tbody>
+</table>
+</div>
+<p class="muted" style="font-size:.85rem; margin:.5em 0 0;">
+  <em>uses:</em> op = the operator alone (a-priori, on the edit &#948;h); r = the post-edit residual
+  (a-posteriori); r&#8202;+&#8202;L adds a curvature bound. <strong>Granularity</strong> localizes any bound
+  (per-token verdict &#8594; early-stop / limited-position edits). <strong>Two faces:</strong> on the
+  <em>causal / IVP</em> face the undirected ball &#8776; the whole suffix, so <em>direction is the whole
+  content</em>, and the reader-set escape is available whenever the readers are known (denied only for unknown
+  future readers = open generation); on the <em>bidirectional / BVP</em> face the reach envelope is a genuine
+  screening length and the reader-set is native.
+</p>
 </figure>
 
 <h2>5. Two invariants, kept straight</h2>
