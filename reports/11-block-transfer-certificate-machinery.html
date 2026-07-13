@@ -239,6 +239,117 @@ non-normality controls is how much of the true decay the drain can <em>recover</
   is strictly block-triangular, hence nilpotent, $\rho(G)=0$, and the series terminates.
 </div>
 
+<h3>(h) The Lyapunov reading: stored energy, dissipation, and why the Euclidean norm misleads</h3>
+
+<p>The Stein equation is the discrete-time twin of the <em>continuous</em> Lyapunov equation, and laying
+them side by side names every object in play here — and gives a physics mnemonic for what the adapted norm
+is actually doing.</p>
+
+<p><strong>Continuous.</strong> For a flow $\dot x = Ax$, pick a quadratic energy $V(x)=x^{*}Px$. Its rate
+of change <em>along the flow</em> is
+$$ \dot V = \dot x^{*}Px + x^{*}P\dot x = x^{*}(A^{*}P+PA)\,x. $$
+Demanding $\dot V=-x^{*}Qx$ with $Q\succ0$ is the continuous Lyapunov equation $A^{*}P+PA=-Q$: the stored
+energy $V$ strictly decreases, and a <em>second</em> quadratic form $x^{*}Qx$ is the instantaneous
+<strong>dissipation rate</strong> — the power bled out of the system. (In mechanics $V$ is the total
+mechanical energy and $x^{*}Qx$ is the Rayleigh dissipation function.)</p>
+
+<p><strong>Discrete.</strong> For a hop map $x_{k+1}=Gx_k$ the time-derivative becomes a per-step
+difference,
+$$ \Delta V = V(Gx)-V(x) = x^{*}(G^{*}PG-P)\,x, $$
+and demanding $\Delta V=-x^{*}Qx$ is <em>exactly</em> the Stein equation $G^{*}PG-P=-Q$. Same statement,
+"per unit time" replaced by "per window-hop": $V$ is a stored energy that drops by a fixed quadratic amount
+at every hop of the block-transfer operator.</p>
+
+<p><strong>Which is which, here.</strong></p>
+<ul>
+  <li>$G$ — the block-transfer <em>flow map</em> (one window-hop; the discrete analogue of the semigroup
+      $e^{At}$).</li>
+  <li>$V(x)=x^{*}Px$ — the stored (adapted) <em>energy</em>, and our Lyapunov function. $P$ is the
+      observability Gramian, so $V(x)=\sum_{k\ge0}\|G^{k}x\|_2^{2}$ is <em>literally</em> the total future
+      energy the perturbation $x$ will emit as it propagates — energy in the bank, not yet released.</li>
+  <li>$Q=I$ — the <em>dissipation</em>. Each hop drains exactly one unit of Euclidean energy
+      $x^{*}Ix=\|x\|_2^{2}$. The "$-I$" on the right of the Stein solve (§1e) is not a normalization
+      convenience; it <em>is</em> the dissipation term — the same "$-I$ drain" of §1g, now named — and it is
+      what makes $V$ a <em>strict</em> Lyapunov function.</li>
+  <li><code>eff_rate</code> — the certified geometric rate at which $\sqrt V$, hence the edit itself,
+      decays: $\sqrt{V(G^{k}x)}\le \texttt{eff\_rate}^{\,k}\sqrt{V(x)}$.</li>
+</ul>
+
+<div class="callout key">
+  <strong>The pendulum mnemonic (why the Euclidean norm misleads).</strong> A damped pendulum's
+  <em>kinetic</em> energy peaks at the bottom of every swing even as friction bleeds the <em>total</em>
+  energy monotonically to zero — kinetic and potential slosh back and forth while their sum only ever falls.
+  Our non-normal $G$ does the same: the Euclidean norm $\|G^{k}x\|_2$ is like watching only the kinetic
+  energy — it can <em>grow</em> for many hops (the transient hump, §1d) as the perturbation sloshes between
+  directions — while the total adapted energy $V=\|x\|_P^{2}$ falls at <em>every</em> hop. The $P$-norm is
+  the honest total-energy bookkeeping; the Euclidean norm is one sloshing component. <strong>Non-normality
+  is precisely the sloshing</strong> (normal $G$ = no sloshing, the two norms coincide, no hump — §1g).
+  The certificate's whole job is to stop measuring the kinetic component and measure the
+  conserved-minus-dissipated total, in which the decay is monotone and the reach is just an energy budget:
+  $\xi = 1/\ln(1/\texttt{eff\_rate}) = (\text{stored energy})\,/\,(\text{dissipation per hop})$. On the
+  causal face the chain is finite and $Q$-drains $V$ to <em>exactly</em> zero within
+  $\le(\#\text{windows})$ hops — a finite energy budget fully spent, no residual — which is the nilpotent
+  corner and the product-Lyapunov form.</div>
+
+<h3>(i) Restricting $P$ to block-diagonal: a free sound directional charge, and the causal&#8596;bidir unification</h3>
+
+<p>The dense Gramian $P$ gives <em>one</em> global rate and constant $\sqrt{\lambda_{\max}(P)}$, charged to every
+source, receiver and direction alike (§1e–f). To make the certificate <em>directionally</em> and
+<em>per-source</em> aware, restrict the metric to be block-diagonal by window,
+$P=\mathrm{blkdiag}(P_1,\dots,P_m)$, and read the Stein <em>inequality</em> as a feasibility problem
+$(G/r)^{*}P(G/r)\preceq P-I$. Two payoffs, one free and one structural.</p>
+
+<p><strong>The free half (no new solve).</strong> If an edit $\delta h$ is supported in window $j$, then for the
+D-preconditioned source $u=D^{-1}\delta h$ (also supported in $j$),
+$$ u^{*}Pu = u_j^{*}P_{jj}\,u_j \quad\text{EXACTLY} $$
+— the off-diagonal blocks drop, because $u$ has a single nonzero block. So the diagonal block $P_{jj}$ of the
+<em>already-cached dense</em> Gramian delivers a certified, source-and-direction-anisotropic charge at zero extra
+cost, keeping the $d$-decay from $G$'s bandwidth:
+$$ \big\|(R\,\delta h)_{\text{far}}\big\|_2 \;\le\; \sqrt{u_j^{*}P_{jj}u_j}\;\frac{\texttt{eff\_rate}^{\,d_0}}{1-\texttt{eff\_rate}}
+   \qquad[\textbf{sound}]. $$
+This is the certified cousin of the C2d directional charge $\|F_p\,\delta h\|$ (the <em>exact</em> linear response —
+tight but not sound): it <em>upper-bounds</em> that exact response, so the tight-but-heuristic directional tier
+becomes sound. Measured (C2e, $\sim$180 edits over the bidir ladder, one certified rate per checkpoint):</p>
+<ul>
+  <li><strong>Sound, universally:</strong> $\texttt{sound\_far}\ge\texttt{pred\_far}$ with <strong>0 violations</strong>
+      on every checkpoint (and $\texttt{global\_far}\ge\texttt{sound\_far}$ likewise).</li>
+  <li><strong>Anisotropy is large and pays:</strong> per-window $\sqrt{\lambda_{\max}(P_{jj})}$ spans 5.5–150&#215;;
+      using $P_{jj}$ instead of the whole-matrix $\lambda_{\max}(P)$ tightens the sound bound by
+      <strong>$\approx$5–22&#215;</strong> (median $\sim$11&#215;), while sitting only $\sim$6–20&#215; above the exact
+      response on well-conditioned cells.</li>
+  <li><strong>It recovers the direction half of the taxonomy, not the reader half:</strong> the charge cleanly
+      ranks <em>filler</em> (task-inert direction) 1–2 orders below the rest on every checkpoint, but does
+      <em>not</em> reliably order <em>irrelevant</em> vs <em>relevant</em> (monotone on 3/8). That split is a
+      <em>reader/routing</em> property the source block $P_{jj}$ is structurally blind to — which is exactly the
+      boundary that hands that job to the reader-set/DWR bound. The complementarity is now measured, not asserted.</li>
+  <li><strong>The certifiable rate tracks conditioning:</strong> the common rate rises from $r\!\approx\!0.55$ on
+      well-conditioned cells to $0.90$–$0.95$ near-singular, and the stiffest cell (bidirnp40, $\sigma_{\min}=0.024$)
+      admits <em>no</em> common rate on the grid at all — the bound is loose exactly where conditioning is bad, as it
+      must be.</li>
+</ul>
+
+<div class="callout key">
+  <strong>One certificate family, two solution modes.</strong> Block-diagonal Stein is not a new certificate — it is
+  the family that <em>contains both faces</em>. On the <strong>causal</strong> face $G$ is strictly block-bidiagonal
+  (subdiagonal transfers $T_i$; block size $=W$), and the block-diagonal Stein inequality
+  <em>decouples</em> into a backward recursion with no SDP:
+  $$ P_i = I + \tfrac{1}{r^{2}}\,T_i^{*}P_{i+1}T_i,\qquad P_m=I, $$
+  always feasible on a finite chain — and that recursion of per-window Gramians <em>is</em> the product-Lyapunov
+  certificate of <a href="09-causal-face-product-lyapunov.html">#9</a>. On the <strong>bidirectional</strong> face
+  $G$ is block-tridiagonal, the recursion does not close, and it is a genuine LMI (a modest chordal SDP at toy scale).
+  So the keystone sharpens: <em>one operator $G$, two regimes</em> becomes <strong>one certificate family
+  (block-diagonal Stein), two solution modes</strong> — backward recursion (nilpotent corner) vs LMI (contractive).
+  The dense-$P$ Stein solve of §1e is the isotropic special case that discards the per-window structure both faces
+  otherwise expose.</div>
+
+<p><strong>The catch (why we mine the free half first).</strong> Restricting $P$ to block-diagonal shrinks the
+feasible set, so a block-diagonal solution need not exist all the way down to $\rho(G)$ — the diagonal-stability /
+scaled-small-gain gap, real precisely when transient energy crosses several windows before dissipating. Expect the
+certifiable $r$ to rise and the constants to become anisotropic and mostly smaller. At the distances that matter
+here ($d=1$–3, where §3 shows the <em>constant</em> dominates the bound), anisotropic constants at a slightly worse
+rate should win — which is why the free diagonal-block charge above already captures most of the prize, and the full
+LMI is worth only a timeboxed check.</p>
+
 <h2>2. The scalar mnemonic that carries the shape</h2>
 
 <p>Strip the matrices away. Let $s_k=\|G^k\|$ be a scalar sequence that <em>first grows then decays</em> —
@@ -448,6 +559,8 @@ $\|r\|\lesssim1/(2\beta^{2}L)$; with $\beta=1/\sigma_{\min}\approx18$–$41$ tha
       <td>r</td><td class="warn">~</td><td class="bad">norm-loose</td><td class="good">&#10003;</td></tr>
   <tr><td>per-position directional</td><td>&#8214;[R&#183;r]<sub>i</sub>&#8214;</td><td>per-token</td><td>directional</td>
       <td>r</td><td class="warn">~</td><td class="good">&#10003; tightest</td><td class="bad">&#10007;</td></tr>
+  <tr class="win"><td>sound directional charge (&#167;1i)</td><td>&#8730;(v<sup>&#8868;</sup>P<sub>jj</sub>v)&#183;eff<sup>d</sup></td><td>per-source</td><td>directional</td>
+      <td>op</td><td class="good">&#10003;<sup>&#8224;</sup></td><td class="warn">~10&#215;</td><td class="good">&#10003;</td></tr>
   <tr><td>Newton&#8211;Kantorovich</td><td>R<sub>&#8722;</sub>=(1&#8722;&#8730;(1&#8722;2h))/&#946;L</td><td>global / per-token</td><td>either</td>
       <td>r&#8202;+&#8202;L</td><td class="bad">&#10007;</td><td class="good">&#10003; &#8594;&#951;</td><td class="good">&#10003;&#10003; theorem</td></tr>
   <tr class="win"><td>reader-set / DWR (escape)</td><td>adjoint-weighted, readers only</td><td>any</td><td>goal-oriented</td>
@@ -457,8 +570,14 @@ $\|r\|\lesssim1/(2\beta^{2}L)$; with $\beta=1/\sigma_{\min}\approx18$–$41$ tha
 </div>
 <p class="muted" style="font-size:.85rem; margin:.5em 0 0;">
   <em>uses:</em> op = the operator alone (a-priori, on the edit &#948;h); r = the post-edit residual
-  (a-posteriori); r&#8202;+&#8202;L adds a curvature bound. <strong>Granularity</strong> localizes any bound
-  (per-token verdict &#8594; early-stop / limited-position edits). <strong>Two faces:</strong> on the
+  (a-posteriori); r&#8202;+&#8202;L adds a curvature bound. <sup>&#8224;</sup>The <strong>sound directional
+  charge</strong> (&#167;1i) is the one row that is <em>directional and sound at once</em> &mdash; it reads the
+  edit direction $v$ through the diagonal block $P_{jj}$ of the <em>already-cached</em> Gramian (free; the
+  &ldquo;op&rdquo; a-priori charge, not a new solve), so it upgrades the plain directional row from heuristic to
+  sound at a &#8776;10&#215; slack. It anisotropizes on the <em>source/direction</em> side (a-priori, reader-blind);
+  the reader-set/DWR escape anisotropizes on the <em>reader</em> side (a-posteriori, edit-blind) &mdash; the two
+  are complements at opposite ends of the pipeline, not competitors. <strong>Granularity</strong> localizes any
+  bound (per-token verdict &#8594; early-stop / limited-position edits). <strong>Two faces:</strong> on the
   <em>causal / IVP</em> face the undirected ball &#8776; the whole suffix, so <em>direction is the whole
   content</em>, and the reader-set escape is available whenever the readers are known (denied only for unknown
   future readers = open generation); on the <em>bidirectional / BVP</em> face the reach envelope is a genuine

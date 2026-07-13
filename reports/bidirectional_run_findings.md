@@ -190,6 +190,31 @@ iteration, NOT temporal contraction of f (ρ(J) still to 8.4); two distinct axes
 so no reliance on a fragile estimate; block inverse kept fp64). Remaining theory: formalize √λmax(P) scaling;
 scale story = Arnoldi ρ(G) + low-rank/block Stein solvers (deployment uses a-posteriori resid/σ_min anyway).
 
+**BLOCK-DIAGONAL STEIN → a FREE sound directional charge + the causal↔bidir unification (2026-07-13,
+`c2e_blockdiag_stein.py`, ~180 edits over the bidir ladder, one common certified rate/checkpoint).** Restricting
+the Stein metric to block-diagonal-by-window `P=blkdiag(P_1..P_m)` is the *directional/per-source* refinement of
+§4c. **The free half (Fable):** an edit δh supported in window j gives `u*Pu = u_j*P_jj u_j` EXACTLY
+(off-diagonal blocks drop; u=D⁻¹δh), so the diagonal block of the ALREADY-CACHED dense Gramian yields a certified,
+source+direction-anisotropic charge `√(u_j*P_jj u_j)·eff^d0/(1−eff)` at **zero new solve** — the certified cousin of
+C2d's exact-but-heuristic `‖F_p δh‖`. MEASURED: (1) **sound universally** — `sound_far ≥ pred_far` with **0
+violations on every checkpoint** (and global ≥ sound likewise); it upper-bounds the exact linear response, so the
+tight directional tier becomes SOUND. (2) **anisotropy pays** — per-window √λmax(P_jj) spans 5.5–150×; using P_jj
+vs whole-matrix √λmax(P) tightens ≈**5–22×** (median ~11×), sitting only ~6–20× above the exact response on
+well-conditioned cells. (3) **recovers the DIRECTION half of the taxonomy, not the READER half** — cleanly ranks
+*filler* (inert direction) 1–2 orders below the rest on all 5 checkpoints that have it, but does NOT reliably order
+*irrelevant* vs *relevant* (monotone 3/8): that split is a reader/routing property P_jj is structurally blind to →
+**empirically hands that job to DWR** (source-anisotropic a-priori & reader-blind here; DWR reader-anisotropic
+a-posteriori & edit-blind — complements at opposite ends, now MEASURED not asserted). (4) **certifiable rate tracks
+conditioning** — common r rises 0.55 (well-cond) → 0.90–0.95 (near-singular); stiffest cell (bidirnp40, σ_min=0.024)
+admits NO common rate on the grid = loose exactly where conditioning is bad. **THE UNIFICATION (paper remark
+regardless of the LMI):** block-diagonal Stein is the *family* containing both faces — causal G is strictly
+block-bidiagonal so the inequality DECOUPLES into a backward recursion `P_i = I + T_i*P_{i+1}T_i/r²` (no SDP, always
+feasible) which **IS** the product-Lyapunov cert of note #9; bidir is the genuine LMI (chordal SDP). So "one operator
+G, two regimes" sharpens to **"one certificate family, two solution modes"** (recursion vs LMI); dense-P §4c is the
+isotropic special case. Full-block LMI = one timeboxed chordal-SDP check (feasibility shrinks near ρ(G) —
+diagonal-stability gap — but §3 says the *constant* dominates at d=1–3, so the free diagonal-block charge already
+captures most of the prize). Folded into note #11 §1(h)–(i) + the certificate-map "sound directional charge" row.
+
 ---
 
 ## 5. The reader-set principle — the correct general statement of must-carry
