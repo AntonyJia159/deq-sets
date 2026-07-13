@@ -132,19 +132,36 @@ RESIDUAL = False                         # module flag: add a STATE skip path to
                                          # well-posed for r<1 (z* = (h0 + s*A(z*))/(1-r)). Tests how a residual
                                          # moves sigma_min / rho(J) / rho(G) at matched task. Opt-in; off elsewhere.
 R_MAX = 0.8                              # cap on the residual coefficient (keeps 1-r away from 0)
+ANCHOR = False                           # module flag: prepend a global REGISTER token (slot 0) -- attendable
+                                         # from every position and aggregating all non-query context (a hub).
+                                         # Turns the O(gap/W)-hop windowed relay into hub-and-spoke O(1), to
+                                         # keep sigma_min off 0 / recall up at long gaps (the near-singular
+                                         # carry-chain fix). Breaks strict block-banded structure with a RANK-d
+                                         # BORDER (banded body + low-rank anchor; Schur/Woodbury certifiable).
+                                         # A learned d-vector prepended in h0, global in the mask, DROPPED before
+                                         # the head so all downstream token indexing is unchanged. Opt-in.
 
 
 def band_causal_mask(L, device):
     i = torch.arange(L, device=device)[:, None]
     j = torch.arange(L, device=device)[None, :]
     if BIDIR:
-        m = (i - j).abs() <= W                           # bidirectional band (Faber/BVP face)
+        core = (i - j).abs() <= W                         # bidirectional band (Faber/BVP face)
         if READONLY_Q:
-            m = m & ((j < L - NQ) | (j == i))            # queries attendable by nobody (self excepted)
+            core = core & ((j < L - NQ) | (j == i))       # queries attendable by nobody (self excepted)
         if QUERY_FULL:
-            m = m | ((i >= L - NQ) & ((j < L - NQ) | (j == i)))   # query rows see all context
-        return m
-    return (j <= i) & (i - j <= W)                       # (L,L) True = allowed (causal + within window)
+            core = core | ((i >= L - NQ) & ((j < L - NQ) | (j == i)))   # query rows see all context
+    else:
+        core = (j <= i) & (i - j <= W)                    # (L,L) True = allowed (causal + within window)
+    if not ANCHOR:
+        return core
+    m = torch.zeros(L + 1, L + 1, dtype=torch.bool, device=device)   # slot 0 = global register (hub)
+    m[1:, 1:] = core                                      # banded body shifted by the anchor slot
+    m[:, 0] = True                                        # every position READS the anchor hub
+    nonq = torch.ones(L, dtype=torch.bool, device=device); nonq[L - NQ:] = False
+    m[0, 1:] = nonq                                       # anchor AGGREGATES all non-query context (query-clean)
+    m[0, 0] = True
+    return m
 
 
 class SeqDEQ(nn.Module):
@@ -167,6 +184,8 @@ class SeqDEQ(nn.Module):
             self.mlp_out = nn.Linear(4 * d, d, bias=False)
         if RESIDUAL:                                             # learnable state-skip coefficient (r ~ 0.08 init)
             self.r_raw = nn.Parameter(torch.tensor(-2.2))
+        if ANCHOR:                                               # global register (hub) token, prepended in h0
+            self.anchor = nn.Parameter(0.02 * torch.randn(d))
         self.head = nn.Linear(d, NVAL)
         if FACTORED:                                             # real-valued factored substrate
             self.mode_emb = nn.Embedding(N_MODES, d - D_VALUE)   # mode/role/boundary (d_mode dims)
@@ -185,10 +204,15 @@ class SeqDEQ(nn.Module):
 
     def h0(self, toks, values=None):
         if FACTORED:                                             # [ mode(d-D_VALUE) | value(D_VALUE) ]
-            return torch.cat([self.mode_emb(toks), values], dim=-1)
-        if NO_POSW:
-            return self.emb(toks)
-        return self.emb(toks) + self.posw[:toks.shape[1]]
+            base = torch.cat([self.mode_emb(toks), values], dim=-1)
+        elif NO_POSW:
+            base = self.emb(toks)
+        else:
+            base = self.emb(toks) + self.posw[:toks.shape[1]]
+        if ANCHOR:                                               # prepend the global register slot (slot 0)
+            a = self.anchor.view(1, 1, d).expand(base.shape[0], 1, d)
+            base = torch.cat([a, base], dim=1)
+        return base
 
     def wn(self):                                            # q/k RAW (must peak); v,o normed (contraction)
         return self.Wq.weight, self.Wk.weight, _sn(self.Wv.weight), _sn(self.Wo.weight)
@@ -267,6 +291,8 @@ class SeqDEQ(nn.Module):
         h0 = self.h0(toks, values)
         mask = band_causal_mask(toks.shape[1], toks.device)
         z = self.solve(h0, mask)
+        if ANCHOR:                                               # drop the register slot -> outputs align with toks
+            z = z[:, 1:]
         return self.head_reg(z) if FACTORED else self.head(z)
 
     def spectrum(self, toks1, values=None):
