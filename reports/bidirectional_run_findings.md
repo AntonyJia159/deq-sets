@@ -270,8 +270,25 @@ write-once). So the sound BOUND is cheap; accurate flip magnitude/discrimination
 bordering-corrected adjoint. CAVEAT: cheap-bound soundness is empirical (adjoint-norm stability under a local
 edit), not yet a theorem — a Schur/bordering correction would make it rigorous. This VALIDATES the
 division-of-labor framing above: the reader-restricted bound is the sound guarantee; the stripe/selection is
-measured mechanism. Folded into note #11 §4a + certificate-map row (measured) + skeleton tier-2. OWED (optional):
-the bordering-corrected cheap adjoint (rigorous cheap bound + recovered discrimination) = the natural exp on top.
+measured mechanism. Folded into note #11 §4a + certificate-map row (measured) + skeleton tier-2.
+
+**BORDERING/SCHUR CHEAP ADJOINT — the follow-up, a clean NEGATIVE that corrects an overclaim (2026-07-13,
+`colored_dwr_bordering.py`).** Q: can a Schur/Woodbury correction make the cached cheap adjoint rigorous AND
+length-independent? A: **NO.** The Woodbury algebra is exact (reader-row recon **1e-15** when the local set S spans
+the support), BUT the insert's operator change is **NON-LOCAL** at the converged fixed point: ΔM=J(z₂*)−J(z*) keeps
+**~45% of its mass beyond ±8 positions**, 17% beyond ±16, and vanishes only at S=whole sequence. Cause = STATE
+DEPENDENCE: J depends on z, and the equilibrium shifts everywhere the insert *reaches* (rate ρ(G)), so ΔM is global,
+not window-local → exact bordering needs S≈L → **no O(Wd) rigorous cheap correction exists** (refutes the "bordering
+makes it rigorous" line I'd written — corrected in note #11 §4a + skeleton #4). What the **warm-local** correction
+(truncate ΔM to a window, J(z_warm)) DOES buy: recovers flip **discrimination** on long-range earliest (naive 0× →
+schur **13–20×** ≈ oracle 13–29×), 100% **sound**, but reconstructs the WARM operator not R₂ (recon 20–990% on big
+flips) → a cheap **approximate answer-metering** signal, NOT a rigorous exact resolvent. Recency (latest) stays weak
+(~1×: nonlinear selection). Efficiency: since exact support is global there's no clean O(1)-in-L win for a rigorous
+bound; the approximate local LA clocked 3.6–7.3× faster than re-solve (growing with L) but at toy L~2W the support
+fills 60–80% of the seq. **NET (honest): cheap sound bound (naive cached adjoint) + cheap approximate long-range
+discrimination (warm-bordering); rigorous exact = re-solve. Structural-edit resolvent updates do NOT localise** —
+a genuine result (the reach ρ(G)^dist bounds the RESPONSE decay, but the state-dependent JACOBIAN CHANGE spreads
+globally). Better found pre-draft. Folded: note #11 §4a, skeleton #4, this entry.
 
 **How the ξ-ball interfaces with must-carry, and the central honesty (edit-locality is dual to forgetting).**
 The certificate is worst-case (smallest-σ_min direction), so the ξ-ball **always contains** the carry

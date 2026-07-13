@@ -616,15 +616,29 @@ warm start, the reader-restricted bound is $\|H\,R[q,:]\|\,\|r\|$ against the gl
       <em>not</em> survive: the cached adjoint (linearised at the old selection) under-predicts a flip $\sim$2&#215;
       and its in/off separation collapses to 0.9&#215; on recency (3.6&#215; on write-once). So the sound
       <em>bound</em> is cheap; accurate <em>flip magnitude / discrimination</em> wants a fresh or bordering-corrected
-      adjoint. (The cheap bound's soundness is empirical — it leans on adjoint-norm stability under a local edit,
-      which a Schur/bordering correction would make rigorous.)</li>
+      adjoint.</li>
+  <li><strong>Can a Schur/bordering correction make the cheap adjoint rigorous <em>and</em> length-independent?
+      No — tested and refuted (`colored_dwr_bordering.py`).</strong> The Woodbury algebra is exact (reader-row
+      reconstruction $10^{-15}$ when the local set $S$ spans the support), but the insert's operator change is
+      <em>non-local</em> at the converged fixed point: $\Delta M = J(z_2^{\star})-J(z^{\star})$ keeps $\sim$45% of
+      its mass beyond $\pm8$ positions and vanishes only when $S$ = the whole sequence. The cause is
+      state-dependence — $J$ depends on $z$, and the equilibrium shifts everywhere the insert <em>reaches</em> (at
+      rate $\rho(G)$) — so exact bordering needs $S\approx L$: no $O(Wd)$ rigorous cheap correction exists. What the
+      <em>warm-local</em> correction (truncate $\Delta M$ to a window, $J(z_{\text{warm}})$) does buy: it recovers
+      the flip <em>discrimination</em> the naive adjoint lost (naive $0\times\to$ 13–20&#215;, $\approx$oracle) on
+      long-range deps and stays empirically sound — an approximate cheap <strong>answer-metering</strong> signal, not
+      an exact resolvent (it reconstructs the warm operator, not $R_2$). So the cheap bound's soundness stays
+      empirical; a rigorous <em>and</em> length-independent cheap bound is not available — structural-edit resolvent
+      updates do not localise.</li>
 </ul>
 <div class="callout key">
   <strong>Net.</strong> The keystone stands and is now measured: reader-restricted DWR is sound and $\sim$10&#215;
   tighter than the global bound, and that survives caching the adjoint — the deployment object. The linear adjoint
   certifies <em>invariance</em> (who a reader does <em>not</em> read) robustly; it detects colour-stripe membership,
-  and the nonlinear <em>selection</em> among same-colour writes is where a fresh/bordering-corrected adjoint (or the
-  residual) does the work. This is the honest boundary of the escape, established before drafting.
+  and the nonlinear <em>selection</em> among same-colour writes is where a fresh adjoint does the work. A bordering
+  correction recovers that selection <em>approximately and cheaply</em> on long-range deps (answer-metering) but
+  <em>not</em> rigorously — the insert's operator change is non-local, so the exact route is a re-solve. This is the
+  honest boundary of the escape, established before drafting.
 </div>
 
 <h2>5. Two invariants, kept straight</h2>

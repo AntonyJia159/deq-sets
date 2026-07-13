@@ -384,9 +384,14 @@ note #11 §4a):** `w_reader·source` reader-restricted bound **100% sound**, **6
 sound bound **survives caching the adjoint** (refresh only the residual); certifies off-stripe INVARIANCE cleanly,
 but the nonlinear same-color SELECTION (flip discrimination) needs a fresh/bordering-corrected adjoint (collapses
 under the cached one on recency). The keystone, measured. → next: (4);
-(4) **bordering/Schur accuracy + the bordering-corrected cheap adjoint** (insert response = resolvent column
-sourced at the cut, rank-d, `ρ(G)` decay — validate like C2d-V1/V5; AND the Schur correction that makes the cheap
-DWR bound rigorous + recovers flip discrimination without a re-solve — the natural exp on top of #3).
+(4) **bordering/Schur cheap adjoint** — ✅ **DONE (2026-07-13, `colored_dwr_bordering.py`):** Woodbury algebra
+exact (recon 1e-15 at full support), BUT the insert's operator change is **NON-LOCAL** at the converged fixed point
+(ΔM = J(z₂*)−J(z*) keeps ~45% mass beyond ±8 positions; vanishes only at S≈L — state-dependent J, equilibrium
+shifts at rate ρ(G)). So there is **NO length-independent rigorous cheap correction** (refutes the earlier hope).
+The **warm-local** correction recovers flip **discrimination** on long-range deps (naive 0× → 13–20× ≈ oracle),
+stays sound, but reconstructs the warm operator not R₂ → a cheap **approximate answer-metering** signal, not a
+rigorous exact bound. Honest upshot: cheap sound bound (naive) + cheap approximate long-range discrimination
+(warm-bordering); rigorous exact = re-solve. Structural-edit resolvent updates do **not** localise.
 
 ## Framing decisions (locked)
 
