@@ -123,6 +123,15 @@ FACTORED = False                         # module flag: FACTORED embedding for r
                                          # off for every token-classification substrate.
 D_VALUE = 0                              # value-subspace width when FACTORED (d_mode = d - D_VALUE)
 N_MODES = 4                              # number of mode tokens (filler / value-carrier / boundary / spare)
+RESIDUAL = False                         # module flag: add a STATE skip path to the cell -- out += r*z (r
+                                         # learnable in [0,R_MAX)). The curr/currnp/bidir cell is residual around
+                                         # the INJECTION (out = h0 + s*A(z)) but has NO identity path on z, so
+                                         # J = s*dA/dz has no I component. A residual connection adds +r*I to J
+                                         # -> I-J = (1-r)I - s*dA/dz: shifts the diagonal directly (structural,
+                                         # not just a nonlinear per-position block like MLP). Fixed point stays
+                                         # well-posed for r<1 (z* = (h0 + s*A(z*))/(1-r)). Tests how a residual
+                                         # moves sigma_min / rho(J) / rho(G) at matched task. Opt-in; off elsewhere.
+R_MAX = 0.8                              # cap on the residual coefficient (keeps 1-r away from 0)
 
 
 def band_causal_mask(L, device):
@@ -156,6 +165,8 @@ class SeqDEQ(nn.Module):
         if MLP:                                                  # per-position transformer MLP (arithmetic cell)
             self.mlp_in = nn.Linear(d, 4 * d, bias=False)
             self.mlp_out = nn.Linear(4 * d, d, bias=False)
+        if RESIDUAL:                                             # learnable state-skip coefficient (r ~ 0.08 init)
+            self.r_raw = nn.Parameter(torch.tensor(-2.2))
         self.head = nn.Linear(d, NVAL)
         if FACTORED:                                             # real-valued factored substrate
             self.mode_emb = nn.Embedding(N_MODES, d - D_VALUE)   # mode/role/boundary (d_mode dims)
@@ -167,6 +178,10 @@ class SeqDEQ(nn.Module):
     @property
     def s(self):
         return S_MAX * torch.sigmoid(self.s_raw)
+
+    @property
+    def r(self):
+        return R_MAX * torch.sigmoid(self.r_raw)
 
     def h0(self, toks, values=None):
         if FACTORED:                                             # [ mode(d-D_VALUE) | value(D_VALUE) ]
@@ -229,6 +244,8 @@ class SeqDEQ(nn.Module):
             a = sc / (sc.sum(-1, keepdim=True) + 1e-6)
         o = (a @ v).transpose(1, 2).reshape(B, L, d)
         out = h0 + self.s * (o @ Wo.t())
+        if RESIDUAL:                                             # state skip -> J gains a +r*I block (I-J -> (1-r)I - sA')
+            out = out + self.r * z
         if MLP:                                                  # transformer MLP sub-block (normed + s-scaled)
             hm = F.gelu(out @ _sn(self.mlp_in.weight).t()) @ _sn(self.mlp_out.weight).t()
             out = out + self.s * hm

@@ -182,7 +182,18 @@ task is spec'd (**not yet built**).
     block-diagonal picture is wrong (informative either way). And **multi-attribute** `(entity,attribute)→value`
     is a *conjunctive* bind (match both keys) — the classic thing attention does poorly and an MLP rescues — so
     the realistic enrichment is exactly where the MLP *earns its place* (answers "pure attention is unrealistic").
-    Residual connections = a separate, sharper knob (they change `I−J` **structurally**, not just `D`).
+  - **The residual/state-skip is the LINEAR CONTROL for this prediction — already run (2026-07-12,
+    `curriculum_currnp_residual.py`, digest).** A state skip `out += r·z` has Jacobian `r·I` = *pure block-diagonal*,
+    the same class as the MLP but with NO nonlinearity to confound attribution. Measured on causal currnp: it
+    **moves σ_min** (robustly ~0.63× lower — the `(1−r)I` diagonal shift) while **ρ(G) stays nilpotent(0)** — i.e.
+    a block-diagonal knob touches `D`/σ_min and leaves the reach structure, exactly the MLP prediction's mechanism,
+    now witnessed cleanly. Caveat: causal ρ(G)=0 is *structural*, so the genuine "ρ(G) unmoved at a NONZERO rate"
+    test still needs the **bidir** residual (there the additive skip changes `D→D⁻¹→G`, likely moving both; the
+    clean σ_min-only lever is the *relaxation* residual `z+α(g−z)`, ρ(G)-invariant but a solver reparam). The
+    skip is *recruited* (learned r≈0.23) and recall-neutral on the (trimmed) substrate → it is a σ_min-*lowering*
+    knob, NOT a QK-norm/RoPE-style failed fix. So the MLP experiment inherits a de-risked prior: the block-diagonal
+    → σ_min-only mechanism is confirmed; what's open is whether the MLP's σ_min move is *up* (regularizing) on a
+    task that exercises it.
 
 ## Positioning — entity tracking, binding, and the bidir gap (2026-07-12)
 
@@ -306,6 +317,65 @@ A short **"Where the certificate lands"** discussion paragraph, unequal weight, 
    inpainting, generative fill) is the *same emergent-reach object* on 2D tokens (§emergent-reach). IF the
    conditioning/reach analysis ports to a denoiser's edit-response, this is the big use-case — big-if-true only;
    do NOT claim it, gesture once. This is the honest bridge from "small equilibrium/science niche" to scale.
+5. **RAG context-editing — a CAUSAL-face plus** (the sharpest concrete hook — see the structural-edits section
+   below). Mainstream RAG (`[docs][query]` on a decoder) is causal with a KNOWN reader (the query); retrieval
+   inserts/deletes/reorders chunks around a fixed base = structural edits into an amortized equilibrium. On the
+   causal face this is cheap (free append `b=0`, one-sided mid-insert cone) AND certifiable (known query → DWR
+   applies despite near-singularity), so it *upgrades the causal diagnostic register to a certificate*. The
+   machinery meters re-solve cost by a chunk's influence AND certifies (DWR) whether a chunk changes the answer
+   ("which docs matter" = attribution/pruning). Known-reader sub-regime, NOT open-generation KV-cache; a DEQ
+   encoder is an alternative home. Speculative deployment, concrete mechanism — a better hook than generic serving.
+
+## Structural edits (insert/delete) & the RAG metering hook (2026-07-12)
+
+The certificate extends from VALUE edits (δh in a fixed space) to STRUCTURAL edits (change the number/order of
+tokens) via **operator bordering**: an insert borders `(I−J)` with a new row/column (the new token's couplings)
+→ the old-block response is the **Schur complement** `S = δ − cᵀM⁻¹b`, a rank-≤d update to the cached resolvent;
+delete = the dual **downdating**. All tiers inherit because insert = (local band update at the cut) + (rank-d
+bordering sourced at the cut), both resolvent-localized: tier-1 reach decays `ρ(G)^{dist(cut)}`; tier-2 residual
+bound holds on the new system with the NEW conditioning risk carried *solely* by `S` (`det M'=det M·det S` →
+`σ_min(S)` = the new-token stiffness gate, from local blocks); directional/Woodbury updates `R` by the rank-d
+Schur; **DWR reader-invariance** = `w_reader·(bordering source)` certifies whether the edit changes any reader's
+output. Locality is real in **content-attached (token-attached) block** coordinates; index-attached blocking
+manufactures a fake all-blocks-changed (same lesson as relative-vs-absolute PE). Lineage: matrix bordering/Schur
+(numerical LA); prolongation–restriction + DWR (adaptive mesh refinement — DWR's native home); Fock-space /
+domain-perturbation (the general "changing the number/shape of inputs" frameworks).
+
+**Warm-start correction (do not repeat the earlier overstatement):** insert/delete DO have a warm start — the
+aligned-frame copy (old tokens' states at shifted positions + init the new slot); Woodbury-bordering is the
+"warmer-than-warm" PREDICTOR on top, so it's the *same warm-vs-warmer question* as value edits. Whether
+warmer-than-warm beats plain warm ALL-IN is conditional: the predictor is a resolvent action `R·source`; for a
+LOCAL edit it needs only cached block-columns of `R` in the ξ-ball ≈ *one local iteration's work*, so it pays iff
+it saves >1 Broyden iteration — **but only if `R` is amortized** (cached across many edits to a fixed base);
+recompute-per-edit is a wash. **The amortized regime = insert/delete into a fixed base = RAG** — that is the
+mechanism that flips wash → net win, and the honest resolution of "does warmer-than-warm really beat warm."
+
+**RAG emergent metering — a CAUSAL-FACE plus (known-reader sub-regime), not a bidir-only hook (corrected
+2026-07-12).** Insert/delete is RAG's *native* operation (chunks added/removed/reordered around a fixed base), and
+the mainstream pattern — `[docs][query]` on a *decoder* — is **causal with a KNOWN reader** (the query sits
+downstream and attends back). This is the cleaner home for THREE causal-specific reasons: (i) **append is free**
+(`b=0` bordering → prefix exactly preserved; the digest's "no free append on the bidir face" is exactly this — free
+append is a *causal* property); (ii) **mid-insert is one-sided** (a downstream causal cone; the prefix `<c` is
+untouched, vs bidir's two-sided perturbation); (iii) the **query is a known reader**, so DWR reader-invariance
+applies causally *despite* near-singularity — this is where the causal face's DIAGNOSTIC register **upgrades to a
+usable certificate** (the colored-recall 83% known-reader recovery is the precedent). Two metering flavors: (a)
+**compute metering** — re-solve cost ∝ how much a chunk perturbs the equilibrium (tier-3 for structural edits:
+irrelevant chunk cheap, answer-changing chunk expensive); (b) **DWR answer metering** — `w_query·(chunk source)`
+certifies whether a chunk changes the answer = context-pruning / attribution ("which retrieved docs actually
+matter") as a sound+tight inner product, no re-solve for inert chunks. RAG is the convergence point where the
+causal threads line up: free/cheap structural edits + known reader (DWR) + amortized base (predictor pays). A DEQ
+context-ENCODER (bidir, Perceiver/cross-attn known-reader family) is a legitimate *alternative* home, not the
+primary one. Honest scope: DEQ-RAG isn't deployed — we offer the MECHANISM, speculative-but-concrete; it sits in
+the **known-reader sub-regime** (which the two-registers split, built on the open-generation default, didn't
+cover), so it makes the causal face *not only a diagnostic*.
+
+**Dedicated experiments (proposed):** (1) insert/delete **warm-vs-warmer, ALL costs priced** (cold / aligned-warm
+/ Woodbury-bordering under Broyden, COUNT the predictor's resolvent action, `R`-cached vs recomputed → answers the
+net-win question); (2) **structural-edit emergent metering** (C2m for inserts: re-solve cost vs ‖Δz‖ Spearman by
+filler/relevant chunk); (3) **DWR reader-invariance for inserts on colored-recall** (insert a `(color,value)`;
+the answer-flip ground truth is KNOWN — same color & more recent; does `w_reader·source` predict it, sound+tight?);
+(4) **bordering/Schur accuracy** (insert response = resolvent column sourced at the cut, rank-d, `ρ(G)` decay —
+validate like C2d-V1/V5).
 
 ## Framing decisions (locked)
 

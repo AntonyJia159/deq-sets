@@ -506,6 +506,54 @@ absolute magnitudes are large — the **ratio** is the clean signal, not the mag
 expectation is right for ABSOLUTE PE (70×); relative PE reduces insert/delete to a certifiable, low-rank,
 maintainable width-w edit at the cut — the aligned-frame reduction is real.**
 
+**INSERT/DELETE AS OPERATOR BORDERING — the machinery, the warm-start correction, the RAG metering hook
+(2026-07-12, framework + planned experiments).** The empirical §11 shadow now has an exact algebraic home. A
+VALUE edit is `δh` in a fixed space (the resolvent eats it); a STRUCTURAL edit changes the operator's SIZE, and
+the native language is **matrix bordering + Schur complement**: an insert borders `M=(I−J)` with a new row/column
+`(b, cᵀ, δ)` = the new token's couplings; the old-block correction is `−M⁻¹b·S⁻¹·(…)` with `S = δ − cᵀM⁻¹b` the
+Schur complement (a rank-≤d update to the cached `R`). Delete = the dual downdating `(M_AA)⁻¹ = R_AA −
+R_Ab(R_bb)⁻¹R_bA` (subtract every resolvent path routed through the deleted token; hub-ness = size of `R_{·b}`).
+**All tiers inherit** because insert = (local band update `ΔM_band` at the cut, = the §11 renormalization/window-
+churn, handled as a multi-site substitution) + (rank-d bordering sourced at the cut): tier-1 reach decays
+`ρ(G)^{dist(cut)}` (the correction IS a resolvent column sourced at the cut = the measured rank 2–6 far field);
+tier-2 residual bound holds on the new system, with the NEW conditioning risk carried SOLELY by `S`
+(`det M'=det M·det S` → `σ_min(S)` is the new-token stiffness gate, from LOCAL blocks); directional/Woodbury
+updates `R` by the rank-d Schur; **DWR reader-invariance** = `w_reader·(bordering source)` certifies whether the
+edit changes any reader's output (a single inner product, no re-solve). Locality is genuine only in
+**token-attached block** coordinates — index-attached blocking manufactures a fake all-blocks-changed (the same
+relative-vs-absolute-PE lesson, one level up: structural edits are local in every structure attached to CONTENT,
+global in every structure attached to COORDINATES). Lineage to cite: bordering/Schur (num LA); prolongation–
+restriction + DWR (adaptive mesh refinement, DWR's home); Fock-space / domain-perturbation (general "change the
+number/shape of inputs").
+- **WARM-START CORRECTION (I overstated "no warm start"):** insert/delete DO have a warm start = the aligned-frame
+  copy (old states at shifted positions + init the new slot); only the cut's ξ-ball re-settles. Woodbury-bordering
+  is the "warmer-than-warm" PREDICTOR on top → the SAME warm-vs-warmer question as value edits, not warm-vs-cold.
+- **DOES WARMER-THAN-WARM BEAT WARM ALL-IN?** Conditional: the predictor is a resolvent action `R·source`; LOCAL
+  edit → only cached block-columns of `R` in the ξ-ball ≈ ONE local iteration's work → pays iff it saves >1 Broyden
+  iter (toy: 15–30% = 2–4 iters). BUT only if `R` is AMORTIZED (cached across many edits to a fixed base);
+  recompute-per-edit = a wash. **The amortized regime = insert/delete into a fixed base = RAG** — the mechanism
+  that flips wash → net win (+ periodic `R` refresh for staleness). This is the honest answer to "can linear-
+  prediction+Broyden beat plain warm start."
+- **RAG EMERGENT METERING — a CAUSAL-FACE plus (corrected: NOT bidir-only).** Mainstream RAG = `[docs][query]` on
+  a DECODER = CAUSAL with a KNOWN reader (query downstream, attends back). Cleaner on the causal face for 3 reasons:
+  (i) **append free** (`b=0` bordering, prefix preserved — "no free append on bidir" from §6 is exactly this: free
+  append is a CAUSAL property); (ii) **mid-insert one-sided** (downstream causal cone, prefix `<c` untouched, vs
+  bidir two-sided); (iii) **query = known reader** → DWR applies causally DESPITE near-singularity (colored-recall
+  83% precedent) → the causal DIAGNOSTIC register UPGRADES to a certificate. Metering: (a) compute = re-solve cost
+  ∝ chunk ‖Δz‖; (b) DWR answer = `w_query·(chunk source)` = "does this doc change the answer" = attribution/pruning,
+  sound+tight, no re-solve for inert. RAG = the convergence of the causal threads (cheap structural edits + known
+  reader + amortized base). A DEQ context-ENCODER (bidir, Perceiver/cross-attn) is an ALTERNATIVE home, not primary.
+  DEQ-RAG not deployed → mechanism only, speculative-but-concrete; the known-reader sub-regime the two-registers
+  split (open-generation default) didn't cover → makes the causal face NOT only a diagnostic.
+- **DEDICATED EXPERIMENTS (proposed — do a few):** (1) insert/delete **warm-vs-warmer ALL costs priced** (cold /
+  aligned-warm / Woodbury-bordering under Broyden, COUNT the predictor's resolvent action, `R`-cached vs recomputed
+  → the net-win question, answered); (2) **structural-edit emergent metering** (C2m for inserts: re-solve cost vs
+  ‖Δz‖ Spearman by filler/relevant chunk); (3) **DWR reader-invariance for inserts on colored-recall** (insert a
+  `(color,value)`; answer-flip ground truth KNOWN = same color & more recent; does `w_reader·source` predict it,
+  sound+tight? — the cleanest test, known reader-set); (4) **bordering/Schur accuracy** (insert response =
+  resolvent column sourced at cut, rank-d, `ρ(G)` decay — validate like C2d-V1/V5). Ties the reader-set/DWR
+  keystone to a real use-case.
+
 **Anchor-token contingency (recorded, NOT needed — keep in the drawer as an optional booster for the weak
 gap-40 stage).** If pure-relative had failed (or to close the recall gap), a designated anchor token is the
 minimal absolute scaffold, pleasing on four axes: (i) **BVP reading** — the bidirectional face is a
@@ -630,6 +678,31 @@ MLM-objective hypothesis and the local-decomposability limit are the two open ed
   tension** (the paper's "conditioning, not contraction" core) — the failed fix is *evidence for* the mechanism.
   Also rules QK-norm OUT and points at **RoPE** (orthogonal rotation, leaves logit magnitude/sharpness alone)
   as the one un-ruled-out simple conditioning option.
+- **RESIDUAL / STATE-SKIP smoke test — a σ_min-LOWERING block-diagonal knob (NOT a third failed fix); the linear
+  control for the MLP prediction (2026-07-12, `curriculum_currnp_residual.py`, `sw.RESIDUAL`).** The curr/currnp
+  cell is residual around the INJECTION (out = h0 + s·A(z)) so J = s·∂A/∂z has NO identity component. Added a
+  learnable STATE skip `out += r·z` (r ∈ [0,R_MAX=0.8)) → J gains +r·I → I−J = (1−r)I − s·∂A/∂z. Trained on the
+  currnp recipe (causal + rel-PE, window curriculum), TRIMMED ladder {0,16,40}, + a no-residual same-ladder CONTROL
+  (`DEQ_RES=0`, currnptrim*). **FOUR clean reads** (post-hoc σ_min & ρ(G) on matched MQAR seqs, `res_rhog`):
+  (1) **Recall collapse at gaps 16/40 is the TRIMMED LADDER, not the residual** — the no-residual control craters
+  identically (recall 0.618/0.340 vs full-ladder currnp 0.974/0.810; residual 0.571/0.347 = a wash vs control). So
+  the residual is recall-NEUTRAL here; a full-ladder run is owed for a clean long-gap recall verdict.
+  (2) **The residual robustly LOWERS σ_min ~0.63×** at every gap incl. the matched-recall gap 0 (0.120 vs control
+  0.197; 0.052 vs 0.081; 0.038 vs 0.059) — a σ_min-**worsening** knob (the (1−r)I diagonal shift toward
+  singularity), the OPPOSITE of QK-norm/RoPE → **NOT a third failed fix** in that family.
+  (3) **The model RECRUITS it** (r settles ~0.23, not driven to 0) even though it worsens conditioning & doesn't
+  help recall — a state-skip is wanted.
+  (4) **ρ(G) = nilpotent(0) for BOTH** residual and control (causal → strictly-lower G). So the residual moves
+  σ_min while leaving ρ(G) — but on the causal face ρ(G)=0 is STRUCTURAL (nilpotency forced by the mask), so this
+  is NOT a real (σ_min,ρ(G)) decorrelation, it just confirms the skip is a **block-DIAGONAL knob** (touches D, not
+  the off-diagonal reach structure). MEANING: this is the cleanest witness of the "block-diagonal → σ_min-only"
+  mechanism (a pure identity path, no nonlinearity) → it is the **LINEAR CONTROL that de-risks the MLP's
+  'moves σ_min not ρ(G)' prediction** before the MLP is ever run on a semantic task. CAVEATS: causal only (ρ(G)=0
+  pinned), trimmed ladder (recall inconclusive). OWED: (a) **BIDIR residual** = the real decorrelation test (does a
+  NONZERO ρ(G) move? the additive skip changes D→D⁻¹→G so likely moves BOTH on bidir; the clean σ_min-only lever is
+  the RELAXATION residual z+α(g−z) which scales I−J by α with ρ(G) exactly invariant — but that's a solver reparam,
+  same fixed points); (b) full-ladder residual. Files: `curriculum_currnp_residual.py` (DEQ_RES toggle),
+  `sw.RESIDUAL`/`R_MAX`, currnpres/currnptrim{00,16,40}.pt, logs currnpres_log.txt / currnptrim_log.txt.
 - **Per-WINDOW residual early-stop — TEST 1 (retrospective): SAFE but MODEST (2026-07-09, `c5_window_earlystop.py`).**
   Freeze a window once its certified error bound `Σ_j‖R[i,j]‖‖res_j‖ < 1%·‖z*_i‖` during a warm post-edit
   re-solve; the active set shrinks toward the edit. **v1 was unsafe** (rampant false-freezes) from a TARGET BUG:
