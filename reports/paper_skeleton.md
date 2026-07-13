@@ -289,6 +289,20 @@ objection.
 6. **Motivation** — editable context / certified KV-cache invalidation (bidir). (Reader-set as a principle;
    hub/spoke task = future work, capacity-ceilinged at toy scale.)
 
+## Anchor / global-register direction — PROVISIONAL (2026-07-14, preview only)
+
+At gap-60 the windowed relay goes near-singular (σ_min→0, recall sags: currnp 0.70, bidirnp 0.46) — the
+long carry-chain. A **global register token** (`sw.ANCHOR`: hub-and-spoke, O(1) reach) rescues the **causal**
+face (currnp 0.80, σ_min off 0) — bidir recovers recall (0.75) but stays near-singular (its native σ_min
+regime). It breaks strict bandedness with a **rank-d border** (banded body + low-rank anchor; Schur/Woodbury-
+certifiable). Far-field probe (`anchor_far_field.py`): **emergent filtering, NOT diffusion** — the hub
+aggregates key/value 15× over filler, ignores queries; **border eff-rank ~7/64**; near-field locality survives,
+far field gets a *content-selective floor* (binding edits reach globally via the hub, filler stays local).
+Cost lands selectively on reach-decay/early-stop; reader-set/DWR absorbs it. **Opens a "banded + low-rank /
+global-attention certificate" section** (one anchor = rank-d bottleneck → defers not removes the wall;
+scalable = O(L/W) landmark registers → banded + rank-(k·d)). All PREVIEW-grade (600-step warm-start, not
+canonical) — retrain + fold into note 11/digest before it's load-bearing.
+
 ## Where the certificate lands — outlook pointers (one hook + three unequal gestures)
 
 READ WITH the **2026-07-12 deployment recalibration** above: these pointers stand, but the *framing* is now
