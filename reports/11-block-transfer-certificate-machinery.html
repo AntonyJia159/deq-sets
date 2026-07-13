@@ -532,7 +532,8 @@ $\|r\|\lesssim1/(2\beta^{2}L)$; with $\beta=1/\sigma_{\min}\approx18$–$41$ tha
   <strong>reader-set / goal-oriented</strong> bound (adjoint / dual-weighted-residual) that measures the residual's
   effect only on the <em>output at reader positions</em>, dropping the far-field slack that makes the scalar loose —
   still an over-estimate (sound), but tighter. That is the reader-set principle in a-posteriori-estimation clothing,
-  and the open lever for a certificate that is both rigorous and not loose.
+  and the escape for a certificate that is both rigorous and not loose — <strong>now measured</strong> (§4a below):
+  100% sound and $\approx$6–12&#215; tighter than the global $\|r\|/\sigma_{\min}$.
 </div>
 
 <figure style="margin:1.8em 0;">
@@ -563,8 +564,8 @@ $\|r\|\lesssim1/(2\beta^{2}L)$; with $\beta=1/\sigma_{\min}\approx18$–$41$ tha
       <td>op</td><td class="good">&#10003;<sup>&#8224;</sup></td><td class="warn">~10&#215;</td><td class="good">&#10003;</td></tr>
   <tr><td>Newton&#8211;Kantorovich</td><td>R<sub>&#8722;</sub>=(1&#8722;&#8730;(1&#8722;2h))/&#946;L</td><td>global / per-token</td><td>either</td>
       <td>r&#8202;+&#8202;L</td><td class="bad">&#10007;</td><td class="good">&#10003; &#8594;&#951;</td><td class="good">&#10003;&#10003; theorem</td></tr>
-  <tr class="win"><td>reader-set / DWR (escape)</td><td>adjoint-weighted, readers only</td><td>any</td><td>goal-oriented</td>
-      <td>r</td><td class="warn">~</td><td class="good">&#10003;</td><td class="good">&#10003;</td></tr>
+  <tr class="win"><td>reader-set / DWR (escape, §4a &#10003;measured)</td><td>adjoint-weighted, readers only</td><td>any</td><td>goal-oriented</td>
+      <td>r</td><td class="warn">~<sup>&#8225;</sup></td><td class="good">&#10003;</td><td class="good">&#10003;</td></tr>
 </tbody>
 </table>
 </div>
@@ -584,6 +585,47 @@ $\|r\|\lesssim1/(2\beta^{2}L)$; with $\beta=1/\sigma_{\min}\approx18$–$41$ tha
   screening length and the reader-set is native.
 </p>
 </figure>
+
+<h3>4a. The reader-set / DWR escape, measured (colored-recall inserts)</h3>
+
+<p>The escape row was cited, never run — so we ran it on the sharpest ground truth available. <strong>colored
+recall</strong> has an <em>exact</em> stripe rule: inserting a $(\text{color},\text{value})$ item flips reader
+$q$'s answer <em>iff</em> it is $q$'s colour <em>and</em> becomes the newly-selected write (more-recent for the
+recency task, earlier for write-once); every other insert (shadowed same-colour / different-colour / filler)
+leaves $q$ invariant. So the goal-adjoint influence $w_{\text{reader}}\!\cdot\!\text{source}$ has an exact binary
+to be checked. For reader $q$ at its (re-solved) fixed point, with head $H$ and residual $r$ of an aligned-frame
+warm start, the reader-restricted bound is $\|H\,R[q,:]\|\,\|r\|$ against the global $\|H\|\,\|r\|/\sigma_{\min}$
+(`colored_dwr_insert.py`, 16 seqs&#215;4 classes&#215;2 modes).</p>
+<ul>
+  <li><strong>Sound, and tighter — the reviewer's question answered.</strong> The ladder
+      $\texttt{actual} < \texttt{dwr\_est}\,(\sim\!1.5\text{–}7\times) < \texttt{bound\_reader}\,(\sim\!10\times)
+      < \texttt{bound\_global}\,(\sim\!100\times)$ held with <strong>100% soundness</strong> on every insert; the
+      reader-restriction is $\approx$6–12&#215; tighter than the global $\|r\|/\sigma_{\min}$. That gap
+      <em>is</em> the DWR payoff — the far-field slack $1/\sigma_{\min}$ charges blindly and the reader row drops.</li>
+  <li><strong>Reader-invariance to off-stripe inserts is certified;</strong> the goal-adjoint recovers the stripe
+      cleanly on the <em>long-range</em> (write-once) task (in/off separation 8.6&#215;) and at
+      <em>colour</em> granularity on the recency task (2.5&#215;: filler and other-colour screened, but a shadowed
+      <em>same-colour</em> insert is not cleanly separated from the selected one). Mechanism: the linear adjoint is
+      a colour-stripe <em>reach</em> detector; <em>which</em> same-colour write is selected is a nonlinear pick the
+      base-fixed-point adjoint smears — invariance to a shadowed insert is then carried by the small
+      <em>residual</em>, not by the adjoint factor.</li>
+  <li><sup>&#8225;</sup><strong>Cheap/cached ("~" in the map):</strong> reusing the <em>pre-insert</em> reader
+      adjoint (base $R$'s reader row, aligned) and recomputing only the one-eval residual keeps the <strong>sound
+      bound</strong> (100% sound, $\approx$ the oracle's tightness) — cache the expensive adjoint, refresh only the
+      residual, no re-solve. But the <em>tight</em> point-estimate and the flip <em>discrimination</em> do
+      <em>not</em> survive: the cached adjoint (linearised at the old selection) under-predicts a flip $\sim$2&#215;
+      and its in/off separation collapses to 0.9&#215; on recency (3.6&#215; on write-once). So the sound
+      <em>bound</em> is cheap; accurate <em>flip magnitude / discrimination</em> wants a fresh or bordering-corrected
+      adjoint. (The cheap bound's soundness is empirical — it leans on adjoint-norm stability under a local edit,
+      which a Schur/bordering correction would make rigorous.)</li>
+</ul>
+<div class="callout key">
+  <strong>Net.</strong> The keystone stands and is now measured: reader-restricted DWR is sound and $\sim$10&#215;
+  tighter than the global bound, and that survives caching the adjoint — the deployment object. The linear adjoint
+  certifies <em>invariance</em> (who a reader does <em>not</em> read) robustly; it detects colour-stripe membership,
+  and the nonlinear <em>selection</em> among same-colour writes is where a fresh/bordering-corrected adjoint (or the
+  residual) does the work. This is the honest boundary of the escape, established before drafting.
+</div>
 
 <h2>5. Two invariants, kept straight</h2>
 <p>The certificate touches two <em>distinct</em> pseudospectral facts, and the paper's title lives on keeping

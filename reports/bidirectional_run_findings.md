@@ -249,6 +249,30 @@ selective or not — that is the certificate (a guarantee)**; must-carry vs. que
 *where inside that sound envelope* the trained map puts transport — that is measured mechanism. Same structure
 as loose-but-sound recompute.
 
+**DWR / READER-SET BOUND — MEASURED, the keystone run before drafting (2026-07-13, `colored_dwr_insert.py`,
+exp #3; colored-recall INSERTS, 16 seqs×4 classes×2 modes).** The escape row of the note-#11 certificate map was
+cited but never run. colored-recall gives the EXACT stripe rule (an inserted (color,value) flips reader q IFF
+q's color AND newly-selected: more-recent for latest / earlier for earliest; else q invariant), so the
+goal-adjoint `w_reader·source` has an exact binary to check. Objects (reader q at re-solved fp, head H, residual
+r of an aligned warm start): reader bound `‖H·R[q,:]‖·‖r‖` vs global `‖H‖·‖r‖/σ_min`. RESULTS: (1) **SOUND +
+TIGHTER — the reviewer's "why didn't you run the adjoint bound" answered:** ladder actual < dwr_est(~1.5–7×) <
+bound_reader(~10×) < bound_global(~100×), **100% sound** every insert; reader-restriction **6–12× tighter** than
+global ‖r‖/σ_min (that gap = the far-field slack 1/σ_min charges blindly). (2) **reader-invariance to off-stripe
+inserts certified;** goal-adjoint recovers the stripe cleanly on long-range earliest (in/off 8.6×) but only at
+COLOR granularity on recency latest (2.5×: filler/other-color screened, shadowed same-color NOT separated from
+selected). Mechanism: the linear adjoint is a color-stripe REACH detector; which same-color write is SELECTED is
+a nonlinear pick the base-fp adjoint smears → invariance to a shadowed insert is carried by the small RESIDUAL,
+not the adjoint. (3) **CHEAP/CACHED (the deployment object):** reuse the PRE-insert reader adjoint (base R's
+reader row, aligned) + recompute only the 1-eval residual → the **sound bound SURVIVES** (100% sound, ≈oracle
+tightness; cache the expensive adjoint, refresh only r, no R2 re-solve). But the tight point-estimate + flip
+DISCRIMINATION do NOT: cached adjoint under-predicts a flip ~2× and in/off collapses to 0.9× on recency (3.6× on
+write-once). So the sound BOUND is cheap; accurate flip magnitude/discrimination wants a fresh or
+bordering-corrected adjoint. CAVEAT: cheap-bound soundness is empirical (adjoint-norm stability under a local
+edit), not yet a theorem — a Schur/bordering correction would make it rigorous. This VALIDATES the
+division-of-labor framing above: the reader-restricted bound is the sound guarantee; the stripe/selection is
+measured mechanism. Folded into note #11 §4a + certificate-map row (measured) + skeleton tier-2. OWED (optional):
+the bordering-corrected cheap adjoint (rigorous cheap bound + recovered discrimination) = the natural exp on top.
+
 **How the ξ-ball interfaces with must-carry, and the central honesty (edit-locality is dual to forgetting).**
 The certificate is worst-case (smallest-σ_min direction), so the ξ-ball **always contains** the carry
 direction → soundness holds for a queried-value edit (it correctly says "can reach the cursor"). But the *same*

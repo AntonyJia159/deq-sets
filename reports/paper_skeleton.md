@@ -69,7 +69,14 @@ a tight *estimate/heuristic*, not a guaranteed bound. NK `R₋` = RIGOROUS + tig
 cells). PICK TWO. Deployment upshot: the tight deployable object is effectively a heuristic; the one PRINCIPLED
 route to sound-AND-tighter is a different axis — the **reader-set / goal-oriented (adjoint / DWR) bound** (bound
 only the OUTPUT at reader positions, drop far-field slack). Deployment claim scoped accordingly (matches "don't
-oversell"); reader-set bound = flagged open direction.
+oversell"). **DWR bound now MEASURED (2026-07-13, `colored_dwr_insert.py`, exp #3; note #11 §4a):** on
+colored-recall inserts the reader-restricted bound `‖H·R[q,:]‖·‖r‖` is **100% sound** and **6–12× tighter** than
+global `‖r‖/σ_min` (ladder actual < dwr_est ~1.5–7× < bound_reader ~10× < bound_global ~100×), and this **survives
+caching the pre-insert adjoint** (refresh only the residual — the deployment object). The linear adjoint certifies
+reader-INVARIANCE robustly (recovers the color-stripe; off-stripe screened) but the nonlinear SELECTION among
+same-color writes is where a fresh/bordering-corrected adjoint (or the residual) does the work — flip
+discrimination collapses on recency under the cached adjoint. So: sound *bound* is cheap; tight flip
+*discrimination* wants the correction. No longer a flagged open direction — the escape is real, scoped, and honest.
 
 ## Maintenance-regime framing (the trust-region view-shift, 2026-07-09)
 
@@ -372,10 +379,14 @@ cover), so it makes the causal face *not only a diagnostic*.
 **Dedicated experiments (proposed):** (1) insert/delete **warm-vs-warmer, ALL costs priced** (cold / aligned-warm
 / Woodbury-bordering under Broyden, COUNT the predictor's resolvent action, `R`-cached vs recomputed → answers the
 net-win question); (2) **structural-edit emergent metering** (C2m for inserts: re-solve cost vs ‖Δz‖ Spearman by
-filler/relevant chunk); (3) **DWR reader-invariance for inserts on colored-recall** (insert a `(color,value)`;
-the answer-flip ground truth is KNOWN — same color & more recent; does `w_reader·source` predict it, sound+tight?);
-(4) **bordering/Schur accuracy** (insert response = resolvent column sourced at the cut, rank-d, `ρ(G)` decay —
-validate like C2d-V1/V5).
+filler/relevant chunk); (3) **DWR reader-invariance for inserts on colored-recall** — ✅ **DONE (2026-07-13, `colored_dwr_insert.py`,
+note #11 §4a):** `w_reader·source` reader-restricted bound **100% sound**, **6–12× tighter** than global, and the
+sound bound **survives caching the adjoint** (refresh only the residual); certifies off-stripe INVARIANCE cleanly,
+but the nonlinear same-color SELECTION (flip discrimination) needs a fresh/bordering-corrected adjoint (collapses
+under the cached one on recency). The keystone, measured. → next: (4);
+(4) **bordering/Schur accuracy + the bordering-corrected cheap adjoint** (insert response = resolvent column
+sourced at the cut, rank-d, `ρ(G)` decay — validate like C2d-V1/V5; AND the Schur correction that makes the cheap
+DWR bound rigorous + recovers flip discrimination without a re-solve — the natural exp on top of #3).
 
 ## Framing decisions (locked)
 
