@@ -953,7 +953,8 @@ Gap-60 results (recall / rho(J) / sigma_min(I-J)):
   CAUSAL (currnp)
     anchorless control (scratch) : 0.640 / 10.33 / 0.0092
     anchor  from scratch         : 0.617 /  3.69 / 0.0294
-    anchor  GRAFT                : 0.801 /   -   / 0.016
+    anchorless control (GRAFT)   : 0.627 /  1.36 / 0.0004   <- matched twin of the graft anchor
+    anchor  GRAFT                : 0.801 /   -   / 0.0159
 
   BIDIR (bidirnp)
     anchorless control (scratch) : 0.478 /  1.14 / 0.0029
@@ -965,13 +966,17 @@ READ (substrate-dependent; corrects an earlier "just use the graft" instinct):
     (bidir 0.003->0.016) over the matched control, and tames rho (causal 10.3->3.7).
   * BIDIR: from-scratch canonical anchor is the outright winner -- recall 0.855 beats BOTH the control (0.478)
     and the graft (0.751). The register pays off most exactly where the banded relay craters. Use canonical.
-  * CAUSAL: graft wins on recall (0.80). The causal banded relay already half-works (control 0.64), and the
-    from-scratch anchor destabilizes without a recall gain -- it conditions but caps recall ~0.62. Use graft.
+  * CAUSAL: graft wins on recall (0.80), and its MATCHED graft-control makes it clean -- same warm-start recipe,
+    anchor the only difference: anchor 0.801/0.0159 vs graft-control 0.627/0.0004 = +0.17 recall, 40x sigma_min.
+    The control also craters (currnp40 0.81 -> 0.627 when fine-tuned out to gap 60 without the hub), so the anchor
+    is demonstrably what holds recall + conditioning. From scratch instead destabilizes (0.617, resid ~1e-2)
+    because the ever-present hub shortcuts the already-clean causal relay -- graft preserves that relay. Use graft.
   * NEGATIVE: co-training the register from scratch on the CAUSAL substrate settles into a high-gain,
     poorly-converged equilibrium (rho 3-4, DEQ residual ~1e-2 vs the ~1e-4 the solver should reach) -- the loss
     fits but the fixed point is not clean. The graft avoids this by keeping the already-well-conditioned body.
 
 Artifacts: checkpoints {currnp,bidirnp}anchor{00..60}.pt (canonical), {currnp,bidirnp}ctl{00..60}.pt (control),
-*anchor60_graft.pt (preserved graft). Scripts: experiments/curriculum_anchor.py, curriculum_anchorless.py.
+*anchor60_graft.pt (preserved graft), currnpgraftctl60.pt (causal graft-control). Scripts:
+experiments/curriculum_anchor.py, curriculum_anchorless.py, curriculum_graftctl60.py.
 Compute note: eval spectrum() needs ~5.7GB (dense ~4.5k^2 Jacobian + SVD), near-fills the 6GB card and
 serializes concurrent evals -> the 3-way concurrent run took ~170-224 min/substrate; see experiments/PERF_NOTES.md.
