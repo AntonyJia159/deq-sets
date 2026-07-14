@@ -38,6 +38,11 @@
   li { margin:.35em 0; }
   footer { margin-top:48px; padding-top:18px; border-top:1px solid var(--rule); color:var(--muted); font-size:.85rem; }
   .win { background:#eaf6ee; font-weight:600; }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .steps > li { position: relative; padding-left: 2.1em; margin: .55em 0; }
+  .steps > li::before { counter-increment: step; content: counter(step);
+    position:absolute; left:0; top:.05em; width:1.5em; height:1.5em; border-radius:50%;
+    background:var(--accent); color:#fff; font-size:.8em; font-weight:700; text-align:center; line-height:1.5em; }
 </style>
 </head>
 <body>
@@ -45,97 +50,168 @@
 <header>
   <p class="kicker">Set-DEQ Notes · #12 · structural edits — the algebra, the measured shadow, and one clean negative</p>
   <h1>Structured Edits: Insert/Delete as Operator Bordering</h1>
-  <p class="byline">Zhibai Jia · 15 July 2026 · a value edit is a vector the resolvent eats; an insert changes the operator's <em>size</em> — the native language is matrix bordering + Schur complement. What the tiers inherit, how far the shadow reaches (measured), and why the cheap adjoint is not rigorous.</p>
+  <p class="byline">Zhibai Jia · 15 July 2026 · a value edit is a vector the resolvent eats; an insert changes the operator's <em>size</em> — the native language is matrix bordering + Schur complement. The full predictor derivation, delete as its dual, keeping the band exact by re-blocking, how far the shadow reaches (measured), and why the cheap adjoint is not rigorous.</p>
 </header>
 
 <div class="callout">
   <strong>Scope.</strong> Note #11 covers value (fixed-size) edits: $\delta z=(I-J)^{-1}\delta h$, the reach envelope,
-  the residual and reader-set certificates. This note is the <em>structural</em> companion — insert, delete, splice —
-  which change the operator's dimension and so need a different piece of linear algebra. Three registers, kept apart:
-  the <span class="good">algebra</span> (bordering/Schur, exact), the <span class="good">measured</span> shadow decay
-  and rank, and one <span class="bad">measured negative</span> (no cheap <em>rigorous</em> adjoint). Everything is
-  toy-scale; the warm-start / RAG payoffs are proposals pending C7.
+  the residual and reader-set certificates. This is the <em>structural</em> companion — insert, delete, splice —
+  which change the operator's dimension. Three registers, kept apart: the <span class="good">algebra</span>
+  (bordering/Schur, exact for the frozen operator), the <span class="good">measured</span> shadow decay and rank,
+  and one <span class="bad">measured negative</span> (no cheap <em>rigorous</em> adjoint). The warm-start / RAG
+  payoffs are proposals pending C7; everything is toy-scale.
 </div>
 
 <h2>1. Why a structural edit is different</h2>
 
 <p>A <strong>value edit</strong> changes the injection in a fixed space, $h\to h+\delta h$; the operator $M=(I-J)$
-keeps its shape and the resolvent simply eats the perturbation, $\delta z^\star=M^{-1}\delta h$ (Note #11). An
-<strong>insert</strong> or <strong>delete</strong> changes the sequence <em>length</em>, so $M$ changes size and
-<em>every downstream index shifts</em>. Under an <strong>absolute</strong> positional embedding that re-indexing is
-itself a dense edit: even a semantically null filler insert changes every shifted token's $h_0$, casting a shadow
-over the whole downstream. Under a <strong>relative</strong> substrate (<code>NO_POSW</code>) a global shift is
-invisible to attention <em>except at the cut</em> — so insert/delete reduces to a <strong>width-$w$ content
-substitution straddling the cut</strong>. This is the <em>aligned-frame reduction</em>, and §4 measures that it is
-real. Everything algebraic below lives in that aligned frame.</p>
+keeps its shape and the resolvent eats the perturbation, $\delta z^\star=M^{-1}\delta h$. An <strong>insert</strong>
+or <strong>delete</strong> changes the sequence <em>length</em>, so $M$ changes size and every downstream index
+shifts. Under an <strong>absolute</strong> positional embedding that re-indexing is itself a dense edit (every
+shifted token's $h_0$ changes). Under a <strong>relative</strong> substrate (<code>NO_POSW</code>) a global shift is
+invisible to attention <em>except at the cut</em>, so insert/delete reduces to a <strong>width-$w$ content edit
+straddling the cut</strong> — the <em>aligned-frame reduction</em> (§5 measures it is real). Everything algebraic
+below lives in that aligned frame.</p>
 
 <div class="callout key">
-  <strong>The one-line lesson, one level up.</strong> Locality of a structural edit is genuine only in coordinates
+  <strong>The one-line lesson, one level up.</strong> A structural edit is local only in coordinates
   <em>attached to content</em> (token-attached blocks). Index-attached blocking manufactures a fake
-  "all-blocks-changed." It is the relative-vs-absolute-PE lesson again: structural edits are <em>local in every
-  structure attached to content, global in every structure attached to coordinates.</em>
+  "all-blocks-changed." Same relative-vs-absolute-PE lesson, one level up: <em>local in every structure attached to
+  content, global in every structure attached to coordinates.</em>
 </div>
 
-<h2>2. The bordering algebra</h2>
+<h2>2. Insert as bordering — the predictor, derived</h2>
 
-<p>Insert a token at cut $c$. In the aligned frame the new operator $M'$ is the old $M$ <strong>bordered</strong> by
-the new token's couplings — a new row/column plus a self-block:</p>
+<p>Insert a token $\nu$ at cut $c$. In the aligned frame the new operator is the old $M$ <strong>bordered</strong> by
+$\nu$'s couplings:</p>
 $$ M' = \begin{pmatrix} M & b \\ c^{\top} & \delta \end{pmatrix}, \qquad
-   b=\text{(old}\to\text{new)},\; c^{\top}=\text{(new}\to\text{old)},\; \delta=\text{(self)}. $$
-<p>Windowed attention makes $b,c$ nonzero <em>only</em> for old blocks inside the new token's window — they are
-<strong>spatially supported at the cut</strong>. That locality is the whole engine. Eliminating the new token
-(block Gaussian elimination) gives the old-block correction through the <strong>Schur complement</strong>
-$S=\delta-c^{\top}M^{-1}b$ (a $d\times d$ effective stiffness):</p>
-$$ [M'^{-1}]_{\text{old,old}} = M^{-1} + (M^{-1}b)\,S^{-1}\,(c^{\top}M^{-1}), \qquad
-   \det M' = \det M \cdot \det S. $$
-<p>So the inserted token perturbs the cached resolvent $R=M^{-1}$ by a <strong>rank-$\le d$ update</strong> sourced
-at the cut, and <em>all</em> of the new conditioning risk is carried by one local object: $\sigma_{\min}(S)$, the
-new-token stiffness, computable from $R$-blocks near the cut. <strong>Delete</strong> is the exact dual
-(downdating): remove token $b$ and the remaining inverse is $R_{AA}-R_{Ab}(R_{bb})^{-1}R_{bA}$ — subtract every
-resolvent path routed through the deleted token, gated by $\|R_{bb}^{-1}\|$ = the token's diagonal resolvent block,
-i.e. its <em>hub-ness</em>.</p>
+   b=(\text{old}\to\nu),\; c^{\top}=(\nu\to\text{old}),\; \delta=(\text{self}). $$
+
+<h3>Where the blocks come from</h3>
+<p>They are not free parameters — they are <strong>Jacobian blocks of the cell</strong>, gotten from the same
+autodiff the DEQ already runs, restricted to the cut window:</p>
+$$ b=-\tfrac{\partial f_{\text{old}}}{\partial z_\nu},\qquad
+   c^{\top}=-\tfrac{\partial f_\nu}{\partial z_{A}},\qquad
+   \delta=I-\tfrac{\partial f_\nu}{\partial z_\nu}. $$
+<p>$\delta$ is one <code>jacrev</code> on $\nu$'s own update; $c^{\top}$ is $\nu$'s Jacobian row (a VJP); $b$ is a
+JVP seeded at the new slot. Windowed attention makes $b,c^{\top}$ nonzero <strong>only for old tokens within $W$ of
+the cut</strong> — cost $O(Wd^{2})$, cut-local, length-independent. <strong>Crucially, evaluated where:</strong> for
+the predictor you differentiate at the <em>warm point</em> (cached old states $z^\star_{A}$ in $\nu$'s window + the
+fresh slot), <em>not</em> at the true new fixed point $z_2^\star$. That is what makes it cheap — and it is exactly
+the frozen-operator approximation whose error §4 quantifies.</p>
+
+<h3>The linear system, and what each symbol is</h3>
+<p>Linearize the cell around the old fixed point: $f(z,h)\approx Jz+g$ with $g:=f(z^\star,h)-Jz^\star$ the
+<strong>effective injection</strong>, so $z^\star=Rg$, $R=M^{-1}$. The new (first-order) equilibrium solves</p>
+$$ \begin{pmatrix} M & b \\ c^{\top} & \delta \end{pmatrix}\!
+   \begin{pmatrix} z_{A} \\ z_{\nu}\end{pmatrix} =
+   \begin{pmatrix} g \\ g_{\nu}\end{pmatrix}, $$
+<ul>
+  <li>$z^\star_{A}=Rg$ — cached old-token states (known);</li>
+  <li>$z_{A}$ — old-token states in the <em>new</em> equilibrium (aligned indices);</li>
+  <li>$z_{\nu}$ — the inserted token's state ($d$-vector);</li>
+  <li>$g$ — old effective injection, <strong>the same in both systems</strong> away from the cut (the aligned-frame
+      invariance — this is the substantive physical input, see below);</li>
+  <li>$g_{\nu}$ — the new token's effective injection, from its input $h_\nu$ (the only genuinely new forcing).</li>
+</ul>
+
+<h3>Eliminate the new slot → the source $u$</h3>
+<p>From the top row, $z_{A}=Rg-Rb\,z_{\nu}=z^\star_{A}-Rb\,z_{\nu}$. Substitute into the bottom row:</p>
+$$ \underbrace{(\delta-c^{\top}Rb)}_{S}\,z_{\nu}=g_{\nu}-c^{\top}Rg=g_{\nu}-c^{\top}z^\star_{A}. $$
+<p>So the predictor is two cut-local steps:</p>
+<ol class="steps">
+  <li><strong>New slot:</strong> $\;z_{\nu}=S^{-1}\big(g_{\nu}-c^{\top}z^\star_{A}\big)$ — $\nu$'s injection minus
+      what the <em>cached</em> old equilibrium drives into it through its window ($c^{\top}z^\star_{A}$, a cut-local
+      matvec), inverted by the new-token stiffness $S=\delta-c^{\top}Rb$ (needs $Rb$ = $R$ on $b$'s $d$ cut-local
+      columns; one $d\times d$ solve — <strong>the only new inverse</strong>).</li>
+  <li><strong>Old-block move:</strong> $\;u=-\,b\,z_{\nu}$, then $\;\delta z_{A}=R\,u.$</li>
+</ol>
+<p>That is how $u$ is formed: <strong>$u=-b\,z_\nu$</strong>, the new slot's state pushed back onto the old tokens
+through the coupling $b$. Because $b$ is cut-supported, $u$ is a cut-window vector in the old $N$-space, and
+$R_{\text{old}}u$ is the screened old-block displacement. Every object is cached ($R$, $z^\star_A$) or a $d\times d$
+block ($S$, $\delta$).</p>
+
+<div class="callout key">
+  <strong>Why "$z^\star=Rg$" earns its keep — it is bookkeeping, not a solve.</strong> Taken literally $z^\star=Rg$
+  is circular: $g$ is <em>defined</em> from $z^\star$, so you can't solve for $z^\star$ with it (the exception is a
+  genuinely affine $f$, where it is exact). Its real job is a <strong>cancellation</strong>: the insert leaves the
+  old tokens' injection $g$ unchanged away from the cut (relative-PE / aligned-frame invariance), so the <em>same</em>
+  $g$ sits in both systems and drops out of the difference — $\delta z_{A}=z_{A}-z^\star_{A}=-Rb\,z_{\nu}$, no $g$ in
+  sight. That cancellation is <em>why</em> the footprint is cut-local: the forcing changed only at the new slot and
+  the cut band. We never use the value of $g$, only (i) that it is shared, and (ii) the cached state $z^\star_{A}$ it
+  produces.
+</div>
 
 <h3>Theorem (a): the per-edit two-term envelope — spatial</h3>
-<p>Apply the cached tier-1 reach bound to each leg of the correction ($R$ acting on a cut-local source decays at the
-old rate, $\|[M^{-1}b]_i\|\le C'\rho^{d(i,\text{cut})}$, likewise for $c^{\top}M^{-1}$). The new response reach is</p>
+<p>Bounding each leg of $\delta z_A = Rb\,z_\nu$ with the cached tier-1 reach envelope (a resolvent column sourced at
+the cut decays at the old rate) gives the new response reach</p>
 $$ \big\|[R_{\text{new}}]_{ij}\big\| \;\le\; \underbrace{C\,\rho^{\,d(i,j)}}_{\text{direct}}
-   \;+\; \underbrace{\frac{C'C''}{\sigma_{\min}(S)}\,\rho^{\,d(i,\text{cut})+d(\text{cut},j)}}_{\text{through the new token}}. $$
-<p>Physically the inserted token is a <strong>scattering center</strong> at the cut: any $i\to j$ response gains one
-extra path (in to the cut, scatter with gain $1/\sigma_{\min}(S)$, out to $j$), each leg decaying at the old rate
-$\rho$. Since $d(i,\text{cut})+d(\text{cut},j)\ge d(i,j)$ (triangle inequality), the correction is never
-slower-decaying than the direct term — a subdominant bump localized at the cut. <strong>Rate inherited, constant
-picks up one factor.</strong> Nothing geometric is recomputed ($C,\rho,R$-blocks cached); the only new number is the
-scalar gate $\sigma_{\min}(S)$, from local blocks. This is what "the certificates close under structural edits"
-means concretely.</p>
+   \;+\; \underbrace{\tfrac{C'C''}{\sigma_{\min}(S)}\,\rho^{\,d(i,\text{cut})+d(\text{cut},j)}}_{\text{through }\nu}. $$
+<p>Physically $\nu$ is a <strong>scattering center</strong> at the cut: any $i\to j$ response gains one extra path
+(in to the cut, scatter with gain $1/\sigma_{\min}(S)$, out to $j$), each leg decaying at $\rho$. By the triangle
+inequality $d(i,\text{cut})+d(\text{cut},j)\ge d(i,j)$, the correction never decays slower than the direct term — a
+subdominant bump localized at the cut. <strong>Rate inherited, constant picks up one factor.</strong> The only new
+number is the scalar gate $\sigma_{\min}(S)$, from local blocks.</p>
 
 <h3>Theorem (b): the cumulative Stein budget — temporal</h3>
-<p>A <em>different</em> question: not "does this edit's envelope hold" but "how many edits before the cached geometry
-certificate goes stale." With the Stein RHS normalized to $-I$ (margin $\eta=1$), each edit spends
-$\lambda_{\max}(\Delta)$ of the budget, where $\Delta=\tilde G^{*}P\tilde E+\tilde E^{*}P\tilde G+\tilde E^{*}P\tilde E$
-is Hermitian, rank $O(d)$, localized at the cut. The cached Gramian $P$ stays valid while
-$\eta-\sum\lambda_{\max}(\Delta)>0$; cross that and you recertify. Keep (a) and (b) separate — (a) is per-edit and
-spatial, (b) is cumulative and temporal.</p>
+<p>A different question: not "does this edit's envelope hold" but "how many edits before the cached geometry goes
+stale." With the Stein RHS normalized to $-I$ (margin $\eta=1$), each edit spends $\lambda_{\max}(\Delta)$, where
+$\Delta=\tilde G^{*}P\tilde E+\tilde E^{*}P\tilde G+\tilde E^{*}P\tilde E$ is Hermitian, rank $O(d)$, localized at
+the cut. The cached Gramian $P$ stays valid while $\eta-\sum\lambda_{\max}(\Delta)>0$; cross it and recertify. Keep
+(a) and (b) separate — (a) per-edit and spatial, (b) cumulative and temporal.</p>
 
-<h3>All tiers inherit</h3>
-<ul>
-  <li><strong>Tier-1 (reach):</strong> the correction is a resolvent column sourced at the cut, decaying
-      $\rho^{\,d(\text{cut})}$ — exactly the measured rank 2–6 far field of §4.</li>
-  <li><strong>Tier-2 (residual):</strong> the bound holds on the new system, with the new conditioning risk carried
-      <em>solely</em> by $S$ ($\sigma_{\min}(S)$ the new-token stiffness gate).</li>
-  <li><strong>Directional / Woodbury:</strong> update $R$ by the rank-$d$ Schur term (Note #11½'s machinery).</li>
-  <li><strong>Reader-set / DWR:</strong> $w_{\text{reader}}\cdot(\text{bordering source})$ is a single inner product —
-      it certifies whether the edit changes any given reader's output <em>with no re-solve</em>.</li>
-</ul>
-<p class="muted">Lineage to cite: bordering/Schur complement (numerical LA); prolongation–restriction + DWR (adaptive
-mesh refinement, DWR's native home); Fock-space / domain-perturbation (the general "change the number/shape of
-inputs" move).</p>
+<p><strong>All tiers inherit.</strong> Tier-1 reach: the correction is a resolvent column sourced at the cut,
+decaying $\rho^{\,d(\text{cut})}$ (the measured rank 2–6 far field, §5). Tier-2 residual: holds on the new system,
+new conditioning carried <em>solely</em> by $\sigma_{\min}(S)$. Directional/Woodbury: rank-$d$ Schur update of $R$.
+Reader-set/DWR: $w_{\text{reader}}\!\cdot u$ is a single inner product — certifies whether the edit changes a given
+reader's output with no re-solve.</p>
 
-<h2>3. The measured shadow: how far does an insert actually reach?</h2>
+<h2>3. Delete — the dual, and it's even cheaper</h2>
 
-<p><code>c2_insertdelete.py</code> (n=8, gap-40 checkpoints). A null filler insert/delete in the filler region,
-diffed in the aligned frame (insert: old $i\ge c\leftrightarrow$ new $i{+}1$; delete: old $i>c\leftrightarrow$ new
-$i{-}1$), normalized by per-position state norm. The clean isolate is the <strong>positional-shadow ratio</strong> =
-insert far-field / substitution far-field on the <em>same architecture</em>, PE the only difference:</p>
+<p>Deletion removes token $\nu$ from a system where it was present. Reuse the same algebra in reverse. Pre-delete,
+the full equilibrium $(z^\star_{A},z^\star_{\nu})$ satisfied $Mz^\star_{A}+bz^\star_{\nu}=g$. Post-delete, the
+remaining tokens solve $Mz_{A}=g$ (same $g$ in the aligned frame; $\nu$'s coupling gone), so $z_{A}=Rg$. Subtract:</p>
+$$ \delta z_{A}^{\text{del}} \;=\; z_{A}-z^\star_{A} \;=\; +\,R\,b\,z^\star_{\nu}. $$
+<p>The mirror of insert ($-Rb\,z_\nu$) — but with a decisive simplification: the deleted token's state $z^\star_\nu$
+is <strong>already in the cache</strong> (it was part of the old equilibrium), so there is <em>no Schur solve</em>.
+Deletion's predictor is literally $R_{\text{old}}$ (cached, banded) applied to the cut-local vector $b\,z^\star_\nu$
+— cheaper than insert. On the resolvent side this is the standard <strong>downdating</strong></p>
+$$ R^{\text{del}}_{AA}=R_{AA}-R_{A\nu}\,(R_{\nu\nu})^{-1}\,R_{\nu A}, $$
+<p>subtract every resolvent path routed through $\nu$; the conditioning gate is $\|R_{\nu\nu}^{-1}\|$ = the deleted
+token's diagonal resolvent block, i.e. its <strong>hub-ness</strong> (a well-connected token is expensive to remove).
+As with insert there is also a cut-local <strong>band update</strong> $\Delta M_{\text{band}}$: the old tokens that
+had $\nu$ in their window lose it, changing their update — computed by the same autodiff at the cut.</p>
+
+<h2>4. Keeping the band exact: local re-blocking at the cut</h2>
+
+<p>The bordering above certifies via <em>banded body + rank-$d$ border</em>. There is a complementary move that keeps
+the operator <strong>exactly banded</strong>, so the Note-#11 block-tridiagonal certificate applies verbatim with no
+low-rank term at all. The certificate partitions the sequence into width-$W$ windows so that $J$ is block-bidiagonal
+(causal) / tridiagonal (bidir) — each block couples only to its neighbours. A structural edit misaligns that
+partition: at $W=10$, a <strong>deletion leaves the cut window width 9</strong>, and every downstream window boundary
+shifts by one token, so a fixed-index partition is no longer clean.</p>
+
+<div class="callout key">
+  <strong>The fix is to re-block locally, not globally.</strong> Merge the width-9 cut window with an adjacent
+  width-10 window into one <strong>width-19 super-block</strong>. Inside it, the misalignment is absorbed; outside it,
+  the boundaries snap back to the original grid (aligned frame — far windows are byte-identical under relative PE).
+  The result is a valid block-bidiagonal / tridiagonal partition with a <em>single enlarged diagonal block at the
+  cut</em>. Exact bandedness — and the reach/Stein certificate — is restored by paying one fat block
+  ($O(Wd)$ larger), not a global re-partition.
+</div>
+
+<p>This is the partition-level twin of the aligned-frame reduction: an insert/delete is a <em>local re-blocking at
+the cut</em>. Two equivalent readings of the same edit, pick per use: the <strong>rank-$d$ border</strong> (keep the
+old blocking, add a low-rank scattering term — best when you want to reuse the cached $R$ and gate on
+$\sigma_{\min}(S)$), or the <strong>width-19 re-block</strong> (keep it exactly banded, one larger block — best when
+you want the block-tridiagonal certificate to apply with no low-rank bookkeeping). The re-block localizes the churn
+to the merged block; everything beyond it is untouched.</p>
+
+<h2>5. The measured shadow: how far does an edit reach?</h2>
+
+<p><code>c2_insertdelete.py</code> (n=8, gap-40). A null filler insert/delete in the filler region, diffed in the
+aligned frame, normalized by per-position state norm. The clean isolate is the <strong>positional-shadow ratio</strong>
+= insert far-field / substitution far-field on the <em>same architecture</em>, PE the only difference:</p>
 
 <table>
 <thead><tr><th>checkpoint</th><th>PE</th><th>shadow ratio</th><th>reading</th></tr></thead>
@@ -146,33 +222,23 @@ insert far-field / substitution far-field on the <em>same architecture</em>, PE 
 </tbody>
 </table>
 
-<p><strong>Relative PE cuts the insert shadow ~33× (70→2)</strong> — the aligned-frame reduction, confirmed and
-isolated to the PE choice. Two more facts from the same run:</p>
-<ul>
-  <li><strong>Far-field rank 2–6 of $d{=}64$</strong> across all checkpoints — structural-edit shadows compress to
-      the carry "highway," so they are certifiable via a rank-$r$ update, same as substitutions.</li>
-  <li><strong>Causal <code>up_rel</code> $\approx 0$</strong> — the insert shadow is strictly downstream (causal
-      structure preserved: no upstream leakage). And <strong>warm &lt; cold</strong> at gap-40 (curr 25/53, bidir
-      18/34, bidirnp 38/64) — structural edits are maintainable by the aligned-frame warm start (splice a fresh slot
-      at the cut, keep the rest).</li>
-</ul>
+<p><strong>Relative PE cuts the insert shadow ~33× (70→2)</strong>, isolated to the PE choice. Plus:
+<strong>far-field rank 2–6 of $d{=}64$</strong> across all (structural-edit shadows compress to the carry "highway"
+→ certifiable by a rank-$r$ update); causal <code>up_rel</code> $\approx 0$ (shadow strictly downstream); and
+<strong>warm &lt; cold</strong> at gap-40 (curr 25/53, bidir 18/34, bidirnp 38/64 iters) — structural edits are
+maintainable by the aligned-frame warm start.</p>
 <div class="callout warn">
-  <strong>Honest caveats.</strong> gap-40 checkpoints are near-singular, so the far field is thin (few positions past
-  $2W$) and absolute magnitudes are large — the <em>ratio</em> is the clean signal, not the magnitudes; $n=8$;
-  gap-24 is too short to have any far field (uninformative); bidirnp24 warm&gt;cold (68/44) is the known
-  near-singular outlier. A clean causal-relative test and a longer-context (gap $\ge 60$) substrate with a thicker
-  far field are the owed strengtheners.
+  <strong>Caveats.</strong> gap-40 is near-singular so the far field is thin and magnitudes large — the
+  <em>ratio</em> is the signal, not the magnitudes; $n=8$; gap-24 too short to have a far field; bidirnp24 warm&gt;cold
+  (68/44) is the known near-singular outlier. A clean causal-relative test and a gap $\ge 60$ substrate are owed.
 </div>
 
-<h2>4. The negative: no cheap <em>rigorous</em> bordering adjoint</h2>
+<h2>6. The negative: no cheap <em>rigorous</em> bordering adjoint</h2>
 
-<p>The tempting deployment claim: reuse the pre-edit reader adjoint, apply a Schur/Woodbury correction from
-cut-local blocks, and get a <em>rigorous</em> post-insert bound for free. <code>colored_dwr_bordering.py</code> tested
-it and it <strong>fails — cleanly, and the failure is instructive.</strong></p>
-
-<p>The Woodbury identity itself is exact: reconstruct $R_2$ to machine precision ($\sim10^{-15}$) when the support
-$S$ is the whole sequence. But the insert's operator change at the <em>converged</em> fixed point,
-$\Delta M = J(z_2^\star)-J(z^\star)$, is <strong>non-local</strong>:</p>
+<p>The tempting deployment claim: reuse the pre-edit reader adjoint, correct it with a Schur/Woodbury term from
+cut-local blocks, and get a <em>rigorous</em> post-insert bound for free. <code>colored_dwr_bordering.py</code>
+tested it; it <strong>fails cleanly.</strong> Woodbury reconstruction is exact only when the support is the whole
+sequence:</p>
 
 <table>
 <thead><tr><th>support $S$ used</th><th>$\Delta M$ mass captured</th><th>reconstruction</th></tr></thead>
@@ -183,59 +249,73 @@ $\Delta M = J(z_2^\star)-J(z^\star)$, is <strong>non-local</strong>:</p>
 </tbody>
 </table>
 
-<p><strong>Cause — state dependence.</strong> $J$ depends on $z$, and inserting a token shifts the equilibrium
-<em>everywhere the insert reaches</em>, at rate $\rho(G)$. So $\Delta M$ is global, not window-local: exact bordering
-needs $S\approx L$, and <strong>no $O(Wd)$ rigorous cheap correction exists.</strong> This refutes an earlier
-overclaim ("a Schur/bordering correction makes the cached cheap adjoint rigorous") — the algebra of §2 is exact for
-the <em>frozen-operator</em> response, but the operator does not stay frozen across a re-solve.</p>
+<p><strong>Cause — state dependence.</strong> $J$ depends on $z$, and the insert shifts the equilibrium
+<em>everywhere it reaches</em> (rate $\rho(G)$), so $\Delta M=J(z_2^\star)-J(z^\star)$ is global, not window-local:
+exact bordering needs $S\approx L$, and <strong>no $O(Wd)$ rigorous cheap correction exists.</strong> This refutes an
+earlier overclaim: the §2 algebra is exact for the <em>frozen-operator</em> response, but the operator does not stay
+frozen across a re-solve.</p>
 
 <div class="callout key">
   <strong>What survives — a useful partial.</strong> A <em>warm-local</em> bordering (correct the adjoint over a
-  local support around the cut) does recover <strong>flip discrimination on long-range edits</strong> that the naive
-  cached adjoint misses entirely (naive $0\times \to$ warm-Schur $13\text{–}20\times \approx$ oracle
-  $13\text{–}29\times$), and it stays <strong>100% sound</strong>. But it reconstructs the <em>warm</em> operator,
-  not $R_2$ (reconstruction error 20–990% on large edits) — so it is a cheap <em>approximate</em> discriminator, not
-  a rigorous bound. <strong>Net:</strong> cheap sound bound (naive cached adjoint) <em>and</em> cheap approximate
-  long-range discrimination (warm-bordering); rigorous exact = re-solve. Structural-edit resolvent updates do not
-  localize.
+  local support) recovers <strong>flip discrimination on long-range edits</strong> that the naive cached adjoint
+  misses (naive $0\times \to$ warm-Schur $13\text{–}20\times \approx$ oracle $13\text{–}29\times$), staying
+  <strong>100% sound</strong> — but it reconstructs the <em>warm</em> operator, not $R_2$ (recon error 20–990% on
+  large edits), so it is a cheap <em>approximate</em> discriminator, not a rigorous bound. <strong>Net:</strong>
+  cheap sound bound (naive) <em>and</em> cheap approximate long-range discrimination (warm-bordering); rigorous
+  exact = re-solve.
 </div>
 
-<h2>5. What it is good for: warm-start, warmer-than-warm, and RAG metering</h2>
+<h2>7. Warm-start vs warmer-than-warm — precisely</h2>
 
-<p>The negative is about <em>rigor</em>, not <em>utility</em>. Two payoffs remain, both squarely in the
-predict→certify→correct loop (Note #11½):</p>
+<p>Three inits for the post-edit re-solve, in increasing quality; the last two are the whole efficiency story.</p>
+
+<table>
+<thead><tr><th>init</th><th>what you seed</th><th>cost</th></tr></thead>
+<tbody>
+  <tr><td><strong>Cold</strong></td><td>zeros on the new system</td><td>full solve</td></tr>
+  <tr><td><strong>Partial warm-start</strong></td><td>aligned copy: old $z^\star$ at shifted indices + fresh slot (insert) / drop slot (delete)</td><td>free</td></tr>
+  <tr><td class="win"><strong>Warmer-than-warm</strong></td><td>aligned copy <em>plus</em> the predicted move: old blocks $\leftarrow z^\star_A+\delta z_A$, new slot $\leftarrow z_\nu$</td><td>one $R$-action on cut-local $u$ + a $d\times d$ solve</td></tr>
+</tbody>
+</table>
+
 <ul>
-  <li><strong>Warm start (correcting an earlier overstatement).</strong> Insert/delete <em>do</em> have a warm start
-      — the aligned-frame copy (old states at shifted positions, initialize the new slot); only the cut's $\xi$-ball
-      re-settles. Woodbury-bordering is the "warmer-than-warm" <em>predictor</em> on top — so this is the same
-      warm-vs-warmer question as value edits, not warm-vs-cold.</li>
-  <li><strong>Does warmer-than-warm beat warm all-in?</strong> Conditional. The predictor is a resolvent action
-      $R\cdot\text{source}$; a local edit touches only cached block-columns of $R$ in the $\xi$-ball $\approx$ one
-      local iteration's work, so it pays iff it saves more than one Broyden iteration (toy: 15–30% $=$ 2–4 iters) —
-      <em>and only if $R$ is amortized</em> across many edits to a fixed base. Recompute-per-edit is a wash.</li>
+  <li><strong>Partial warm-start</strong> is the structural analog of value-edit warm-start (reuse old $z^\star$). It
+      is <em>partial</em> because the sizes differ — you can reuse only the aligned positions, and must supply the new
+      slot (insert) or drop it (delete). Its leverage: <strong>only the cut's $\xi$-ball actually re-settles</strong>;
+      the far field is already converged (that is the §5 shadow decay), so the solver moves a local neighbourhood, not
+      the sequence. This is what "warm &lt; cold" measures.</li>
+  <li><strong>Warmer-than-warm</strong> improves that seed by the §2/§3 predictor: add $\delta z_A=R\,u$
+      ($u=-b\,z_\nu$ for insert, $u=+b\,z^\star_\nu$ for delete) to the aligned old states, and use $z_\nu$ for the
+      new slot instead of a naive init. It seeds the re-solve <em>inside</em> the cut ball closer to the answer,
+      trimming iterations. Delete is cheapest — $z^\star_\nu$ is cached, so no Schur solve.</li>
 </ul>
 
 <div class="callout">
-  <strong>The amortized regime is RAG.</strong> Insert/delete into a fixed cached base = retrieval-augmented
-  generation, and it flips wash → net win. Mainstream RAG (<code>[docs][query]</code> on a decoder) is <em>causal
-  with a known reader</em>, which is the clean case on three counts: (i) <strong>append is free</strong> ($b=0$
-  bordering, prefix preserved — "no free append on the bidirectional face" is exactly this stated in reverse);
-  (ii) a mid-insert is <strong>one-sided</strong> (downstream causal cone; prefix untouched); (iii) the query is a
-  <strong>known reader</strong>, so DWR applies causally <em>despite</em> near-singularity. Metering then has two
-  cheap read-outs: compute cost $\propto$ chunk $\|\Delta z\|$; and the DWR answer
-  $w_{\text{query}}\cdot(\text{chunk source})$ = "does this document change the answer" — attribution/pruning,
-  sound and tight, with no re-solve for inert chunks. (Speculative-but-concrete: DEQ-RAG is not deployed; this is a
-  mechanism, not a benchmark.)
+  <strong>When warmer-than-warm actually pays.</strong> The predictor is one resolvent action on a cut-local $u$
+  $\approx$ one local iteration's work, so it pays iff it saves <em>more than one</em> Broyden iteration (toy: 15–30%
+  = 2–4 iters) <strong>and</strong> $R$ is <em>amortized</em> across many edits to a fixed base. Recompute-$R$-per-edit
+  is a wash. The amortized regime is <strong>RAG</strong> (insert/delete into a fixed cached base), which flips wash →
+  net win: append is free ($b=0$, prefix preserved), a mid-insert is one-sided on the causal face, and the query is a
+  known reader so DWR meters "does this chunk change the answer" ($w_{\text{query}}\!\cdot u$) with no re-solve for
+  inert chunks.
 </div>
 
-<h2>6. Placement</h2>
-<p>Three claim-strengths, never mixed: the bordering algebra and the two theorems are <span class="good">theory
-(exact for the frozen-operator response)</span>; the shadow ratio (70× → 2×), the rank 2–6 far field, and the
-warm&lt;cold maintainability are <span class="good">measured</span>; the cheap rigorous adjoint is a
+<div class="callout warn">
+  <strong>It is an initializer, not a certificate.</strong> Warmer-than-warm is the frozen-operator, first-order
+  prediction — it uses the cached $R_{\text{old}}$, never $R_{\text{new}}$. The <em>displacement</em> $\delta z$ it
+  predicts is screened (§5), but the <em>operator</em> update $R_{\text{new}}-R_{\text{old}}$ is diffuse (§6), which
+  is exactly why there is no one-shot exact update — the diffuse remainder is what the re-solve cleans up. Both inits
+  converge to the same fixed point; the predictor only changes how fast.
+</div>
+
+<h2>8. Placement</h2>
+<p>Three claim-strengths, never mixed: the bordering algebra, the two theorems, the delete dual, and the re-blocking
+are <span class="good">theory (exact for the frozen operator)</span>; the shadow ratio (70→2×), the rank 2–6 far
+field, and warm&lt;cold are <span class="good">measured</span>; the cheap rigorous adjoint is a
 <span class="bad">measured negative</span> (state dependence delocalizes $\Delta M$); the warm-vs-warmer net-win and
-RAG metering are <span class="warn">proposed</span>, pending the C7 maintenance run. The honest headline: an insert is
-a scattering center at the cut whose <em>response</em> reach is cheap and cut-local, but whose <em>operator</em>
-update across a re-solve is not — so reuse the geometry, price the recert, and re-solve when you need the exact
+RAG metering are <span class="warn">proposed</span>, pending C7. Headline: an insert/delete is a scattering center at
+the cut whose <em>response</em> reach is cheap and cut-local, but whose <em>operator</em> update across a re-solve is
+not — so reuse the geometry (rank-$d$ border or a width-19 re-block), price the recert, and re-solve for the exact
 answer.</p>
 
 <footer>
