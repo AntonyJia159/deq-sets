@@ -936,3 +936,42 @@ we measure" — a limitation *quantified by our own invariant*, which is the rig
 7. **Insert/delete (§11) → v2 spine, now UNBLOCKED:** insert-type `apply_edit` + alignment bookkeeping on the
    bidirnp checkpoints, vs the "band at the cut" prediction. Optional: re-run C2-bidir on bidirnp for substrate
    consistency; anchor token in the drawer if gap-40 recall (0.819) needs a boost.
+
+---
+
+## 14. Anchor / global register: canonical (from-scratch) vs graft, matched pairs (2026-07-14)
+
+The gap-60 near-singular relay (pure-banded craters: currnp 0.70/smin~0, bidirnp 0.46/smin~0) motivated a
+GLOBAL REGISTER token (sw.ANCHOR, slot 0, hub-and-spoke, rank-d border). Two build modes, each matched against a
+same-recipe ANCHORLESS control so the anchor is the ONLY difference:
+  - GRAFT (curriculum_anchor60): warm-start the trained *40 body (strict=False, fresh anchor), short 40/60 ramp.
+  - CANONICAL from scratch (curriculum_anchor): ANCHOR on from step 0 through the full window->gap curriculum,
+    PHASE_B extended to 60. Anchorless control = curriculum_anchorless (identical recipe, ANCHOR off).
+
+Gap-60 results (recall / rho(J) / sigma_min(I-J)):
+
+  CAUSAL (currnp)
+    anchorless control (scratch) : 0.640 / 10.33 / 0.0092
+    anchor  from scratch         : 0.617 /  3.69 / 0.0294
+    anchor  GRAFT                : 0.801 /   -   / 0.016
+
+  BIDIR (bidirnp)
+    anchorless control (scratch) : 0.478 /  1.14 / 0.0029
+    anchor  from scratch         : 0.855 /  2.91 / 0.0156
+    anchor  GRAFT                : 0.751 /   -   / 0.0001
+
+READ (substrate-dependent; corrects an earlier "just use the graft" instinct):
+  * CONDITIONING rescue in every case: from-scratch anchor lifts sigma_min ~3x (causal 0.009->0.029) to ~5x
+    (bidir 0.003->0.016) over the matched control, and tames rho (causal 10.3->3.7).
+  * BIDIR: from-scratch canonical anchor is the outright winner -- recall 0.855 beats BOTH the control (0.478)
+    and the graft (0.751). The register pays off most exactly where the banded relay craters. Use canonical.
+  * CAUSAL: graft wins on recall (0.80). The causal banded relay already half-works (control 0.64), and the
+    from-scratch anchor destabilizes without a recall gain -- it conditions but caps recall ~0.62. Use graft.
+  * NEGATIVE: co-training the register from scratch on the CAUSAL substrate settles into a high-gain,
+    poorly-converged equilibrium (rho 3-4, DEQ residual ~1e-2 vs the ~1e-4 the solver should reach) -- the loss
+    fits but the fixed point is not clean. The graft avoids this by keeping the already-well-conditioned body.
+
+Artifacts: checkpoints {currnp,bidirnp}anchor{00..60}.pt (canonical), {currnp,bidirnp}ctl{00..60}.pt (control),
+*anchor60_graft.pt (preserved graft). Scripts: experiments/curriculum_anchor.py, curriculum_anchorless.py.
+Compute note: eval spectrum() needs ~5.7GB (dense ~4.5k^2 Jacobian + SVD), near-fills the 6GB card and
+serializes concurrent evals -> the 3-way concurrent run took ~170-224 min/substrate; see experiments/PERF_NOTES.md.
