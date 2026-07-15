@@ -101,8 +101,14 @@ fresh slot), <em>not</em> at the true new fixed point $z_2^\star$. That is what 
 the frozen-operator approximation whose error §4 quantifies.</p>
 
 <h3>The linear system, and what each symbol is</h3>
-<p>Linearize the cell around the old fixed point: $f(z,h)\approx Jz+g$ with $g:=f(z^\star,h)-Jz^\star$ the
-<strong>effective injection</strong>, so $z^\star=Rg$, $R=M^{-1}$. The new (first-order) equilibrium solves</p>
+<p>Take the tangent (first-order) model of the cell at $z^\star$: $f(z,h)\approx Jz+g$, where $J=\partial f/\partial
+z|_{z^\star}$ is the <strong>local gain</strong> (the "weight matrix" analog — the linear part of the cell at
+$z^\star$) and $g:=f(z^\star,h)-Jz^\star$ is the <strong>tangent offset</strong> — just the intercept that pins the
+tangent line to the true value $f(z^\star)$. It is <em>not</em> an input injection: for the actual cell
+$f=sA(z)+h_0$ it works out to $g=\underbrace{h_0}_{\text{literal input drive}}+\underbrace{(sA(z^\star)-Jz^\star)}_{\text{nonlinear scrap at }z^\star}$
+— the input drive <em>plus</em> the part of the nonlinearity that $J$ can't capture (zero only if $f$ is genuinely
+affine). We never interpret or use $g$'s value; it cancels (see below). With it, $z^\star=Rg$, $R=M^{-1}$. The new
+(first-order) equilibrium solves</p>
 $$ \begin{pmatrix} M & b \\ c^{\top} & \delta \end{pmatrix}\!
    \begin{pmatrix} z_{A} \\ z_{\nu}\end{pmatrix} =
    \begin{pmatrix} g \\ g_{\nu}\end{pmatrix}, $$
@@ -110,9 +116,13 @@ $$ \begin{pmatrix} M & b \\ c^{\top} & \delta \end{pmatrix}\!
   <li>$z^\star_{A}=Rg$ — cached old-token states (known);</li>
   <li>$z_{A}$ — old-token states in the <em>new</em> equilibrium (aligned indices);</li>
   <li>$z_{\nu}$ — the inserted token's state ($d$-vector);</li>
-  <li>$g$ — old effective injection, <strong>the same in both systems</strong> away from the cut (the aligned-frame
-      invariance — this is the substantive physical input, see below);</li>
-  <li>$g_{\nu}$ — the new token's effective injection, from its input $h_\nu$ (the only genuinely new forcing).</li>
+  <li>$g$ — the old system's tangent offset, <strong>the same in both systems</strong> away from the cut (the
+      aligned-frame invariance — this is the substantive input, and it cancels, see below);</li>
+  <li>$g_{\nu}$ — the new slot's forcing, the only genuinely new term. <strong>Here is a subtlety worth naming:</strong>
+      to be the same species as $g$, this should be the new slot's tangent offset <em>at the new equilibrium</em> —
+      but that needs $z_\nu$, the very unknown we are solving for. So we can only evaluate it at the warm point (or,
+      cruder, as the pure input drive $h_\nu$ — dropping the new slot's own nonlinear scrap). See the callout after
+      the derivation.</li>
 </ul>
 
 <h3>Eliminate the new slot → the source $u$</h3>
@@ -135,11 +145,26 @@ block ($S$, $\delta$).</p>
   <strong>Why "$z^\star=Rg$" earns its keep — it is bookkeeping, not a solve.</strong> Taken literally $z^\star=Rg$
   is circular: $g$ is <em>defined</em> from $z^\star$, so you can't solve for $z^\star$ with it (the exception is a
   genuinely affine $f$, where it is exact). Its real job is a <strong>cancellation</strong>: the insert leaves the
-  old tokens' injection $g$ unchanged away from the cut (relative-PE / aligned-frame invariance), so the <em>same</em>
-  $g$ sits in both systems and drops out of the difference — $\delta z_{A}=z_{A}-z^\star_{A}=-Rb\,z_{\nu}$, no $g$ in
-  sight. That cancellation is <em>why</em> the footprint is cut-local: the forcing changed only at the new slot and
-  the cut band. We never use the value of $g$, only (i) that it is shared, and (ii) the cached state $z^\star_{A}$ it
-  produces.
+  old tokens' tangent offset $g$ unchanged away from the cut (relative-PE / aligned-frame invariance), so the
+  <em>same</em> $g$ sits in both systems and drops out of the difference —
+  $\delta z_{A}=z_{A}-z^\star_{A}=-Rb\,z_{\nu}$, no $g$ in sight. That cancellation is <em>why</em> the footprint is
+  cut-local: the forcing changed only at the new slot and the cut band. We never use the value of $g$, only (i) that
+  it is shared, and (ii) the cached state $z^\star_{A}$ it produces.
+</div>
+
+<div class="callout warn">
+  <strong>The $g$ / $g_\nu$ asymmetry is why this is a <em>guess</em>, not the exact answer.</strong> Notice the two
+  offsets are not the same species. $g$ is the old system's tangent offset <em>at its converged equilibrium</em>
+  $z^\star$ — it carries the full nonlinear scrap. But the matching object for the new slot,
+  $r_\nu=f_\nu(z^{\text{new}\star})-(\text{Jac row})\,z^{\text{new}\star}$, lives at the <em>new</em> equilibrium,
+  which is exactly the unknown. We cannot form it, so we substitute what we can evaluate — the new slot's offset at
+  the <em>warm point</em>, or, cruder, the pure input drive $h_\nu$. That substitution is the whole approximation:
+  the old system contributes <em>exactly</em> (known, cancels), while the new token can only be guessed
+  <strong>linearly</strong>, precisely <em>because its equilibrium is not yet known</em>. So $z_\nu$ and
+  $\delta z_A$ below are a <strong>principled first-order (tangent) prediction</strong> — the correct linear term,
+  like a Newton/Euler predictor, not an ad-hoc rule — but a prediction, whose quality is set by how nonlinearly the
+  new token settles. Two error sources, both cleaned by the re-solve: (i) the new token's own missing
+  nonlinear-at-equilibrium offset, and (ii) the operator drift $\Delta M$ (§6).
 </div>
 
 <h3>Theorem (a): the per-edit two-term envelope — spatial</h3>
@@ -301,12 +326,30 @@ frozen across a re-solve.</p>
 </div>
 
 <div class="callout warn">
-  <strong>It is an initializer, not a certificate.</strong> Warmer-than-warm is the frozen-operator, first-order
-  prediction — it uses the cached $R_{\text{old}}$, never $R_{\text{new}}$. The <em>displacement</em> $\delta z$ it
-  predicts is screened (§5), but the <em>operator</em> update $R_{\text{new}}-R_{\text{old}}$ is diffuse (§6), which
-  is exactly why there is no one-shot exact update — the diffuse remainder is what the re-solve cleans up. Both inits
-  converge to the same fixed point; the predictor only changes how fast.
+  <strong>It is an initializer, not a certificate — but not a heuristic either.</strong> "Heuristic" undersells it:
+  the predictor is the <em>exact first-order (tangent) term</em>, the same status as a Newton/Euler predictor in
+  continuation methods, with a known error order — not an ad-hoc rule that seems to help. What makes it only an
+  <em>initializer</em> is that it is first-order and uses the cached $R_{\text{old}}$, never $R_{\text{new}}$: the
+  <em>displacement</em> $\delta z$ it predicts is screened (§5), but the <em>operator</em> update
+  $R_{\text{new}}-R_{\text{old}}$ is diffuse (§6), so there is no one-shot exact update — the diffuse remainder (plus
+  the new token's missing nonlinear offset, §2) is what the re-solve cleans up. Both inits converge to the same fixed
+  point; the predictor only changes how fast, and only pays when $R$ is amortized (RAG).
 </div>
+
+<p>So keep the bordering's two products at different altitudes — the <em>reach/soundness</em> statements are
+load-bearing certificates you can trust without re-solving; the <em>state prediction</em> is a principled but
+optional accelerator (this is why Note #11½ files the whole predict-side under "efficiency spin-off, not the
+spine"):</p>
+
+<table>
+<thead><tr><th>object</th><th>status</th><th>use</th></tr></thead>
+<tbody>
+  <tr><td>reach envelope · $\sigma_{\min}(S)$ gate · DWR invariance $w\!\cdot\!u$</td><td class="good">certificate (sound)</td><td>trust it, no re-solve</td></tr>
+  <tr><td>delete dual · local re-blocking</td><td class="good">exact structural identity</td><td>reorganize the operator</td></tr>
+  <tr><td>$z_\nu,\ \delta z_A$ predictor</td><td class="warn">principled first-order warm start</td><td>accelerate, then certify + correct</td></tr>
+  <tr><td>exact new resolvent, one shot</td><td class="bad">no cheap form (§6)</td><td>re-solve</td></tr>
+</tbody>
+</table>
 
 <h2>8. Placement</h2>
 <p>Three claim-strengths, never mixed: the bordering algebra, the two theorems, the delete dual, and the re-blocking
